@@ -1,0 +1,25 @@
+# Running Coaching — dependencias Python
+# Instalar: pip install -r requirements.txt
+
+# Data
+pandas>=2.0.0
+duckdb>=0.10.0
+openpyxl>=3.1.0
+
+# Google Sheets
+gspread>=6.0.0
+google-auth>=2.0.0
+google-auth-oauthlib>=1.0.0
+
+# Strava / HTTP
+requests>=2.31.0
+
+# PDF Report
+reportlab>=4.0.0
+matplotlib>=3.7.0
+
+# Config
+python-dotenv>=1.0.0
+
+# AI (fase 2)
+anthropic>=0.40.0

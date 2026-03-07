@@ -1,0 +1,34 @@
+# ─── Secretos (NUNCA al repo) ───────────────────────
+.env
+secrets/
+*.json.key
+
+# ─── Datos generados localmente ─────────────────────
+data/
+
+# ─── Python ─────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+venv/
+.venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# ─── Jupyter ────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ─── Sistema ────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+
+# ─── IDEs ───────────────────────────────────────────
+.vscode/
+.idea/
+*.swp

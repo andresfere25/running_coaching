@@ -1,0 +1,88 @@
+# .github/workflows/weekly_pipeline.yml
+#
+# Pipeline semanal automatizado de Running Coaching.
+# Se ejecuta cada LUNES a las 6:00am (hora Bogotá, UTC-5 = 11:00 UTC).
+# También se puede lanzar manualmente desde GitHub → Actions → Run workflow.
+
+name: 🏃 Weekly Running Pipeline
+
+on:
+  schedule:
+    - cron: "0 11 * * 1"   # lunes 6:00am Bogotá
+  workflow_dispatch:         # disparo manual desde GitHub UI
+    inputs:
+      cedula:
+        description: "Cédula del atleta (vacío = todos)"
+        required: false
+        default: ""
+      skip_strava:
+        description: "Omitir sync de Strava"
+        type: boolean
+        default: false
+
+jobs:
+  pipeline:
+    name: Run Pipeline
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # 1. Checkout del código
+      - name: 📦 Checkout
+        uses: actions/checkout@v4
+
+      # 2. Python 3.12
+      - name: 🐍 Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      # 3. Instalar dependencias
+      - name: 📚 Install dependencies
+        run: pip install -r requirements.txt
+
+      # 4. Reconstruir el service account JSON desde GitHub Secret
+      - name: 🔑 Reconstruct Google credentials
+        run: |
+          mkdir -p secrets
+          echo '${{ secrets.GOOGLE_SA_JSON }}' > secrets/google_service_account.json
+
+      # 5. Crear .env desde secrets
+      - name: ⚙️ Create .env
+        run: |
+          cat > .env << EOF
+          SHEET_ID=${{ secrets.SHEET_ID }}
+          GOOGLE_SA_JSON=secrets/google_service_account.json
+          STRAVA_CLIENT_ID=${{ secrets.STRAVA_CLIENT_ID }}
+          STRAVA_CLIENT_SECRET=${{ secrets.STRAVA_CLIENT_SECRET }}
+          DATA_DIR=data/athletes
+          TIMEZONE=America/Bogota
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          EOF
+
+      # 6. Correr el pipeline
+      - name: 🚀 Run pipeline
+        run: |
+          if [ -n "${{ github.event.inputs.cedula }}" ]; then
+            CEDULA_FLAG="--cedula ${{ github.event.inputs.cedula }}"
+          else
+            CEDULA_FLAG="--all"
+          fi
+
+          STRAVA_FLAG=""
+          if [ "${{ github.event.inputs.skip_strava }}" = "true" ]; then
+            STRAVA_FLAG="--skip-strava"
+          fi
+
+          python run_pipeline.py $CEDULA_FLAG $STRAVA_FLAG
+
+      # 7. Subir PDFs generados como artefactos descargables
+      - name: 📄 Upload PDF reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coaching-reports-${{ github.run_number }}
+          path: data/athletes/*/outputs/*.pdf
+          retention-days: 30
+          if-no-files-found: warn
