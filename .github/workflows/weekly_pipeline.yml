@@ -3,16 +3,24 @@
 # Pipeline semanal automatizado de Running Coaching.
 # Se ejecuta cada LUNES a las 6:00am (hora Bogotá, UTC-5 = 11:00 UTC).
 # También se puede lanzar manualmente desde GitHub → Actions → Run workflow.
+#
+# NOTA SOBRE --all vs --cedula:
+#   El flag --all descubre atletas desde data/athletes/ local.
+#   En CI esa carpeta no existe (gitignoreada), por lo que --all falla en el runner.
+#   Solución: el workflow siempre usa --cedula con la cédula configurada.
+#   Para correr todos los atletas localmente: python run_pipeline.py --all
+#   Para agregar una cédula diferente en CI: ajustar CEDULA_DEFAULT en GitHub Secrets
+#   o usar el input manual de workflow_dispatch.
 
-name: 🏃 Weekly Running Pipeline
+name: Running Coaching Pipeline
 
 on:
   schedule:
-    - cron: "0 11 * * 1"   # lunes 6:00am Bogotá
-  workflow_dispatch:         # disparo manual desde GitHub UI
+    - cron: "0 11 * * 1"   # lunes 6:00am Bogotá (UTC-5 = 11:00 UTC)
+  workflow_dispatch:
     inputs:
       cedula:
-        description: "Cédula del atleta (vacío = todos)"
+        description: "Cédula del atleta a procesar (deja vacío para usar CEDULA_DEFAULT)"
         required: false
         default: ""
       skip_strava:
@@ -28,28 +36,28 @@ jobs:
 
     steps:
       # 1. Checkout del código
-      - name: 📦 Checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
       # 2. Python 3.12
-      - name: 🐍 Setup Python 3.12
+      - name: Setup Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
 
       # 3. Instalar dependencias
-      - name: 📚 Install dependencies
+      - name: Install dependencies
         run: pip install -r requirements.txt
 
       # 4. Reconstruir el service account JSON desde GitHub Secret
-      - name: 🔑 Reconstruct Google credentials
+      - name: Reconstruct Google credentials
         run: |
           mkdir -p secrets
           echo '${{ secrets.GOOGLE_SA_JSON }}' > secrets/google_service_account.json
 
       # 5. Crear .env desde secrets
-      - name: ⚙️ Create .env
+      - name: Create .env
         run: |
           cat > .env << EOF
           SHEET_ID=${{ secrets.SHEET_ID }}
@@ -62,23 +70,28 @@ jobs:
           EOF
 
       # 6. Correr el pipeline
-      - name: 🚀 Run pipeline
+      #    Resolución de cédula (en orden de prioridad):
+      #      1. Input manual de workflow_dispatch
+      #      2. Secret CEDULA_DEFAULT configurado en el repo
+      #      3. Fallback hardcodeado (atleta de prueba)
+      - name: Run pipeline
         run: |
-          if [ -n "${{ github.event.inputs.cedula }}" ]; then
-            CEDULA_FLAG="--cedula ${{ github.event.inputs.cedula }}"
-          else
-            CEDULA_FLAG="--all"
-          fi
+          INPUT_CEDULA="${{ github.event.inputs.cedula }}"
+          DEFAULT_CEDULA="${{ secrets.CEDULA_DEFAULT }}"
+          CEDULA="${INPUT_CEDULA:-${DEFAULT_CEDULA:-1070982737}}"
+
+          CEDULA_FLAG="--cedula $CEDULA"
 
           STRAVA_FLAG=""
           if [ "${{ github.event.inputs.skip_strava }}" = "true" ]; then
             STRAVA_FLAG="--skip-strava"
           fi
 
+          echo "Procesando cedula: $CEDULA"
           python run_pipeline.py $CEDULA_FLAG $STRAVA_FLAG
 
       # 7. Subir PDFs generados como artefactos descargables
-      - name: 📄 Upload PDF reports
+      - name: Upload PDF reports
         if: always()
         uses: actions/upload-artifact@v4
         with:

@@ -48,8 +48,13 @@ def compute_semaforo(latest_checkin: dict) -> str:
     - ROJO: dolor >=4 o fatigue>=8 o skipped_sessions==True o feeling<=4
     - AMARILLO: dolor 2-3 o fatigue 6-7 o feeling 5-6 o sueño malo/estrés alto
     - VERDE: lo demás (conservador)
+    - SIN_CHECKIN: no hay checkin o el checkin no es reciente (>10 días)
     """
     if not latest_checkin:
+        return "SIN_CHECKIN"
+
+    # Si el check-in existe pero es antiguo, no es confiable para tomar decisiones
+    if not latest_checkin.get("is_recent", True):
         return "SIN_CHECKIN"
 
     ck = latest_checkin.get("latest_checkin", {}) if "latest_checkin" in latest_checkin else latest_checkin

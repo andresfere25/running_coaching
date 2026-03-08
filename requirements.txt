@@ -4,7 +4,6 @@
 # Data
 pandas>=2.0.0
 duckdb>=0.10.0
-openpyxl>=3.1.0
 
 # Google Sheets
 gspread>=6.0.0
@@ -14,12 +13,14 @@ google-auth-oauthlib>=1.0.0
 # Strava / HTTP
 requests>=2.31.0
 
-# PDF Report
+# PDF Report (legado/fallback — el objetivo futuro es una app/web)
 reportlab>=4.0.0
 matplotlib>=3.7.0
 
 # Config
 python-dotenv>=1.0.0
 
-# AI (fase 2)
-anthropic>=0.40.0
+# ─── Dependencias futuras (agregar cuando se implementen) ────────────────────
+# anthropic>=0.40.0     # Claude API — para observaciones personalizadas (fase 2)
+# fastapi>=0.110.0      # Backend API REST (migración a app/web)
+# uvicorn>=0.29.0       # Servidor ASGI para FastAPI
