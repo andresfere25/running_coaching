@@ -20,6 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 ai = ["anthropic>=0.40.0"]
+api = ["fastapi>=0.110.0", "uvicorn[standard]>=0.29.0"]
 dev = ["pytest>=8.0.0"]
 
 [tool.setuptools.packages.find]

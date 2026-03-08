@@ -20,7 +20,10 @@ matplotlib>=3.7.0
 # Config
 python-dotenv>=1.0.0
 
+# Backend API (Fase 1)
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+
 # ─── Dependencias futuras (agregar cuando se implementen) ────────────────────
 # anthropic>=0.40.0     # Claude API — para observaciones personalizadas (fase 2)
-# fastapi>=0.110.0      # Backend API REST (migración a app/web)
-# uvicorn>=0.29.0       # Servidor ASGI para FastAPI
+# supabase>=2.0.0       # Base de datos externa (reemplaza data/ local y Google Sheets)

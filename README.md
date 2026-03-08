@@ -165,6 +165,65 @@ data/athletes/1070982737/
 
 ---
 
+## Backend API (Fase 1)
+
+El backend FastAPI expone el pipeline como endpoints REST.
+Es la base para la futura app/web de coaching.
+
+### Levantar el servidor localmente
+
+```bash
+# Desde la raíz del proyecto
+uvicorn api.main:app --reload --port 8000
+```
+
+El servidor queda disponible en `http://localhost:8000`.
+La documentación interactiva (Swagger) en `http://localhost:8000/docs`.
+
+### Endpoints disponibles
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/health` | Healthcheck del servidor |
+| `GET` | `/athletes` | Lista atletas con datos locales |
+| `GET` | `/athletes/{cedula}/profile` | Perfil del atleta (Form de ingreso) |
+| `GET` | `/athletes/{cedula}/snapshot` | Estado actual (semáforo + última semana) |
+| `GET` | `/athletes/{cedula}/plan` | Plan semanal (running + fuerza) |
+| `GET` | `/athletes/{cedula}/features?weeks=12` | Historial semanal de features |
+| `GET` | `/athletes/{cedula}/checkin` | Último check-in registrado |
+| `POST` | `/athletes/{cedula}/pipeline` | Dispara el pipeline en background |
+
+### Autenticación (opcional)
+
+Si la variable `API_KEY` está configurada en `.env`, todos los endpoints
+(excepto `/health`) requieren el header `X-API-Key: <valor>`.
+
+Si `API_KEY` no está configurada, el server corre sin auth (modo desarrollo).
+
+```bash
+# .env
+API_KEY=mi-clave-secreta-local
+```
+
+### Disparar el pipeline desde la API
+
+```bash
+# Pipeline completo para un atleta
+curl -X POST http://localhost:8000/athletes/1070982737/pipeline
+
+# Solo recalcular features + plan (sin re-ingestar)
+curl -X POST "http://localhost:8000/athletes/1070982737/pipeline?steps=features&steps=plan"
+
+# Sin Strava
+curl -X POST "http://localhost:8000/athletes/1070982737/pipeline?skip_strava=true"
+```
+
+El endpoint responde inmediatamente (`status: queued`).
+El pipeline corre en background. Los resultados aparecen en `/snapshot` y `/plan`
+después de ~30-90 segundos.
+
+---
+
 ## Tests
 
 ```bash
