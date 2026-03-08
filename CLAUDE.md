@@ -21,18 +21,65 @@ Este proyecto tiene **dos dimensiones que deben coexistir**, no competir:
 
 ---
 
+## Lo que se construyó en la sesión 2026-03-07
+
+### Estabilización del repo (commit `12909a5`)
+- `CLAUDE.md` creado (este archivo)
+- `.env.example` creado con todas las variables documentadas
+- `tests/test_sanity.py` creado — 12 smoke tests sin dependencias externas
+- `ml/README.md` creado — estructura base del módulo de ML
+- Fix GitHub Actions: eliminado `--all` en CI, reemplazado por lógica de 3 niveles (input → secret `CEDULA_DEFAULT` → fallback `1070982737`)
+- Fix `compute_semaforo`: ahora respeta `is_recent` — check-in antiguo retorna `SIN_CHECKIN`
+- `requirements.txt`: eliminados `anthropic` y `openpyxl` (sin uso)
+- `pyproject.toml`: corregido entry point, `anthropic` movido a dep opcional `[ai]`, pytest configurado
+
+### Backend FastAPI (commit `a8d6941`)
+- `api/` creado con 8 endpoints funcionales sobre el pipeline existente
+- `GET /health`, `GET /athletes`, `GET /athletes/{cedula}/profile|snapshot|plan|features|checkin`
+- `POST /athletes/{cedula}/pipeline` — dispara pipeline en background (BackgroundTask + subprocess)
+- `api/deps.py`: `sanitize_json()` resuelve NaN de pandas antes de serializar
+- Frontend y backend en el mismo origen — sin CORS ni proxy
+- Documentación Swagger auto-generada en `/docs`
+
+### Frontend Alpine.js (commit `c662906`)
+- `frontend/index.html` + `frontend/app.js` — dashboard completo sin Node.js
+- Stack: Alpine.js 3 + Tailwind CSS Play CDN + Chart.js 4 (todo vía CDN)
+- Servido por FastAPI como static files en `/app`
+- Secciones: semáforo banner, 6 KPIs, plan semanal (7 col), 2 gráficos (km/ACWR), tabla de historial
+- Lógica separada en `app.js` para facilitar futura migración a React
+
+---
+
+## Siguiente paso recomendado
+
+**Prioridad inmediata — una acción antes de la próxima sesión de código:**
+> Agregar el secret `CEDULA_DEFAULT = 1070982737` en GitHub → Settings → Secrets → Actions.
+> Esto activa el workflow automático de los lunes sin intervención manual.
+
+**Siguiente bloque de trabajo (elegir uno):**
+
+| Opción | Qué desbloquea | Esfuerzo |
+|---|---|---|
+| **A — EDA del módulo ML** | Componente académico: explorar `archive(3)/Results.csv`, implementar baseline Riegel, primer notebook de predicción de tiempo | 1-2 sesiones |
+| **B — Migrar `data/` a Supabase** | CI real, deploy del backend, múltiples atletas sin depender del disco local | 2-3 sesiones |
+| **C — Instalar Node.js + migrar frontend a React/Vite** | HMR, componentes reutilizables, TypeScript, base seria para el frontend final | 1 sesión |
+
+**Recomendación**: ir por **A** primero. El componente ML es el diferenciador académico y no requiere infraestructura nueva. Luego **B** para desbloquear el deploy. Luego **C** para el frontend final.
+
+---
+
 ## Estado actual vs. arquitectura objetivo
 
 **SIEMPRE distinguir entre:**
 
 | Dimensión | Estado actual | Objetivo futuro |
 |---|---|---|
-| Entregable | PDF por atleta | App/web con dashboard interactivo |
-| Storage | `data/` local + Google Sheets | Base de datos externa (Supabase/PostgreSQL) |
-| Backend | Script CLI (`run_pipeline.py`) | API REST (FastAPI) |
-| Frontend | Ninguno | Next.js o SvelteKit |
+| Entregable | PDF (legado) + dashboard Alpine.js en `/app` | App/web React con auth y deploy |
+| Storage | `data/` local + Google Sheets | Supabase (PostgreSQL + Storage) |
+| Backend | FastAPI local (`api/`) — 8 endpoints funcionales | FastAPI deployado en Fly.io/Railway |
+| Frontend | Alpine.js servido por FastAPI (sin Node) | React + Vite + Next.js |
 | ML | Heurísticas (reglas if/else) | Modelos entrenados con datos reales |
-| CI/CD | GitHub Actions (parcialmente roto) | Pipeline estable + deploy automático |
+| CI/CD | GitHub Actions estabilizado (cédula por secret) | Pipeline + deploy automático |
 
 **El PDF es legado/fallback.** No es el objetivo. No construir nuevas features sobre el PDF.
 
@@ -40,11 +87,12 @@ Este proyecto tiene **dos dimensiones que deben coexistir**, no competir:
 
 ## Prioridad actual (en orden)
 
-1. **Estabilizar GitHub**: repo limpio, Actions funcional, estrategia de automatización clara
-2. **Estructura ML**: módulo `ml/` separado del pipeline operacional
-3. **Backend API**: FastAPI sobre el pipeline existente (no reescribir, envolver)
-4. **Frontend mínimo**: dashboard básico por atleta
-5. **Modelo ML**: predicción de tiempo de carrera con datos reales
+1. ~~Estabilizar GitHub~~ ✅ resuelto
+2. ~~Backend API~~ ✅ FastAPI con 8 endpoints funcional
+3. ~~Frontend mínimo~~ ✅ Alpine.js dashboard en `/app`
+4. **EDA + baseline ML**: notebooks en `ml/`, explorar datasets, implementar Riegel
+5. **Migrar storage a Supabase**: desbloquea CI real y deploy
+6. **Migrar frontend a React/Vite**: cuando Node.js esté disponible
 
 ---
 
