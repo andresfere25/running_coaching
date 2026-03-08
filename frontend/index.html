@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Running Coaching</title>
+
+  <!-- Tailwind CSS (Play CDN — suficiente para desarrollo) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+  <!-- Alpine.js (cargado al final para que app.js esté disponible) -->
+  <script defer src="/app/app.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <style>
+    [x-cloak] { display: none !important; }
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .card { @apply bg-white rounded-xl shadow-sm border border-gray-100; }
+    .section-title { @apply text-base font-semibold text-gray-800 mb-4; }
+  </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen" x-data="athleteApp()" x-cloak>
+
+  <!-- ══════════════════════════════════════════════ HEADER ══════════════ -->
+  <header class="bg-gray-900 text-white px-6 py-4 flex items-center justify-between shadow-lg">
+    <div class="flex items-center gap-3">
+      <span class="text-2xl">🏃</span>
+      <div>
+        <h1 class="text-lg font-bold leading-tight">Running Coaching</h1>
+        <p class="text-xs text-gray-400">Dashboard del atleta</p>
+      </div>
+    </div>
+
+    <!-- Buscador de cédula -->
+    <form @submit.prevent="search()" class="flex items-center gap-2">
+      <input
+        x-model="cedula"
+        type="text"
+        placeholder="Cédula del atleta..."
+        class="px-3 py-2 rounded-lg text-sm text-gray-900 bg-white border-0
+               focus:outline-none focus:ring-2 focus:ring-blue-400 w-48"
+      />
+      <button
+        type="submit"
+        :disabled="loading"
+        class="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300
+               text-white text-sm font-medium rounded-lg transition-colors"
+      >
+        <span x-show="!loading">Buscar</span>
+        <span x-show="loading">...</span>
+      </button>
+    </form>
+  </header>
+
+  <!-- ══════════════════════════════════════════════ MAIN ════════════════ -->
+  <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- Error -->
+    <div x-show="error" x-transition
+         class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-6 py-4 flex items-start gap-3">
+      <span class="text-xl mt-0.5">⚠️</span>
+      <div>
+        <p class="font-medium">No se pudo cargar el atleta</p>
+        <p class="text-sm mt-1" x-text="error"></p>
+        <p class="text-xs mt-2 text-red-500">
+          Verifica que el backend esté corriendo: <code>uvicorn api.main:app --port 8000</code>
+        </p>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div x-show="loading" x-transition class="flex flex-col items-center justify-center py-20 gap-4">
+      <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      <p class="text-gray-500 text-sm">Cargando datos del atleta...</p>
+    </div>
+
+    <!-- ── DASHBOARD (visible cuando hay datos) ──────────────────────── -->
+    <div x-show="snapshot && !loading" x-transition class="space-y-6">
+
+      <!-- ══ 1. SEMÁFORO + KPIs ══════════════════════════════════════════ -->
+      <div class="card overflow-hidden">
+
+        <!-- Barra de semáforo -->
+        <div class="px-6 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+             :style="{ backgroundColor: semConfig.bg }">
+          <div class="flex items-center gap-4">
+            <div>
+              <div class="text-white/80 text-xs font-medium uppercase tracking-wider mb-0.5">
+                Estado semanal
+              </div>
+              <div class="text-white text-2xl font-bold" x-text="semLabel"></div>
+              <div class="text-white/80 text-sm" x-text="semConfig.label"></div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-white/80 text-xs">Semana del</div>
+            <div class="text-white font-semibold text-lg"
+                 x-text="snapshot?.latest_week?.week_start || '—'"></div>
+            <div class="text-white/70 text-xs mt-0.5"
+                 x-text="'Generado: ' + (snapshot?.generated_at?.slice(0,16)?.replace('T',' ') || '—')"></div>
+          </div>
+        </div>
+
+        <!-- Atleta info -->
+        <div class="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h2 class="text-xl font-bold text-gray-900" x-text="athleteName"></h2>
+            <p class="text-sm text-gray-500">
+              <span x-text="profile.goal_main || '—'"></span>
+              <span class="mx-1">·</span>
+              <span x-text="profile.race_distance || '—'"></span>
+              <template x-if="profile.race_date_raw">
+                <span> · Carrera: <span x-text="profile.race_date_raw"></span></span>
+              </template>
+            </p>
+          </div>
+          <div class="flex items-center gap-4 text-sm text-gray-500">
+            <span>Ritmos reportados:</span>
+            <span class="font-mono bg-green-50 text-green-700 px-2 py-1 rounded text-xs"
+                  x-text="'Suave: ' + paceStr(profile.easy_pace_sec_per_km)"></span>
+            <span class="font-mono bg-yellow-50 text-yellow-700 px-2 py-1 rounded text-xs"
+                  x-text="'Mod: ' + paceStr(profile.mod_pace_sec_per_km)"></span>
+            <span class="font-mono bg-red-50 text-red-700 px-2 py-1 rounded text-xs"
+                  x-text="'Rápido: ' + paceStr(profile.fast_pace_sec_per_km)"></span>
+          </div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 p-6">
+          <template x-for="kpi in kpis" :key="kpi.label">
+            <div class="rounded-xl p-4 text-center"
+                 :style="{ backgroundColor: kpiCardStyle(kpi.color).bg }">
+              <div class="text-2xl font-bold leading-none"
+                   :style="{ color: kpiCardStyle(kpi.color).text }"
+                   x-text="kpi.value + (kpi.unit ? ' ' + kpi.unit : '')"></div>
+              <div class="text-xs text-gray-500 mt-2 leading-tight" x-text="kpi.label"></div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- ══ 2. PLAN SEMANAL ═════════════════════════════════════════════ -->
+      <div class="card p-6">
+        <div class="flex items-center justify-between mb-5">
+          <h3 class="section-title mb-0">Plan semanal</h3>
+          <span class="text-sm font-semibold px-3 py-1 rounded-full text-white"
+                :style="{ backgroundColor: weekTypeColor }"
+                x-text="weekType"></span>
+        </div>
+
+        <!-- Tabla de días -->
+        <div class="grid grid-cols-7 gap-2 text-center">
+
+          <!-- Cabeceras de días -->
+          <template x-for="d in planDays" :key="d.day">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider pb-2 border-b border-gray-100"
+                 x-text="d.day.slice(0,3)"></div>
+          </template>
+
+          <!-- Sesiones por día -->
+          <template x-for="d in planDays" :key="'sess-' + d.day">
+            <div class="space-y-1.5 min-h-[80px] pt-2">
+
+              <!-- Sin sesión -->
+              <template x-if="d.sessions.length === 0">
+                <div class="text-xs text-gray-300 pt-4">—</div>
+              </template>
+
+              <!-- Con sesiones -->
+              <template x-for="s in d.sessions" :key="s.session + s.type">
+                <div class="rounded-lg px-2 py-2 text-left"
+                     :style="{ backgroundColor: sessionBg(s.type) }">
+                  <div class="text-xs font-semibold leading-tight"
+                       :style="{ color: sessionColor(s.type) }"
+                       x-text="s.session"></div>
+                  <template x-if="s.km">
+                    <div class="text-xs text-gray-500 mt-0.5" x-text="s.km + ' km'"></div>
+                  </template>
+                  <template x-if="s.pace">
+                    <div class="text-xs text-gray-400 leading-tight" x-text="s.pace"></div>
+                  </template>
+                  <template x-if="s.details">
+                    <div class="text-xs text-gray-500 mt-0.5"
+                         x-text="s.details.length + ' ejercicios'"></div>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+
+        <!-- Targets y notas -->
+        <div class="mt-5 flex flex-col sm:flex-row sm:items-start gap-4 pt-4 border-t border-gray-100">
+          <div class="flex gap-4 text-sm text-gray-600">
+            <span>🎯 Objetivo:
+              <strong x-text="(plan?.targets?.target_km_week || '—') + ' km'"></strong>
+            </span>
+            <span>🏃 Días running:
+              <strong x-text="plan?.targets?.days_running || '—'"></strong>
+            </span>
+            <span>💪 Días fuerza:
+              <strong x-text="plan?.targets?.days_strength || '—'"></strong>
+            </span>
+          </div>
+        </div>
+
+        <!-- Notas del plan -->
+        <template x-if="planNotes.length">
+          <div class="mt-3 space-y-1">
+            <template x-for="note in planNotes" :key="note">
+              <p class="text-xs text-gray-500 flex items-start gap-2">
+                <span class="text-blue-400 mt-0.5 shrink-0">ℹ</span>
+                <span x-text="note"></span>
+              </p>
+            </template>
+          </div>
+        </template>
+      </div>
+
+      <!-- ══ 3. GRÁFICOS DE EVOLUCIÓN ══════════════════════════════════ -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- Km por semana -->
+        <div class="card p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="section-title mb-0">Km por semana</h3>
+            <span class="text-xs text-gray-400"
+                  x-text="'Últimas ' + (features?.weeks_returned || 0) + ' semanas'"></span>
+          </div>
+          <div class="h-48">
+            <canvas id="chartKm"></canvas>
+          </div>
+        </div>
+
+        <!-- ACWR -->
+        <div class="card p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="section-title mb-0">ACWR — Riesgo de carga</h3>
+            <div class="flex items-center gap-3 text-xs text-gray-400">
+              <span class="flex items-center gap-1">
+                <span class="inline-block w-3 h-0.5 bg-green-400"></span> Zona segura (0.8–1.3)
+              </span>
+            </div>
+          </div>
+          <div class="h-48">
+            <canvas id="chartAcwr"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ 4. HISTORIAL DE FEATURES ═══════════════════════════════════ -->
+      <div class="card p-6">
+        <h3 class="section-title">Historial de features semanales</h3>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm text-left">
+            <thead>
+              <tr class="border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wider">
+                <th class="pb-3 pr-4">Semana</th>
+                <th class="pb-3 pr-4 text-right">Km</th>
+                <th class="pb-3 pr-4 text-right">Sesiones</th>
+                <th class="pb-3 pr-4 text-right">Fondo km</th>
+                <th class="pb-3 pr-4 text-right">Ritmo prom</th>
+                <th class="pb-3 pr-4 text-right">ACWR</th>
+                <th class="pb-3 text-right">Monotonía</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-if="features?.data">
+                <template x-for="(row, i) in [...features.data].reverse()" :key="row.week_start">
+                  <tr class="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                      :class="i === 0 ? 'font-semibold bg-blue-50' : ''">
+                    <td class="py-2.5 pr-4 text-gray-700" x-text="row.week_start"></td>
+                    <td class="py-2.5 pr-4 text-right text-gray-800" x-text="fmt(row.km_week) + ' km'"></td>
+                    <td class="py-2.5 pr-4 text-right text-gray-600" x-text="fmt(row.sessions_week, 0)"></td>
+                    <td class="py-2.5 pr-4 text-right text-gray-600" x-text="fmt(row.long_run_km) + ' km'"></td>
+                    <td class="py-2.5 pr-4 text-right font-mono text-gray-600"
+                        x-text="paceStr(row.pace_sec_per_km_week)"></td>
+                    <td class="py-2.5 pr-4 text-right">
+                      <span class="px-2 py-0.5 rounded-full text-xs font-medium"
+                            :class="{
+                              'bg-green-100 text-green-700': row.acwr >= 0.8 && row.acwr <= 1.3,
+                              'bg-yellow-100 text-yellow-700': row.acwr > 1.3 && row.acwr <= 1.5,
+                              'bg-red-100 text-red-700': row.acwr > 1.5 || row.acwr < 0.8,
+                              'bg-gray-100 text-gray-500': !row.acwr
+                            }"
+                            x-text="fmt(row.acwr, 2)">
+                      </span>
+                    </td>
+                    <td class="py-2.5 text-right text-gray-600" x-text="fmt(row.monotony, 2)"></td>
+                  </tr>
+                </template>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══ 5. CHECK-IN MÁS RECIENTE (inline, compacto) ════════════════ -->
+      <div class="card p-6">
+        <h3 class="section-title">Último check-in</h3>
+
+        <template x-if="snapshot?.latest_week">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div x-data="{ ck: snapshot }" class="contents">
+
+              <!-- Semáforo checkin -->
+              <div class="col-span-2 sm:col-span-4 rounded-lg px-4 py-3 flex items-center gap-3"
+                   :style="{ backgroundColor: semConfig.badge }">
+                <div class="text-2xl font-black"
+                     :style="{ color: semConfig.bg }"
+                     x-text="semLabel"></div>
+                <div class="text-sm" :class="semConfig.text">
+                  <span x-text="semConfig.label"></span>
+                </div>
+              </div>
+
+              <!-- Stats del check-in -->
+              <template x-for="kpi in [
+                { label: 'Sesiones completadas', value: snapshot.latest_week?.sessions_week, unit: '' },
+                { label: 'Km totales', value: fmt(snapshot.latest_week?.km_week), unit: ' km' },
+                { label: 'Run largo', value: fmt(snapshot.latest_week?.long_run_km), unit: ' km' },
+                { label: 'Ritmo promedio', value: paceStr(snapshot.latest_week?.pace_sec_per_km_week), unit: '' },
+              ]">
+                <div class="bg-gray-50 rounded-lg p-4">
+                  <div class="text-xl font-bold text-gray-900"
+                       x-text="(kpi.value || '—') + kpi.unit"></div>
+                  <div class="text-xs text-gray-500 mt-1" x-text="kpi.label"></div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
+    </div>
+    <!-- fin dashboard -->
+
+    <!-- Estado inicial (sin datos cargados) -->
+    <div x-show="!snapshot && !loading && !error"
+         class="text-center py-20 text-gray-400">
+      <div class="text-5xl mb-4">🏃</div>
+      <p class="text-lg font-medium text-gray-500">Ingresa una cédula para ver el dashboard</p>
+      <p class="text-sm mt-2">Backend: <code class="bg-gray-100 px-2 py-0.5 rounded">localhost:8000</code></p>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="text-center py-8 text-xs text-gray-400 mt-4">
+    Running Coaching System · Maestría en Analítica Aplicada ·
+    <a href="/docs" target="_blank" class="underline hover:text-gray-600">API Docs</a>
+  </footer>
+
+</body>
+</html>

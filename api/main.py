@@ -7,12 +7,15 @@ Corre con:
 Desde la raíz del proyecto (donde está run_pipeline.py).
 """
 
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()  # carga .env antes de importar routers
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from api.routers import athletes, health, pipeline
 
@@ -58,4 +61,15 @@ def root():
         "version": "0.1.0",
         "docs": "/docs",
         "health": "/health",
+        "app": "/app",
     }
+
+
+# ─── Frontend estático ────────────────────────────────────────────────────────
+# Montado AL FINAL para que los routers de la API tengan prioridad.
+# Acceso: http://localhost:8000/app
+# El frontend llama a /athletes/... directamente (mismo origen, sin CORS).
+
+_frontend_dir = Path(__file__).parent.parent / "frontend"
+if _frontend_dir.exists():
+    app.mount("/app", StaticFiles(directory=str(_frontend_dir), html=True), name="frontend")
