@@ -28,21 +28,22 @@ def seconds_to_pace_str(sec_per_km: float | None) -> str:
 
 def choose_week_type(semaforo: str, acwr: float | None, monotony: float | None) -> str:
     """
-    Decide tipo de semana.
-    - ROJO / SIN_CHECKIN: descarga
-    - AMARILLO: conservadora
-    - VERDE: progreso, pero si ACWR alto o monotony alta -> conservadora
+    Decide tipo de semana según el semáforo del último check-in y métricas de carga.
+
+    - ROJO:        descarga — hay señal clara de sobrecarga o malestar
+    - SIN_CHECKIN: conservadora — no hay información suficiente; no castigar al atleta
+    - AMARILLO:    conservadora
+    - VERDE:       progreso, excepto si ACWR o monotonía están elevados
     """
     sem = (semaforo or "").upper()
 
-    if sem in ("ROJO", "SIN_CHECKIN"):
+    if sem == "ROJO":
         return "DESCARGA"
 
-    if sem == "AMARILLO":
+    if sem in ("SIN_CHECKIN", "AMARILLO"):
         return "CONSERVADORA"
 
-    # VERDE
-    # umbrales simples (ajustables)
+    # VERDE — verificar métricas de carga antes de progresar
     if acwr is not None and pd.notna(acwr) and acwr >= 1.5:
         return "CONSERVADORA"
     if monotony is not None and pd.notna(monotony) and monotony >= 2.0:
@@ -51,15 +52,26 @@ def choose_week_type(semaforo: str, acwr: float | None, monotony: float | None) 
     return "PROGRESO"
 
 
-def build_running_week(days_target: int, week_type: str, paces: dict, last_week_km: float | None):
+def build_running_week(
+    days_target: int,
+    week_type: str,
+    paces: dict,
+    last_week_km: float | None,
+    km_week_min: float | None = None,
+    km_week_max: float | None = None,
+):
     """
     Arma una semana de running en formato de sesiones.
+
+    km_week_min / km_week_max: rango declarado por el atleta en el Form (perfil).
+    Se usa como piso de validación para que el plan nunca quede absurdamente bajo
+    respecto al nivel real del atleta.
     """
     easy = paces.get("easy")
     mod = paces.get("mod")
     fast = paces.get("fast")
 
-    # km base sugeridos según semana
+    # km base: última semana real de Strava
     base_km = float(last_week_km) if last_week_km is not None and pd.notna(last_week_km) else 0.0
 
     if week_type == "DESCARGA":
@@ -72,9 +84,18 @@ def build_running_week(days_target: int, week_type: str, paces: dict, last_week_
         target_km = max(0.0, base_km * 1.07)  # +7%
         quality = True
 
-    # Si no hay base, define un mínimo razonable por días
+    # Si no hay base Strava, usar el rango declarado del atleta (km_week_min) o fallback por días
     if target_km == 0.0:
-        target_km = {2: 12, 3: 16, 4: 20, 5: 26, 6: 32, 7: 36}.get(days_target, 20)
+        if km_week_min and km_week_min > 0:
+            target_km = km_week_min
+        else:
+            target_km = {2: 12, 3: 16, 4: 20, 5: 26, 6: 32, 7: 36}.get(days_target, 20)
+
+    # Piso de validación: el plan nunca puede caer por debajo del 60% del km_week_min declarado.
+    # Esto evita planes absurdos cuando el atleta tuvo una semana atípicamente baja en Strava.
+    if km_week_min and km_week_min > 0:
+        floor_km = km_week_min * 0.60
+        target_km = max(target_km, floor_km)
 
     # Distribución simple por tipo (rodajes + fondo + calidad)
     # Porcentaje aproximado
@@ -259,23 +280,83 @@ def main(cedula: str | None = None):
     days_target = int(profile.get("days_run_per_week") or 4)
     strength_days = int(profile.get("strength_days_per_week") or 2)
     preferred_days = profile.get("preferred_run_days") or []
+    km_week_min = profile.get("km_week_min")
+    km_week_max = profile.get("km_week_max")
 
     week_type = choose_week_type(semaforo, acwr, monotony)
 
-    running_sessions, target_km = build_running_week(days_target, week_type, paces, last_week_km)
+    running_sessions, target_km = build_running_week(
+        days_target, week_type, paces, last_week_km,
+        km_week_min=km_week_min, km_week_max=km_week_max,
+    )
     strength_routines = build_strength_week(strength_days, week_type)
     plan = place_sessions_into_week(running_sessions, strength_routines, preferred_days)
+
+    # ─── Distribución de km por tipo de sesión ──────────────────────────────
+    dist_km = {"easy_km": 0.0, "fondo_km": 0.0, "quality_km": 0.0}
+    for sess in running_sessions:
+        name_lower = sess[0].lower()
+        km_val = sess[1]
+        if "fondo" in name_lower:
+            dist_km["fondo_km"] += km_val
+        elif any(k in name_lower for k in ("interv", "fartlek", "tempo")):
+            dist_km["quality_km"] += km_val
+        else:
+            dist_km["easy_km"] += km_val
+    dist_km = {k: round(v, 1) for k, v in dist_km.items()}
+
+    # ─── Resumen y explicación legible ──────────────────────────────────────
+    sem_labels = {
+        "VERDE": "check-in VERDE (estado óptimo)",
+        "AMARILLO": "check-in AMARILLO (precaución)",
+        "ROJO": "check-in ROJO (reducir carga)",
+        "SIN_CHECKIN": "sin check-in reciente",
+    }
+    type_labels = {
+        "PROGRESO": "de progresión (+7%)",
+        "CONSERVADORA": "conservadora (volumen estable)",
+        "DESCARGA": "de descarga (-30%)",
+    }
+    base_str = f"{last_week_km:.1f} km reales (Strava)" if last_week_km and pd.notna(last_week_km) else "sin datos previos"
+    week_summary = (
+        f"Semana {type_labels.get(week_type, week_type)} — "
+        f"{sem_labels.get(semaforo, semaforo)}. "
+        f"Base: {base_str} → Objetivo: {target_km:.1f} km."
+    )
+
+    # Calcular km esperado si el próximo check-in es VERDE
+    next_if_verde_km = None
+    if last_week_km and pd.notna(last_week_km):
+        next_if_verde_km = round(float(last_week_km) * 1.07, 1)
+
+    focus_map = {
+        "DESCARGA": "Recuperación activa — rodajes suaves y fuerza preventiva.",
+        "CONSERVADORA": "Consolidación de base — mantener ritmo y consistencia.",
+        "PROGRESO": "Progresión de volumen — aumentar carga gradualmente.",
+    }
 
     out = {
         "cedula": cedula,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "week_type": week_type,
         "semaforo": semaforo,
+        "weekly_focus": focus_map.get(week_type, ""),
+        "week_summary": week_summary,
+        "coach_explanation": {
+            "trigger": f"{semaforo} → {week_type}",
+            "base_km": round(float(last_week_km), 2) if last_week_km and pd.notna(last_week_km) else None,
+            "multiplier": {"DESCARGA": 0.70, "CONSERVADORA": 0.90, "PROGRESO": 1.07}.get(week_type),
+            "target_km": target_km,
+            "km_week_min_profile": km_week_min,
+            "km_week_max_profile": km_week_max,
+            "next_week_if_verde_km": next_if_verde_km,
+        },
         "targets": {
             "target_km_week": target_km,
             "days_running": days_target,
             "days_strength": strength_days
         },
+        "distribution_km": dist_km,
         "plan_by_day": plan,
         "notes": [
             "Si aparece dolor > 3 o fatiga > 7 durante la semana: bajar intensidad y priorizar rodajes suaves.",

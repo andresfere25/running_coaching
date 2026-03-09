@@ -65,7 +65,11 @@ def parse_range_km_week(x: Any) -> Tuple[Optional[float], Optional[float]]:
 
 
 
-def parse_time_to_seconds(x: Any) -> Optional[int]:
+def parse_pace_to_seconds(x: Any) -> Optional[int]:
+    """
+    Para ritmos min/km. Siempre interpreta 2 partes como MM:SS.
+    "4:20" → 260s, "5:00" → 300s, "45" → 2700s
+    """
     s = norm_str(x)
     if s == "" or s.lower() in ("no sé", "no se", "ns"):
         return None
@@ -83,6 +87,44 @@ def parse_time_to_seconds(x: Any) -> Optional[int]:
     if len(parts) == 1:
         return parts[0] * 60
     return None
+
+
+def parse_duration_to_seconds(x: Any) -> Optional[int]:
+    """
+    Para PRs de carrera y tiempos objetivo. Distingue H:MM vs MM:SS:
+    - 3 partes: siempre H:MM:SS
+    - 2 partes, primera <= 9 → H:MM  (ej: "1:25" = 1h 25min = 5100s)
+    - 2 partes, primera >= 10 → MM:SS (ej: "45:30" = 45min 30s = 2730s)
+    - 1 parte: minutos
+
+    La heurística de <=9 es segura: ningún runner tiene PR < 10min
+    en ninguna distancia relevante (5K, 10K, 21K, 42K).
+    """
+    s = norm_str(x)
+    if s == "" or s.lower() in ("no sé", "no se", "ns"):
+        return None
+    parts = s.split(":")
+    try:
+        parts = [int(p) for p in parts]
+    except:
+        return None
+    if len(parts) == 3:
+        h, m, sec = parts
+        return h * 3600 + m * 60 + sec
+    if len(parts) == 2:
+        a, b = parts
+        if a <= 9:
+            return a * 3600 + b * 60  # H:MM
+        return a * 60 + b             # MM:SS
+    if len(parts) == 1:
+        return parts[0] * 60
+    return None
+
+
+# Alias para compatibilidad con código existente
+def parse_time_to_seconds(x: Any) -> Optional[int]:
+    """Alias de parse_duration_to_seconds. Usar las funciones específicas en código nuevo."""
+    return parse_duration_to_seconds(x)
 
 def parse_minutes_range(x: Any) -> Tuple[Optional[int], Optional[int]]:
     s = norm_str(x).replace("–", "-").lower()

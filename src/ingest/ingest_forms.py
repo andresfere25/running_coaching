@@ -9,7 +9,8 @@ import duckdb
 from src.ingest.sheets_client import open_sheet, read_worksheet_as_records
 from src.ingest.parsers import (
     norm_str, parse_yes_no, parse_int, parse_float,
-    parse_time_to_seconds, parse_minutes_range, parse_range_km_week, parse_multi_select
+    parse_pace_to_seconds, parse_duration_to_seconds,
+    parse_minutes_range, parse_range_km_week, parse_multi_select
 )
 
 FORM1_TAB = "Form Responses 1"
@@ -77,7 +78,7 @@ def normalize_form1_row(row: dict) -> dict:
     out["time_goal_raw"] = norm_str(
         row.get('Si tienes tiempo objetivo: escríbelo (hh:mm:ss o mm:ss) / Si no sabes escribe "No sé"')
     )
-    out["time_goal_sec"] = parse_time_to_seconds(out["time_goal_raw"])
+    out["time_goal_sec"] = parse_duration_to_seconds(out["time_goal_raw"])
 
     out["days_run_per_week"] = parse_int(row.get("¿Cuántos días a la semana puedes entrenar running?"))
 
@@ -119,18 +120,18 @@ def normalize_form1_row(row: dict) -> dict:
     out["has_recent_prs"] = parse_yes_no(
         row.get("¿Tienes marcas recientes en carrera o test (últimos 12 meses)? Por ejemplo mejor tiempo en 5 km")
     )
-    out["pr_5k_sec"] = parse_time_to_seconds(row.get('Mejor tiempo reciente 5K (mm:ss) o "No sé"'))
-    out["pr_10k_sec"] = parse_time_to_seconds(row.get('Mejor tiempo reciente 10K (mm:ss) o "No sé"'))
-    out["pr_21k_sec"] = parse_time_to_seconds(row.get('Mejor tiempo reciente 21K (hh:mm:ss) o "No sé"'))
-    out["pr_42k_sec"] = parse_time_to_seconds(row.get('Mejor tiempo reciente 42K (hh:mm:ss) o "No sé"'))
+    out["pr_5k_sec"] = parse_duration_to_seconds(row.get('Mejor tiempo reciente 5K (mm:ss) o "No sé"'))
+    out["pr_10k_sec"] = parse_duration_to_seconds(row.get('Mejor tiempo reciente 10K (mm:ss) o "No sé"'))
+    out["pr_21k_sec"] = parse_duration_to_seconds(row.get('Mejor tiempo reciente 21K (hh:mm:ss) o "No sé"'))
+    out["pr_42k_sec"] = parse_duration_to_seconds(row.get('Mejor tiempo reciente 42K (hh:mm:ss) o "No sé"'))
 
-    out["easy_pace_sec_per_km"] = parse_time_to_seconds(
+    out["easy_pace_sec_per_km"] = parse_pace_to_seconds(
         row.get('Ritmo cómodo (suave) aproximado (min/km) o "No sé"')
     )
-    out["mod_pace_sec_per_km"] = parse_time_to_seconds(
+    out["mod_pace_sec_per_km"] = parse_pace_to_seconds(
         row.get('Ritmo moderado aproximado (min/km) o "No sé"')
     )
-    out["fast_pace_sec_per_km"] = parse_time_to_seconds(
+    out["fast_pace_sec_per_km"] = parse_pace_to_seconds(
         row.get('Ritmo rápido aproximado (min/km) o "No sé"')
     )
 

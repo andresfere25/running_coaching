@@ -129,8 +129,9 @@ def test_choose_week_type_rojo():
 
 
 def test_choose_week_type_sin_checkin():
+    # SIN_CHECKIN -> CONSERVADORA (no penalizar sin info; solo ROJO activa DESCARGA)
     from src.plan.plan_builder import choose_week_type
-    assert choose_week_type("SIN_CHECKIN", 1.0, 1.0) == "DESCARGA"
+    assert choose_week_type("SIN_CHECKIN", 1.0, 1.0) == "CONSERVADORA"
 
 
 def test_choose_week_type_verde_normal():

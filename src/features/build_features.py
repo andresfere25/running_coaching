@@ -307,12 +307,38 @@ def main(cedula: str | None = None):
     weekly_path = out_dir / "weekly_features.parquet"
     write_parquet(weekly, weekly_path)
 
-    # Snapshot para PDF (última semana)
+    # Snapshot para API y dashboard (última semana)
     last_row = weekly.tail(1).to_dict(orient="records")[0]
+
+    # Días restantes para la carrera objetivo
+    race_countdown_days = None
+    race_date_raw = profile.get("race_date_raw", "")
+    if race_date_raw:
+        for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
+            try:
+                from datetime import date
+                race_dt = datetime.strptime(race_date_raw, fmt).date()
+                race_countdown_days = (race_dt - date.today()).days
+                break
+            except ValueError:
+                continue
+
+    # Tiempo objetivo formateado legible
+    time_goal_sec = profile.get("time_goal_sec")
+    time_goal_formatted = None
+    if time_goal_sec and time_goal_sec > 0:
+        tg = int(time_goal_sec)
+        h, rem = divmod(tg, 3600)
+        m, s = divmod(rem, 60)
+        time_goal_formatted = f"{h}:{m:02d}:{s:02d}" if h > 0 else f"{m}:{s:02d}"
+
     snapshot = {
         "cedula": cedula,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "semaforo_latest_checkin": semaforo,
+        "race_countdown_days": race_countdown_days,
+        "data_weeks_available": len(weekly),
+        "time_goal_formatted": time_goal_formatted,
         "profile": profile,
         "latest_week": last_row,
     }
