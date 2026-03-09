@@ -8,6 +8,34 @@ Correr: pytest tests/
 """
 
 
+def test_imports_ml():
+    from src.ml.riegel import riegel, predict_from_profile
+
+
+def test_riegel_basico():
+    """21K -> 42K: proporcional al ratio de distancias con exponente 1.06."""
+    from src.ml.riegel import riegel
+    t42 = riegel(5100, 21.0975, 42.195)
+    # Rango plausible: 2:50 a 3:05 para un 21K de 1:25
+    assert 10200 < t42 < 11100
+
+
+def test_riegel_predict_from_profile():
+    """Con PR 21K válido retorna estimado; sin PRs retorna None."""
+    from src.ml.riegel import predict_from_profile
+    result = predict_from_profile({'pr_21k_sec': 5100}, target_distance='42K')
+    assert result is not None
+    assert result['from_distance'] == '21K'
+    assert result['estimated_sec'] > 0
+    assert result['model'] == 'riegel_1.06'
+
+
+def test_riegel_sin_prs():
+    from src.ml.riegel import predict_from_profile
+    assert predict_from_profile({}, target_distance='42K') is None
+    assert predict_from_profile({'pr_21k_sec': 0}, target_distance='42K') is None
+
+
 def test_imports_ingest():
     import src.ingest.ingest_forms
     import src.ingest.ingest_checkins
