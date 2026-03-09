@@ -52,6 +52,53 @@ def choose_week_type(semaforo: str, acwr: float | None, monotony: float | None) 
     return "PROGRESO"
 
 
+def compute_robust_base_km(
+    last_week_km: float | None,
+    data_weeks_available: int,
+    km_week_min: float | None,
+) -> tuple[float, str]:
+    """
+    Calcula la base de km a usar para el plan, robusta ante historial escaso.
+
+    Convención:
+    - 0 semanas Strava: usa km_week_min del perfil (sin datos propios).
+    - 1–3 semanas:  blend ponderado. Strava gana peso a medida que acumula.
+        base = alpha * last_week_km + (1 - alpha) * km_week_min
+        donde alpha = data_weeks_available / 4
+        Con 1 semana: 25% Strava / 75% perfil.
+        Con 2 semanas: 50% / 50%.
+        Con 3 semanas: 75% / 25%.
+    - 4+ semanas: usa solo last_week_km (historial suficiente para confiar en Strava).
+
+    Esto evita que una semana atípicamente baja de Strava colapse el plan
+    por debajo del nivel real del atleta, sin sobre-estimar con el perfil declarado.
+
+    Retorna (base_km, nota_explicativa).
+    """
+    raw_strava = float(last_week_km) if last_week_km is not None and pd.notna(last_week_km) else 0.0
+    profile_ref = float(km_week_min) if km_week_min and km_week_min > 0 else 0.0
+
+    # Sin historial Strava
+    if raw_strava == 0.0 or data_weeks_available == 0:
+        base = profile_ref if profile_ref > 0 else 0.0
+        nota = f"sin datos Strava → usa perfil declarado ({base:.1f} km)"
+        return base, nota
+
+    # Historial suficiente → solo Strava
+    if data_weeks_available >= 4 or profile_ref == 0.0:
+        nota = f"Strava ({data_weeks_available} sem) → {raw_strava:.1f} km"
+        return raw_strava, nota
+
+    # Datos escasos → blend ponderado
+    alpha = data_weeks_available / 4  # peso de Strava (0.25, 0.50, 0.75)
+    blended = alpha * raw_strava + (1 - alpha) * profile_ref
+    nota = (
+        f"blend escaso: {alpha:.0%} Strava ({raw_strava:.1f} km) + "
+        f"{1-alpha:.0%} perfil ({profile_ref:.1f} km) = {blended:.1f} km"
+    )
+    return blended, nota
+
+
 def build_running_week(
     days_target: int,
     week_type: str,
@@ -59,20 +106,24 @@ def build_running_week(
     last_week_km: float | None,
     km_week_min: float | None = None,
     km_week_max: float | None = None,
+    data_weeks_available: int = 4,
 ):
     """
     Arma una semana de running en formato de sesiones.
 
-    km_week_min / km_week_max: rango declarado por el atleta en el Form (perfil).
-    Se usa como piso de validación para que el plan nunca quede absurdamente bajo
-    respecto al nivel real del atleta.
+    Usa compute_robust_base_km() para calcular la base cuando el historial
+    de Strava es escaso (< 4 semanas), evitando planes subdimensionados
+    por semanas aisladas atípicamente bajas.
+
+    El piso de validación se eleva de 60% → 80% de km_week_min cuando hay
+    datos escasos, porque con poca historia el riesgo de subestimar es mayor.
     """
     easy = paces.get("easy")
     mod = paces.get("mod")
     fast = paces.get("fast")
 
-    # km base: última semana real de Strava
-    base_km = float(last_week_km) if last_week_km is not None and pd.notna(last_week_km) else 0.0
+    # Base robusta: blend Strava/perfil según semanas disponibles
+    base_km, base_nota = compute_robust_base_km(last_week_km, data_weeks_available, km_week_min)
 
     if week_type == "DESCARGA":
         target_km = max(0.0, base_km * 0.7)  # -30%
@@ -84,32 +135,31 @@ def build_running_week(
         target_km = max(0.0, base_km * 1.07)  # +7%
         quality = True
 
-    # Si no hay base Strava, usar el rango declarado del atleta (km_week_min) o fallback por días
+    # Sin base → fallback por perfil declarado o por días objetivo
     if target_km == 0.0:
         if km_week_min and km_week_min > 0:
             target_km = km_week_min
         else:
             target_km = {2: 12, 3: 16, 4: 20, 5: 26, 6: 32, 7: 36}.get(days_target, 20)
 
-    # Piso de validación: el plan nunca puede caer por debajo del 60% del km_week_min declarado.
-    # Esto evita planes absurdos cuando el atleta tuvo una semana atípicamente baja en Strava.
+    # Piso de validación contra el perfil declarado.
+    # Con datos escasos (< 4 semanas) el piso sube de 60% → 80%:
+    # hay más riesgo de subestimar cuando el historial es corto.
     if km_week_min and km_week_min > 0:
-        floor_km = km_week_min * 0.60
+        floor_factor = 0.80 if data_weeks_available < 4 else 0.60
+        floor_km = km_week_min * floor_factor
         target_km = max(target_km, floor_km)
 
-    # Distribución simple por tipo (rodajes + fondo + calidad)
-    # Porcentaje aproximado
-    long_km = target_km * 0.30
+    # ── Distribución por sesiones ──────────────────────────────────────────
+    long_km   = target_km * 0.30
     remaining = target_km - long_km
 
     if days_target <= 3:
-        # 2 rodajes + fondo (y una calidad opcional sustituyendo un rodaje)
         easy1 = remaining * 0.45
         easy2 = remaining * 0.55
         sessions = []
         sessions.append(("Rodaje suave", round(easy1, 1), seconds_to_pace_str(easy)))
         if quality:
-            # calidad reemplaza rodaje 2
             if week_type == "CONSERVADORA":
                 sessions.append(("Tempo controlado", round(easy2, 1), f"{seconds_to_pace_str(mod)} (suave)"))
             else:
@@ -117,15 +167,13 @@ def build_running_week(
         else:
             sessions.append(("Rodaje suave", round(easy2, 1), seconds_to_pace_str(easy)))
         sessions.append(("Fondo", round(long_km, 1), seconds_to_pace_str(easy)))
-        return sessions, round(target_km, 1)
+        return sessions, round(target_km, 1), base_km, base_nota
 
     # days_target >= 4
-    easy_km_each = remaining * 0.60 / (days_target - 2)  # rodajes (sin contar calidad + fondo)
-    quality_km = remaining * 0.40
+    easy_km_each = remaining * 0.60 / (days_target - 2)
+    quality_km   = remaining * 0.40
 
     sessions = []
-
-    # 1) Calidad
     if quality:
         if week_type == "CONSERVADORA":
             sessions.append(("Tempo controlado", round(quality_km, 1), f"{seconds_to_pace_str(mod)} (bloques)"))
@@ -134,14 +182,12 @@ def build_running_week(
     else:
         sessions.append(("Rodaje suave", round(quality_km, 1), seconds_to_pace_str(easy)))
 
-    # 2) Rodajes
     for _ in range(days_target - 2):
         sessions.append(("Rodaje suave", round(easy_km_each, 1), seconds_to_pace_str(easy)))
 
-    # 3) Fondo
     sessions.append(("Fondo", round(long_km, 1), seconds_to_pace_str(easy)))
 
-    return sessions, round(target_km, 1)
+    return sessions, round(target_km, 1), base_km, base_nota
 
 
 def build_strength_week(strength_days: int, week_type: str):
@@ -283,11 +329,15 @@ def main(cedula: str | None = None):
     km_week_min = profile.get("km_week_min")
     km_week_max = profile.get("km_week_max")
 
+    # Semanas de Strava disponibles (sin contar semanas con 0 km por gaps)
+    data_weeks_available = int(weekly_sorted["km_week"].notna().sum())
+
     week_type = choose_week_type(semaforo, acwr, monotony)
 
-    running_sessions, target_km = build_running_week(
+    running_sessions, target_km, base_km, base_nota = build_running_week(
         days_target, week_type, paces, last_week_km,
         km_week_min=km_week_min, km_week_max=km_week_max,
+        data_weeks_available=data_weeks_available,
     )
     strength_routines = build_strength_week(strength_days, week_type)
     plan = place_sessions_into_week(running_sessions, strength_routines, preferred_days)
@@ -317,17 +367,19 @@ def main(cedula: str | None = None):
         "CONSERVADORA": "conservadora (volumen estable)",
         "DESCARGA": "de descarga (-30%)",
     }
-    base_str = f"{last_week_km:.1f} km reales (Strava)" if last_week_km and pd.notna(last_week_km) else "sin datos previos"
+    # week_summary: frase legible para el atleta (sin jerga técnica del blend)
+    sparse_note = (
+        f" ({data_weeks_available} sem. de datos — usando blend con perfil declarado)"
+        if data_weeks_available < 4 else ""
+    )
     week_summary = (
         f"Semana {type_labels.get(week_type, week_type)} — "
         f"{sem_labels.get(semaforo, semaforo)}. "
-        f"Base: {base_str} → Objetivo: {target_km:.1f} km."
+        f"Base: {base_km:.1f} km{sparse_note} → Objetivo: {target_km:.1f} km."
     )
 
-    # Calcular km esperado si el próximo check-in es VERDE
-    next_if_verde_km = None
-    if last_week_km and pd.notna(last_week_km):
-        next_if_verde_km = round(float(last_week_km) * 1.07, 1)
+    # Proyección si el próximo check-in es VERDE: sobre la base robusta, no sobre last_week
+    next_if_verde_km = round(base_km * 1.07, 1) if base_km > 0 else None
 
     focus_map = {
         "DESCARGA": "Recuperación activa — rodajes suaves y fuerza preventiva.",
@@ -344,7 +396,9 @@ def main(cedula: str | None = None):
         "week_summary": week_summary,
         "coach_explanation": {
             "trigger": f"{semaforo} → {week_type}",
-            "base_km": round(float(last_week_km), 2) if last_week_km and pd.notna(last_week_km) else None,
+            "base_km": round(base_km, 2),
+            "base_method": base_nota,
+            "data_weeks_strava": data_weeks_available,
             "multiplier": {"DESCARGA": 0.70, "CONSERVADORA": 0.90, "PROGRESO": 1.07}.get(week_type),
             "target_km": target_km,
             "km_week_min_profile": km_week_min,
