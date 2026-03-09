@@ -10,6 +10,51 @@ Correr: pytest tests/
 
 def test_imports_ml():
     from src.ml.riegel import riegel, predict_from_profile
+    from src.ml.load_metrics import (
+        add_load_metrics, add_load_metrics_by_athlete,
+        session_load_trimp, acwr_zone, compute_monotony_strain,
+    )
+
+
+# ─── Lógica de carga EWMA ─────────────────────────────────────────────────────
+
+def test_load_metrics_ctl_crece_con_carga_creciente():
+    """CTL debe crecer cuando la carga aumenta progresivamente."""
+    import pandas as pd
+    from src.ml.load_metrics import add_load_metrics
+    weeks = pd.date_range('2024-01-01', periods=10, freq='W-MON')
+    # Carga que sube de 10 a 50 km gradualmente
+    df = pd.DataFrame({'datetime': weeks, 'distance': [10, 15, 20, 25, 30, 35, 40, 45, 50, 55]})
+    out = add_load_metrics(df, load_col='distance', granularity='weekly')
+    # CTL al final debe ser mayor que al inicio
+    assert out['ctl'].iloc[-1] > out['ctl'].iloc[0]
+
+
+def test_load_metrics_atl_cae_en_lesion():
+    """ATL debe caer a 0 rápido tras una lesión (span corto)."""
+    import pandas as pd
+    from src.ml.load_metrics import add_load_metrics
+    weeks = pd.date_range('2024-01-01', periods=6, freq='W-MON')
+    df = pd.DataFrame({'datetime': weeks, 'distance': [40, 40, 40, 0, 0, 0]})
+    out = add_load_metrics(df, load_col='distance', granularity='weekly')
+    # Después de 3 semanas sin carga, ATL debe ser muy bajo
+    assert out['atl'].iloc[-1] < 5.0
+
+
+def test_acwr_zone_clasificacion():
+    from src.ml.load_metrics import acwr_zone
+    assert acwr_zone(0.5)  == 'BAJO'
+    assert acwr_zone(1.0)  == 'OPTIMO'
+    assert acwr_zone(1.4)  == 'PRECAUCION'
+    assert acwr_zone(1.8)  == 'ALTO'
+    assert acwr_zone(None) == 'SIN_DATOS'
+
+
+def test_trimp_foster_formula():
+    from src.ml.load_metrics import session_load_trimp
+    assert session_load_trimp(7, 45) == 315.0
+    assert session_load_trimp(10, 60) == 600.0
+    assert session_load_trimp(0, 60) == 0.0
 
 
 def test_riegel_basico():
