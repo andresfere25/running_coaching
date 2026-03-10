@@ -324,6 +324,133 @@
       <!-- fin resumen del coach -->
 
 
+      <!-- ══ 2.5 PREDICCIÓN DE RENDIMIENTO ══════════════════════════════════ -->
+      <div class="card p-6">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">📈</span>
+            <h3 class="text-base font-semibold text-gray-800">Predicción de rendimiento</h3>
+          </div>
+
+          <!-- Selector de distancia -->
+          <div class="flex gap-1">
+            <template x-for="dist in ['5K','10K','21K','42K']" :key="dist">
+              <button
+                @click="predTarget = dist; fetchPrediction()"
+                class="px-3 py-1 rounded-full text-xs font-medium transition-colors"
+                :class="predTarget === dist
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                x-text="dist"
+              ></button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Loading -->
+        <template x-if="!prediction">
+          <div class="flex items-center justify-center py-8 text-gray-400 text-sm gap-2">
+            <div class="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+            <span>Calculando predicción...</span>
+          </div>
+        </template>
+
+        <!-- Sin PRs -->
+        <template x-if="prediction?.error === 'SIN_PR'">
+          <div class="bg-amber-50 border border-amber-100 rounded-lg px-4 py-4 text-sm text-amber-700">
+            <p class="font-medium mb-1">Sin marcas personales registradas</p>
+            <p class="text-xs text-amber-600"
+               x-text="prediction.message || 'Registra al menos un tiempo de carrera en el formulario de ingreso.'"></p>
+          </div>
+        </template>
+
+        <!-- Error de fetch -->
+        <template x-if="prediction?.error && prediction.error !== 'SIN_PR'">
+          <div class="text-xs text-red-500 py-4 text-center" x-text="prediction.message || prediction.error"></div>
+        </template>
+
+        <!-- Predicción disponible -->
+        <template x-if="prediction && !prediction.error">
+          <div>
+
+            <!-- Bloque principal: ritmo + metadatos -->
+            <div class="flex flex-col sm:flex-row gap-4 mb-4">
+
+              <!-- Rango de ritmo -->
+              <div class="flex-1 bg-blue-50 border border-blue-100 rounded-xl p-5 text-center">
+                <div class="text-xs text-blue-400 font-medium uppercase tracking-wide mb-1">
+                  Ritmo estimado · <span x-text="predTarget"></span>
+                </div>
+                <div class="text-2xl font-bold font-mono text-blue-700 leading-none"
+                     x-text="prediction.pace_range_fmt || '—'"></div>
+                <div class="text-sm font-mono text-blue-500 mt-2"
+                     x-text="prediction.time_range_fmt || ''"></div>
+                <div class="text-xs text-blue-300 mt-1">
+                  ± <span x-text="prediction.mae_effective_min?.toFixed(1)"></span> min (MAE)
+                </div>
+              </div>
+
+              <!-- Metadatos: confianza, fuente, segmento -->
+              <div class="flex flex-col gap-2 sm:w-52">
+
+                <div class="flex items-center justify-between bg-white border border-gray-100 rounded-lg px-3 py-2">
+                  <span class="text-xs text-gray-400">Confianza</span>
+                  <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                        :class="confidenceBadgeClass(prediction.confidence)"
+                        x-text="prediction.confidence"></span>
+                </div>
+
+                <div class="flex items-center justify-between bg-white border border-gray-100 rounded-lg px-3 py-2">
+                  <span class="text-xs text-gray-400">PR fuente</span>
+                  <span class="text-xs font-medium text-gray-700"
+                        x-text="prediction.source_pr || '—'"></span>
+                </div>
+
+                <div class="flex items-center justify-between bg-white border border-gray-100 rounded-lg px-3 py-2">
+                  <span class="text-xs text-gray-400">Segmento</span>
+                  <span class="text-xs font-medium text-gray-700"
+                        x-text="prediction.segment || '—'"></span>
+                </div>
+
+                <template x-if="prediction.demo_correction_min">
+                  <div class="flex items-center justify-between bg-white border border-gray-100 rounded-lg px-3 py-2">
+                    <span class="text-xs text-gray-400">Correc. demog.</span>
+                    <span class="text-xs font-medium"
+                          :class="prediction.demo_correction_min > 0 ? 'text-amber-600' : 'text-green-600'"
+                          x-text="(prediction.demo_correction_min > 0 ? '+' : '') + prediction.demo_correction_min.toFixed(1) + ' min'"></span>
+                  </div>
+                </template>
+
+              </div>
+            </div>
+
+            <!-- Capas activas -->
+            <div class="flex flex-wrap gap-2 items-center mb-2">
+              <span class="text-xs text-gray-400">Capas:</span>
+              <template x-for="layer in (prediction.layers_active || [])" :key="layer">
+                <span class="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full font-mono"
+                      x-text="layer"></span>
+              </template>
+            </div>
+
+            <!-- Soporte empírico -->
+            <p class="text-xs text-gray-400 italic" x-text="prediction.empirical_support || ''"></p>
+
+            <!-- Nota de extrapolación descendente -->
+            <template x-if="prediction.direction_note">
+              <p class="mt-2 text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2"
+                 x-text="prediction.direction_note"></p>
+            </template>
+
+          </div>
+        </template>
+
+      </div>
+      <!-- fin predicción de rendimiento -->
+
+
       <!-- ══ 3. PLAN SEMANAL ═══════════════════════════════════════════════ -->
       <div class="card p-6">
 

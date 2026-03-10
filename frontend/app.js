@@ -81,12 +81,14 @@ let chartAcwr = null;
 function athleteApp() {
   return {
     // Estado
-    cedula:   '1070982737',
-    loading:  false,
-    error:    null,
-    snapshot: null,
-    plan:     null,
-    features: null,
+    cedula:     '1070982737',
+    loading:    false,
+    error:      null,
+    snapshot:   null,
+    plan:       null,
+    features:   null,
+    prediction: null,
+    predTarget: '42K',
 
     // ── Inicialización ────────────────────────────────────────────────────
     init() {
@@ -96,11 +98,12 @@ function athleteApp() {
     // ── Buscar datos del atleta ───────────────────────────────────────────
     async search() {
       if (!this.cedula.trim()) return;
-      this.loading  = true;
-      this.error    = null;
-      this.snapshot = null;
-      this.plan     = null;
-      this.features = null;
+      this.loading    = true;
+      this.error      = null;
+      this.snapshot   = null;
+      this.plan       = null;
+      this.features   = null;
+      this.prediction = null;
 
       try {
         const [snapshot, plan, features] = await Promise.all([
@@ -112,13 +115,43 @@ function athleteApp() {
         this.plan     = plan;
         this.features = features;
 
+        // Usar la distancia objetivo del atleta como target por defecto
+        if (snapshot?.profile?.race_distance) {
+          this.predTarget = snapshot.profile.race_distance;
+        }
+
         this.$nextTick(() => this._renderCharts());
+
+        // Cargar predicción en paralelo (no bloquea el dashboard principal)
+        this.fetchPrediction();
 
       } catch (e) {
         this.error = e.message;
       } finally {
         this.loading = false;
       }
+    },
+
+    // ── Predicción de rendimiento ─────────────────────────────────────────
+    async fetchPrediction() {
+      this.prediction = null;
+      try {
+        this.prediction = await apiFetch(
+          `/athletes/${this.cedula}/prediction?target=${this.predTarget}`
+        );
+      } catch (e) {
+        this.prediction = { error: 'FETCH_ERROR', message: e.message };
+      }
+    },
+
+    // Colores del badge de confianza
+    confidenceBadgeClass(c) {
+      return {
+        ALTA:       'bg-green-100 text-green-700',
+        MEDIA:      'bg-blue-100 text-blue-700',
+        'MEDIA-BAJA': 'bg-yellow-100 text-yellow-700',
+        BAJA:       'bg-orange-100 text-orange-700',
+      }[c] || 'bg-gray-100 text-gray-600';
     },
 
     // ── Semáforo ──────────────────────────────────────────────────────────

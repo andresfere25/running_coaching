@@ -10,6 +10,7 @@ Endpoints:
   GET /athletes/{cedula}/snapshot       → estado actual (última semana + semáforo)
   GET /athletes/{cedula}/plan           → plan semanal (running + fuerza)
   GET /athletes/{cedula}/features       → historial de features semanales
+  GET /athletes/{cedula}/prediction     → predicción de tiempo/ritmo por distancia
 """
 
 import json
@@ -178,3 +179,59 @@ def get_latest_checkin(
             detail="Check-in no disponible. El paso 'ingest' del pipeline no ha corrido.",
         )
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+# ─── Predicción de rendimiento ───────────────────────────────────────────────
+
+@router.get("/{cedula}/prediction")
+def get_prediction(
+    cedula: str,
+    target: str = Query(default="42K", description="Distancia objetivo: 5K, 10K, 21K o 42K"),
+    athlete_dir: Path = Depends(get_athlete_dir),
+    _: None = Depends(require_api_key),
+):
+    """
+    Predice el rango de ritmo esperado para la distancia objetivo.
+
+    Integra Capas 0 (selección PR) + 1 (Riegel calibrado) + 2 (corrección
+    demográfica) del sistema de predicción. Los PRs se leen desde profile.json.
+
+    Parámetros:
+    - target: distancia objetivo (default 42K)
+
+    Campos clave en la respuesta:
+    - pace_range_fmt:  rango de ritmo, p.ej. "5:11 – 5:29 min/km"
+    - time_range_fmt:  rango de tiempo total, p.ej. "3:38:50 – 3:52:10"
+    - confidence:      ALTA / MEDIA / MEDIA-BAJA / BAJA
+    - layers_active:   lista de capas aplicadas (Capa0, Capa1, Capa2)
+    - source_pr:       distancia del PR usado como fuente
+    - empirical_support: nivel de soporte empírico para esta distancia
+    - error: 'SIN_PR' si no hay marcas personales disponibles
+    """
+    if target not in ("5K", "10K", "21K", "42K"):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Distancia '{target}' no válida. Use: 5K, 10K, 21K, 42K.",
+        )
+
+    profile_path = athlete_dir / "meta" / "profile.json"
+    if not profile_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Perfil no disponible. El paso 'ingest' del pipeline no ha corrido.",
+        )
+
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+
+    from src.ml.predictor import predict_race_time_range
+
+    age    = profile.get("age")
+    gender = profile.get("sex")
+
+    result = predict_race_time_range(
+        profile=profile,
+        target_distance=target,
+        age=float(age) if age else None,
+        gender=gender,
+    )
+    return sanitize_json(result)
