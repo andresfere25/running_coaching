@@ -287,6 +287,71 @@ def test_robust_base_semana_baja_protegida():
     assert abs(base - 8.5) < 0.01
 
 
+# ─── Predictor: sistema integrado de predicción ───────────────────────────────
+
+def test_predictor_imports():
+    from src.ml.predictor import predict_race_time_range, check_pr_consistency
+
+
+def test_predict_range_basico_42k():
+    """Atleta con PR 21K → predicción 42K con rango y metadatos."""
+    from src.ml.predictor import predict_race_time_range
+    r = predict_race_time_range({'pr_21k_sec': 5100}, '42K', age=35, gender='M')
+    assert r is not None
+    assert 'error' not in r
+    assert 'pace_range_fmt' in r
+    assert '–' in r['pace_range_fmt']
+    assert r['source_pr'] == '21K'
+    assert r['confidence'] == 'MEDIA'
+    assert r['layers_active'] == ['Capa0', 'Capa1', 'Capa2']
+
+
+def test_predict_range_sin_pr_retorna_error():
+    """Sin PRs, el sistema retorna error explicativo."""
+    from src.ml.predictor import predict_race_time_range
+    r = predict_race_time_range({}, '42K', age=40, gender='M')
+    assert r['error'] == 'SIN_PR'
+
+
+def test_predict_range_todas_las_distancias():
+    """Con un solo PR de 21K, el sistema predice las cuatro distancias."""
+    from src.ml.predictor import predict_race_time_range
+    profile = {'pr_21k_sec': 5100}
+    for dist in ['5K', '10K', '21K', '42K']:
+        r = predict_race_time_range(profile, dist)
+        assert 'error' not in r, f"Error inesperado para {dist}: {r.get('error')}"
+        assert r['estimate_sec'] > 0
+
+
+def test_predict_range_confianza_menor_en_5k():
+    """La confianza debe ser menor para 5K que para 42K dado el mismo PR fuente."""
+    from src.ml.predictor import predict_race_time_range
+    # Usar 21K como fuente forzada para ambos (sin PR de 5K ni 42K directo)
+    profile = {'pr_21k_sec': 5100}
+    r42 = predict_race_time_range(profile, '42K', age=35, gender='M')
+    r5  = predict_race_time_range(profile, '5K',  age=35, gender='M')
+    # 42K debe tener mayor o igual confianza que 5K
+    confidence_order = ['ALTA', 'MEDIA', 'MEDIA-BAJA', 'BAJA']
+    assert confidence_order.index(r42['confidence']) <= confidence_order.index(r5['confidence'])
+
+
+def test_consistency_ok_prs_coherentes():
+    """PR 21K=1:25 y 42K=~2:57 son consistentes con Riegel."""
+    from src.ml.predictor import check_pr_consistency
+    # Riegel desde 21K(5100s) predice 42K ≈ 10620s → 2:57
+    r = check_pr_consistency({'pr_21k_sec': 5100, 'pr_42k_sec': 10620}, '42K')
+    assert r['status'] == 'OK'
+    assert r['recommended_pr'] == '42K'   # el PR directo de 42K es el mejor para target 42K
+
+
+def test_consistency_inconsistente_prs_contradictorios():
+    """PR 5K élite + 42K muy lento → inconsistente."""
+    from src.ml.predictor import check_pr_consistency
+    # 5K=18min (élite) predice 42K~2:36; pero declara 42K=4:30h → Δ=~114 min
+    r = check_pr_consistency({'pr_5k_sec': 1080, 'pr_42k_sec': 16200}, '42K')
+    assert r['status'] in ('ADVERTENCIA', 'INCONSISTENTE')
+
+
 def test_piso_elevado_datos_escasos():
     """Con datos escasos el piso es 80% de km_week_min, no 60%."""
     from src.plan.plan_builder import build_running_week
