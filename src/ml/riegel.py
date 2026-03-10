@@ -54,7 +54,12 @@ CALIBRATED_MAE_MIN: dict[str, float] = {
 
 
 def _segment_from_full_sec(full_sec: float) -> str:
-    """Clasifica al corredor en un segmento a partir del tiempo estimado de maratón."""
+    """
+    Clasifica al corredor en un segmento a partir del tiempo de maratón (segundos).
+
+    Expuesta para uso en predictor.py al normalizar PRs de otras distancias.
+    Los umbrales corresponden a 2:30h, 3:00h y 4:00h en maratón.
+    """
     if full_sec < 9000:   return "elite"
     if full_sec < 10800:  return "sub3h"
     if full_sec < 14400:  return "3to4h"

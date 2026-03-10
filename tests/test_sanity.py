@@ -352,6 +352,155 @@ def test_consistency_inconsistente_prs_contradictorios():
     assert r['status'] in ('ADVERTENCIA', 'INCONSISTENTE')
 
 
+def test_predict_range_5k_a_5k_rango_estrecho():
+    """
+    Predicción 5K desde PR 5K (mismo PR, 0 pasos):
+    - rango debe ser notablemente más estrecho que para 2+ pasos
+    - rango total < 60 s para una 5K de ~19 min (< 12 sec/km de diferencia)
+    - la fracción debe ser base_fraction × step_mult[0], sin bonus de dirección
+    Nota: para pr_5k=1140s, ref_42k≈10937s → segmento 3to4h →
+    fracción = 0.030 × 0.85 = 0.0255 (mayor que el piso 0.020, piso no aplica).
+    """
+    from src.ml.predictor import (
+        predict_race_time_range,
+        CALIBRATED_RELATIVE_MAE,
+        EXTRAPOLATION_STEP_MULTIPLIER,
+    )
+    r = predict_race_time_range({'pr_5k_sec': 1140}, '5K')
+    assert r['source_pr'] == '5K'
+    assert r['extrapolation_steps'] == 0
+    assert not r['is_downward_extrapolation']
+
+    # Fracción esperada: base × step[0], sin bonus descendente
+    expected = CALIBRATED_RELATIVE_MAE[r['segment']] * EXTRAPOLATION_STEP_MULTIPLIER[0]
+    assert abs(r['uncertainty_fraction'] - max(expected, 0.020)) < 0.001
+
+    # Rango total < 60 s → pace spread < 12 sec/km en una 5K
+    total_width = r['uncertainty_half_sec'] * 2
+    assert total_width < 60, f"Rango demasiado amplio para 5K→5K: {total_width:.0f}s"
+
+
+def test_predict_range_21k_a_21k_rango_estrecho():
+    """
+    Predicción 21K desde PR 21K (mismo PR, 0 pasos):
+    - rango debe ser < 4 min de ancho total (coherente con variabilidad diaria)
+    """
+    from src.ml.predictor import predict_race_time_range
+    r = predict_race_time_range({'pr_21k_sec': 5100}, '21K')
+    assert r['source_pr'] == '21K'
+    assert r['extrapolation_steps'] == 0
+    total_width = r['uncertainty_half_sec'] * 2
+    assert total_width < 240, f"Rango demasiado amplio para 21K→21K: {total_width:.0f}s"
+
+
+def test_predict_range_21k_a_42k_consistente_boston():
+    """
+    Predicción 42K desde PR 21K (1 paso adyacente, caso calibrado):
+    - incertidumbre debe equivaler al MAE de Boston para el segmento sub3h (~3.8 min)
+    - rango total entre 6 y 10 min (coherente con NB03: sub3h MAE=3.7 min × 2)
+    """
+    from src.ml.predictor import predict_race_time_range
+    r = predict_race_time_range({'pr_21k_sec': 5100}, '42K')
+    assert r['source_pr'] == '21K'
+    assert r['extrapolation_steps'] == 1
+    assert not r['is_downward_extrapolation']
+    # half_width ≈ 2.2% de ~10440s → ~230s ≈ 3.8 min
+    # total width entre 6 y 10 min
+    total_width_min = r['uncertainty_half_sec'] * 2 / 60
+    assert 5.0 < total_width_min < 10.0, (
+        f"Rango 21K→42K fuera del rango esperado por Boston: {total_width_min:.1f} min"
+    )
+
+
+def test_predict_range_21k_a_5k_descendente_mas_amplio():
+    """
+    Predicción 5K desde PR 21K (2 pasos, descendente):
+    - rango debe ser más amplio que 21K→42K (1 paso, ascendente)
+    - total < 3 min (razonable para una 5K de ~19 min)
+    """
+    from src.ml.predictor import predict_race_time_range
+    r_down = predict_race_time_range({'pr_21k_sec': 5100}, '5K')
+    r_up   = predict_race_time_range({'pr_21k_sec': 5100}, '42K')
+
+    assert r_down['source_pr'] == '21K'
+    assert r_down['extrapolation_steps'] == 2
+    assert r_down['is_downward_extrapolation']
+
+    # Descendente debe ser más incierto que ascendente (más pasos + bonus downward)
+    assert r_down['uncertainty_fraction'] > r_up['uncertainty_fraction'], (
+        "Extrapolación descendente debe tener mayor incertidumbre que ascendente"
+    )
+    # Rango absoluto razonable: < 3 min para una 5K
+    total_width_min = r_down['uncertainty_half_sec'] * 2 / 60
+    assert total_width_min < 3.0, (
+        f"Rango 21K→5K demasiado amplio: {total_width_min:.1f} min"
+    )
+
+
+def test_predict_range_10k_a_42k_2_pasos():
+    """
+    Predicción 42K desde PR 10K (2 pasos, ascendente):
+    - rango debe ser más amplio que 21K→42K (1 paso)
+    - fraction = CALIBRATED_RELATIVE_MAE[sub3h] × STEP_MULTIPLIER[2] = 0.022 × 1.60
+    """
+    from src.ml.predictor import (
+        predict_race_time_range,
+        CALIBRATED_RELATIVE_MAE,
+        EXTRAPOLATION_STEP_MULTIPLIER,
+    )
+    r_2step = predict_race_time_range({'pr_10k_sec': 2280}, '42K')
+    r_1step = predict_race_time_range({'pr_21k_sec': 5100}, '42K')
+
+    assert r_2step['source_pr'] == '10K'
+    assert r_2step['extrapolation_steps'] == 2
+    assert not r_2step['is_downward_extrapolation']
+
+    # 2 pasos deben dar más incertidumbre que 1 paso
+    assert r_2step['uncertainty_fraction'] > r_1step['uncertainty_fraction']
+
+    # Fracción esperada = sub3h × step[2] = 0.022 × 1.60 = 0.0352
+    expected = CALIBRATED_RELATIVE_MAE['sub3h'] * EXTRAPOLATION_STEP_MULTIPLIER[2]
+    assert abs(r_2step['uncertainty_fraction'] - expected) < 0.001, (
+        f"Fracción esperada {expected:.4f}, obtenida {r_2step['uncertainty_fraction']:.4f}"
+    )
+
+
+def test_predict_range_incertidumbre_escala_con_pasos():
+    """
+    La fracción de incertidumbre debe crecer con el número de pasos,
+    manteniendo el mismo segmento (mismo PR fuente) y la misma dirección.
+    Usamos un PR único para forzar distintos pasos: 21K→5K(2), 21K→10K(1), 21K→21K(0).
+    """
+    from src.ml.predictor import predict_race_time_range
+    profile = {'pr_21k_sec': 5100}   # sin otros PRs para forzar 21K como fuente
+
+    r0 = predict_race_time_range(profile, '21K')   # 0 pasos
+    r1 = predict_race_time_range(profile, '42K')   # 1 paso (ascendente)
+    r2 = predict_race_time_range(profile, '5K')    # 2 pasos (descendente + bonus)
+
+    assert r0['extrapolation_steps'] == 0
+    assert r1['extrapolation_steps'] == 1
+    assert r2['extrapolation_steps'] == 2
+
+    assert r0['uncertainty_fraction'] < r1['uncertainty_fraction'], \
+        "0 pasos debe ser más estrecho que 1 paso"
+    assert r1['uncertainty_fraction'] < r2['uncertainty_fraction'], \
+        "1 paso debe ser más estrecho que 2 pasos (+ bonus downward)"
+
+
+def test_predict_range_nuevos_campos_presentes():
+    """Los campos nuevos de la API deben estar presentes en la respuesta."""
+    from src.ml.predictor import predict_race_time_range
+    r = predict_race_time_range({'pr_21k_sec': 5100}, '42K', age=35, gender='M')
+    assert 'uncertainty_fraction' in r
+    assert 'uncertainty_half_sec' in r
+    assert 'extrapolation_steps' in r
+    assert 'mae_effective_min' in r          # campo legado, sigue presente
+    assert isinstance(r['uncertainty_fraction'], float)
+    assert 0.0 < r['uncertainty_fraction'] < 0.3
+    assert r['uncertainty_half_sec'] > 0
+
+
 def test_piso_elevado_datos_escasos():
     """Con datos escasos el piso es 80% de km_week_min, no 60%."""
     from src.plan.plan_builder import build_running_week

@@ -215,7 +215,7 @@ ANTHROPIC_API_KEY      (opcional, para cuando se implemente la IA)
 |---|---|---|---|
 | `--all` en CI falla | Resuelto en workflow | `weekly_pipeline.yml` | `data/` gitignoreada, runner no tiene atletas |
 | `is_recent` ignorado | Resuelto | `build_features.py` | Check-in viejo coloreaba semáforo como reciente |
-| `pr_21k_sec: 85.0` | Pendiente | `ingest_forms.py` | Parser de tiempo HH:MM → segundos falla para "1:25" |
+| `pr_21k_sec: 85.0` | Resuelto | `parsers.py` / `profile.json` | Parser corregido (H:MM heurística). JSON local verificado: `pr_21k_sec=5100.0` ✓ |
 
 ---
 

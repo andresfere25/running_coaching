@@ -10,6 +10,23 @@ Integra las capas de la arquitectura de predicción del proyecto:
 
 Salida principal: rango de ritmo (pace_low–pace_high min/km) + metadatos.
 
+─── Nota metodológica sobre la incertidumbre ──────────────────────────────────
+
+El rango se expresa como fracción del tiempo estimado (no en minutos absolutos).
+Esto garantiza que el rango sea siempre proporcional a la duración de la carrera.
+
+La lógica tiene dos capas de origen diferente:
+
+  1. ANCLA EMPÍRICA: CALIBRATED_RELATIVE_MAE
+     Derivado del MAE empírico de Boston 2015-2018 (n=102,729) para
+     la predicción Half→Full. Fuente: NB03.
+
+  2. REGLAS METODOLÓGICAS DE PROPAGACIÓN: EXTRAPOLATION_STEP_MULTIPLIER,
+     DOWNWARD_EXTRAPOLATION_BONUS, MIN_UNCERTAINTY_FRACTION
+     Son heurísticas de diseño razonadas para extrapolar la incertidumbre
+     calibrada a casos fuera del dominio de entrenamiento (Half→Full).
+     No tienen validación empírica directa; están documentadas como tales.
+
 Uso desde la app:
     from src.ml.predictor import predict_race_time_range, check_pr_consistency
 
@@ -19,9 +36,10 @@ Uso desde la app:
         age             = 35,
         gender          = 'M',
     )
-    print(result['pace_range_fmt'])   # '5:11 – 5:29 min/km'
-    print(result['time_range_fmt'])   # '3:38:50 – 3:52:10'
-    print(result['confidence'])       # 'MEDIA'
+    print(result['pace_range_fmt'])        # '4:01 – 4:12 min/km'
+    print(result['time_range_fmt'])        # '2:50:08 – 2:57:48'
+    print(result['uncertainty_fraction'])  # 0.022 (2.2% del tiempo estimado)
+    print(result['extrapolation_steps'])   # 1
 """
 from __future__ import annotations
 
@@ -29,37 +47,79 @@ import math
 from typing import Optional
 
 from src.ml.riegel import (
+    riegel,
     riegel_calibrated,
     DISTANCES,
     PR_KEYS,
+    CALIBRATED_EXPONENTS,
     CALIBRATED_MAE_MIN,
+    _segment_from_full_sec,
 )
 
-# ─── Preferencia de PR fuente por distancia objetivo ─────────────────────────
+# ─── Orden de preferencia de PR fuente por distancia objetivo ─────────────────
 # Regla: usar el PR más cercano a la distancia objetivo.
-# Extrapolación hacia arriba (corto→largo) es más fiable que hacia abajo.
+# Extrapolación ascendente (corto→largo) tiene más soporte empírico.
 PREFERENCE_ORDER: dict[str, list[str]] = {
-    '42K': ['42K', '21K', '10K', '5K'],   # PR exacto de la misma distancia es el mejor
+    '42K': ['42K', '21K', '10K', '5K'],
     '21K': ['21K', '10K', '5K', '42K'],
     '10K': ['10K', '5K', '21K', '42K'],
     '5K':  ['5K', '10K', '21K', '42K'],
 }
 
-# ─── Penalización de MAE según distancia objetivo ────────────────────────────
-# Justificación: la validación empírica es sólida para 42K (Boston 103K +
-# Results.csv 429K). Para distancias más cortas, la cobertura disminuye.
-MAE_PENALTY_FACTOR: dict[str, float] = {
-    '42K': 1.0,
-    '21K': 1.2,   # +20%: soporte parcial (Boston Half como fuente, no target)
-    '10K': 1.5,   # +50%: solo Riegel extrapolado sin validación directa
-    '5K':  1.8,   # +80%: mayor extrapolación + sensibilidad a velocidad
+# Rango estándar de distancias para calcular pasos de extrapolación.
+DISTANCE_RANK: dict[str, int] = {'5K': 0, '10K': 1, '21K': 2, '42K': 3}
+
+# ─── Incertidumbre relativa base — ANCLA EMPÍRICA ─────────────────────────────
+# Derivado del MAE empírico (Boston 2015-2018, n=102,729) para Half→Full.
+# El MAE se expresa como fracción del tiempo medio del segmento:
+#   Elite  (2.5 min / ~140 min):  1.8%
+#   Sub-3h (3.7 min / ~167 min):  2.2%
+#   3-4h   (6.4 min / ~213 min):  3.0%
+#   4h+   (12.0 min / ~270 min):  4.4%
+# Fuente: ml/notebooks/03_calibracion_riegel_boston.ipynb
+# Aplicable directamente solo para predicciones adyacentes (1 paso).
+CALIBRATED_RELATIVE_MAE: dict[str, float] = {
+    'elite':   0.018,
+    'sub3h':   0.022,
+    '3to4h':   0.030,
+    '4hplus':  0.044,
+    'default': 0.030,
 }
 
-# Penalización adicional por extrapolación descendente (PR fuente > target)
-# Riegel calibrado para upward extrapolation; hacia abajo es menos natural
-DOWNWARD_EXTRAPOLATION_PENALTY = 1.3
+# ─── Multiplicadores por pasos de extrapolación — REGLA METODOLÓGICA ──────────
+# Expresan cómo se propaga la incertidumbre cuando la predicción se aleja
+# del caso calibrado (21K→42K = 1 paso adyacente).
+#
+# Son heurísticas de diseño razonadas, NO hallazgos empíricos directos.
+# Justificación de cada valor:
+#   Paso 0: el PR es una medición directa. La incertidumbre proviene de
+#           variabilidad temporal del rendimiento, no de extrapolación.
+#           Se estima en ~85% de la incertidumbre adyacente.
+#   Paso 1: caso calibrado. Ancla = 1.0 por definición.
+#   Paso 2: la incertidumbre de Riegel se compone; estimada en ×1.6
+#           (dos fuentes de error acopladas, no independientes).
+#   Paso 3: extrapolación máxima (5K↔42K). Estimada en ×2.3.
+EXTRAPOLATION_STEP_MULTIPLIER: dict[int, float] = {
+    0: 0.85,    # mismo PR → incertidumbre por vigencia del dato
+    1: 1.00,    # 1 paso adyacente → caso calibrado (ancla)
+    2: 1.60,    # 2 pasos → extrapolación moderada
+    3: 2.30,    # 3 pasos → extrapolación máxima
+}
 
-# Soporte empírico declarado por distancia (para reportar al usuario)
+# Bonus de incertidumbre para extrapolación descendente — REGLA METODOLÓGICA.
+# Riegel fue calibrado principalmente en la dirección Half→Full (ascendente).
+# Las predicciones descendentes (largo→corto) tienen menos soporte empírico
+# directo y una mayor varianza observada en la práctica.
+DOWNWARD_EXTRAPOLATION_BONUS: float = 0.012
+
+# Piso mínimo de incertidumbre — REGLA METODOLÓGICA.
+# Refleja la variabilidad inherente del rendimiento humano (coeficiente de
+# variación intrapersonal estimado en ~2%). Aplica incluso para predicciones
+# de mismo PR, donde la extrapolación es trivial pero la vigencia del dato
+# introduce incertidumbre real.
+MIN_UNCERTAINTY_FRACTION: float = 0.020
+
+# Soporte empírico declarado por distancia objetivo (para reportar al usuario).
 EMPIRICAL_SUPPORT: dict[str, str] = {
     '42K': 'ALTA — Boston 2015-2018 (103K) + Results.csv (429K maratonistas)',
     '21K': 'MEDIA — Boston Half splits como PR fuente; sin dataset 21K standalone',
@@ -72,19 +132,15 @@ EMPIRICAL_SUPPORT: dict[str, str] = {
 # Representan el sesgo RESIDUAL de Riegel calibrado por edad y género.
 # Positivo = Riegel optimista (sumar tiempo al estimado).
 # Escala: 42K. Se ajusta proporcionalmente para otras distancias.
-#
-# Nota: para producción, serializar el Ridge model de NB04 y cargarlo aquí.
-# Estos valores son aproximaciones lineales de los coeficientes ajustados.
 _AGE_CORRECTION_42K_SEC: list[tuple[float, float]] = [
-    # (edad_max, corrección_segundos)
-    (30,  -60),   # <30:  -1.0 min — jóvenes llegan ligeramente antes de lo predicho
-    (40,  -15),   # 30-40: -0.25 min — casi neutro
+    (30,  -60),   # <30:  -1.0 min
+    (40,  -15),   # 30-40: -0.25 min
     (45,   30),   # 40-45: +0.5 min
     (50,   90),   # 45-50: +1.5 min
     (55,  150),   # 50-55: +2.5 min
     (60,  240),   # 55-60: +4.0 min
     (65,  360),   # 60-65: +6.0 min
-    (200, 480),   # 65+:   +8.0 min — positive split más pronunciado con la edad
+    (200, 480),   # 65+:   +8.0 min
 ]
 _GENDER_CORRECTION_F_42K_SEC = -60   # -1.0 min: mujeres tienen ritmo más uniforme
 
@@ -123,6 +179,15 @@ def _is_downward(source_dist: str, target_dist: str) -> bool:
     return DISTANCES.get(source_dist, 0) > DISTANCES.get(target_dist, 0)
 
 
+def _extrapolation_steps(source_dist: str, target_dist: str) -> int:
+    """
+    Número de pasos adyacentes entre la distancia fuente y la objetivo.
+    Escala: 5K --1-- 10K --1-- 21K --1-- 42K
+    Ejemplos: 5K→5K=0, 21K→42K=1, 5K→21K=2, 5K→42K=3.
+    """
+    return abs(DISTANCE_RANK.get(source_dist, 0) - DISTANCE_RANK.get(target_dist, 0))
+
+
 def _demographic_correction_sec(
     age: float,
     gender: str,
@@ -138,21 +203,18 @@ def _demographic_correction_sec(
     La corrección base es para 42K y se escala a la distancia objetivo.
     Fuente: análisis empírico Boston 2015-2018 (n=103K), NB04.
     """
-    # Corrección por edad (efecto principal del positive split con la edad)
-    age_correction_42k = _AGE_CORRECTION_42K_SEC[-1][1]  # fallback: 65+
+    age_correction_42k = _AGE_CORRECTION_42K_SEC[-1][1]
     for age_max, correction in _AGE_CORRECTION_42K_SEC:
         if age < age_max:
             age_correction_42k = correction
             break
 
-    # Corrección por género
     gender_correction_42k = (
         _GENDER_CORRECTION_F_42K_SEC
         if str(gender).upper() in ('F', 'FEMALE', 'MUJER')
         else 0
     )
 
-    # Escalar a la distancia objetivo (el positive split escala con la distancia)
     D_REF = 42.195
     scale = (target_km / D_REF) ** 1.06
 
@@ -168,7 +230,7 @@ def _select_source_pr(
     """
     Selecciona el PR fuente más adecuado para la distancia objetivo.
     Sigue el PREFERENCE_ORDER definido en el módulo.
-    Descarta PRs inválidos (0, None, negative).
+    Descarta PRs inválidos (0, None, negativo).
     """
     order = PREFERENCE_ORDER.get(target_distance, [])
     for dist_key in order:
@@ -204,7 +266,6 @@ def check_pr_consistency(
           'notes':              lista de mensajes descriptivos,
         }
     """
-    # Recopilar PRs válidos
     available: dict[str, float] = {}
     for dist in ['5K', '10K', '21K', '42K']:
         raw = profile.get(PR_KEYS.get(dist, ''))
@@ -300,12 +361,21 @@ def predict_race_time_range(
     Predice el rango de ritmo esperado para la distancia objetivo.
 
     Integra Capas 0 + 1 + 2 de la arquitectura de predicción.
-    Capas 3 (carga) y 4 (bienestar) están reservadas: se anotan si los datos
-    están presentes pero no modifican el estimado todavía.
+    Capas 3 (carga) y 4 (bienestar) están reservadas.
+
+    Incertidumbre: se calcula como fracción del tiempo estimado (no absoluta).
+    - Base: CALIBRATED_RELATIVE_MAE, anclado en Boston MAE (NB03).
+    - Escala: EXTRAPOLATION_STEP_MULTIPLIER, regla metodológica de propagación.
+    - Bonus: DOWNWARD_EXTRAPOLATION_BONUS para extrapolaciones descendentes.
+    - Piso: MIN_UNCERTAINTY_FRACTION (variabilidad humana inherente ~2%).
+
+    La clasificación de segmento (velocidad del atleta) se determina desde el
+    PR fuente normalizado a 42K (equivalente de maratón). Esto evita que targets
+    cortos siempre clasifiquen como "elite" por el valor absoluto del tiempo.
 
     Args:
-        profile:         Perfil del atleta. Debe contener pr_5k_sec, pr_10k_sec,
-                         pr_21k_sec y/o pr_42k_sec (cualquier subconjunto válido).
+        profile:         Perfil del atleta con pr_5k_sec, pr_10k_sec,
+                         pr_21k_sec y/o pr_42k_sec.
         target_distance: '5K', '10K', '21K' o '42K'.
         age:             Edad numérica (activa Capa 2b).
         gender:          'M' o 'F' (activa Capa 2b).
@@ -313,8 +383,8 @@ def predict_race_time_range(
         checkin:         dict con fatigue, sleep, stress, pain (Capa 4, reservada).
 
     Returns:
-        dict completo con predicción, rango de ritmo y metadatos de confianza.
-        Si no hay PR disponible, retorna dict con key 'error'.
+        dict con predicción, rango de ritmo y metadatos. Si no hay PR
+        disponible, retorna dict con key 'error'.
     """
     if target_distance not in DISTANCES:
         return {'error': 'DISTANCIA_INVALIDA',
@@ -334,10 +404,17 @@ def predict_race_time_range(
     # ─── Capa 1: Riegel calibrado ─────────────────────────────────────────────
     if has_pr:
         source_km = DISTANCES[source_dist]
-        estimate_sec, segment, exponent = riegel_calibrated(
-            source_sec, source_km, target_km
-        )
-        mae_base_min = CALIBRATED_MAE_MIN.get(segment, 9.2)
+
+        # Clasificar el segmento desde el equivalente de maratón del PR fuente.
+        # Esto representa la velocidad real del atleta, independientemente de
+        # la distancia objetivo. Para targets cortos (5K, 10K), el tiempo
+        # estimado siempre cae en "elite" si se clasifica desde el target;
+        # usar el equivalente 42K evita esa distorsión.
+        ref_42k_sec = riegel(source_sec, source_km, 42.195, exponent=1.06)
+        segment     = _segment_from_full_sec(ref_42k_sec)
+        exponent    = CALIBRATED_EXPONENTS[segment]
+        estimate_sec = riegel(source_sec, source_km, target_km, exponent=exponent)
+
         layers_active.append('Capa1')
     else:
         return {
@@ -350,7 +427,7 @@ def predict_race_time_range(
         }
 
     # ─── Capa 2: corrección demográfica ───────────────────────────────────────
-    has_demo          = age is not None and gender is not None
+    has_demo            = age is not None and gender is not None
     demo_correction_sec = 0.0
 
     if has_demo:
@@ -363,25 +440,38 @@ def predict_race_time_range(
     load_correction_sec = 0.0
     if load_metrics:
         layers_active.append('Capa3[pendiente]')
-        # TODO NB05+: entrenar corrector con dataset real (no Run Club — sintético)
 
     # ─── Capa 4: ajuste de bienestar [reservada] ──────────────────────────────
     wellness_correction_sec = 0.0
     if checkin:
         layers_active.append('Capa4[pendiente]')
 
-    # ─── Estimación final ─────────────────────────────────────────────────────
-    final_sec = estimate_sec + demo_correction_sec + load_correction_sec + wellness_correction_sec
+    # ─── Estimación central ───────────────────────────────────────────────────
+    final_sec = (
+        estimate_sec
+        + demo_correction_sec
+        + load_correction_sec
+        + wellness_correction_sec
+    )
 
-    # ─── MAE efectivo ─────────────────────────────────────────────────────────
-    distance_penalty = MAE_PENALTY_FACTOR.get(target_distance, 1.0)
-    downward_penalty = DOWNWARD_EXTRAPOLATION_PENALTY if is_downward else 1.0
-    mae_effective_min = mae_base_min * distance_penalty * downward_penalty
+    # ─── Rango de incertidumbre ───────────────────────────────────────────────
+    # 1. Base empírica: fracción del MAE calibrado en Boston (NB03)
+    extrapolation_steps = _extrapolation_steps(source_dist, target_distance)
+    base_fraction = CALIBRATED_RELATIVE_MAE.get(segment, CALIBRATED_RELATIVE_MAE['default'])
 
-    # ─── Rango de ritmo ───────────────────────────────────────────────────────
-    half_width_sec = mae_effective_min * 60
+    # 2. Escalar por pasos de extrapolación (regla metodológica)
+    step_mult  = EXTRAPOLATION_STEP_MULTIPLIER.get(extrapolation_steps,
+                                                    EXTRAPOLATION_STEP_MULTIPLIER[3])
+    down_bonus = DOWNWARD_EXTRAPOLATION_BONUS if is_downward else 0.0
 
-    time_low  = max(final_sec - half_width_sec, target_km * 120)  # mínimo 2:00/km
+    # 3. Aplicar piso mínimo (variabilidad humana inherente ~2%)
+    uncertainty_fraction = max(
+        base_fraction * step_mult + down_bonus,
+        MIN_UNCERTAINTY_FRACTION,
+    )
+    half_width_sec = final_sec * uncertainty_fraction
+
+    time_low  = max(final_sec - half_width_sec, target_km * 120)  # floor 2:00/km
     time_high = final_sec + half_width_sec
 
     pace_center = final_sec / target_km
@@ -401,19 +491,17 @@ def predict_race_time_range(
         confidence        = 'MEDIA-BAJA'
         confidence_reason = f'PR de {source_dist} sin corrección demográfica'
 
-    # Penalización por distancias con menor soporte empírico
     if target_distance in ('5K', '10K') and confidence != 'BAJA':
         _down = {'ALTA': 'MEDIA', 'MEDIA': 'MEDIA-BAJA', 'MEDIA-BAJA': 'BAJA'}
         confidence        = _down.get(confidence, confidence)
         confidence_reason += f'; menor soporte empírico para {target_distance}'
 
-    # Nota sobre extrapolación descendente
     direction_note = ''
     if is_downward:
         direction_note = (
             f'Extrapolación descendente ({source_dist}→{target_distance}): '
             f'PR en distancia más larga aplicado a distancia más corta. '
-            f'El MAE puede ser mayor de lo indicado.'
+            f'Riegel fue calibrado principalmente en dirección ascendente.'
         )
 
     return {
@@ -432,11 +520,14 @@ def predict_race_time_range(
         'time_range_fmt':     f'{_fmt_time(time_low)} – {_fmt_time(time_high)}',
         'estimate_sec':       round(final_sec),
         # ─── Métricas del modelo ─────────────────────────────────────────────
-        'mae_effective_min':  round(mae_effective_min, 1),
-        'segment':            segment,
-        'exponent_used':      round(exponent, 4),
-        'target_distance':    target_distance,
-        'target_km':          target_km,
+        'uncertainty_fraction':  round(uncertainty_fraction, 4),
+        'uncertainty_half_sec':  round(half_width_sec),
+        'extrapolation_steps':   extrapolation_steps,
+        'mae_effective_min':     round(half_width_sec / 60, 1),  # alias para compat.
+        'segment':               segment,
+        'exponent_used':         round(exponent, 4),
+        'target_distance':       target_distance,
+        'target_km':             target_km,
         # ─── Origen del PR ───────────────────────────────────────────────────
         'source_pr':          source_dist,
         'source_pr_sec':      int(source_sec),
