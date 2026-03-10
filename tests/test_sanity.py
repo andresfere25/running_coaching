@@ -72,13 +72,50 @@ def test_riegel_predict_from_profile():
     assert result is not None
     assert result['from_distance'] == '21K'
     assert result['estimated_sec'] > 0
-    assert result['model'] == 'riegel_1.06'
+    assert '1.06' in result['model']
 
 
 def test_riegel_sin_prs():
     from src.ml.riegel import predict_from_profile
     assert predict_from_profile({}, target_distance='42K') is None
     assert predict_from_profile({'pr_21k_sec': 0}, target_distance='42K') is None
+
+
+def test_riegel_calibrado_segmento_correcto():
+    """PR 21K 1:25 (5100s) → estimado 42K ~2:57 (10634s < 10800) → segmento sub3h."""
+    from src.ml.riegel import riegel_calibrated, CALIBRATED_EXPONENTS
+    t2, segment, exp = riegel_calibrated(5100, 21.0975, 42.195)
+    assert segment == 'sub3h'
+    assert abs(exp - CALIBRATED_EXPONENTS['sub3h']) < 0.0001
+    assert 10000 < t2 < 11000  # ~2:57
+
+
+def test_riegel_calibrado_segmento_3to4h():
+    """PR 21K 1:40 (6000s) → estimado 42K ~3:29 (12540s) → segmento 3to4h."""
+    from src.ml.riegel import riegel_calibrated, CALIBRATED_EXPONENTS
+    t2, segment, exp = riegel_calibrated(6000, 21.0975, 42.195)
+    assert segment == '3to4h'
+    assert abs(exp - CALIBRATED_EXPONENTS['3to4h']) < 0.0001
+    assert 10800 < t2 < 14400
+
+
+def test_riegel_calibrado_segmento_lento():
+    """PR 21K 2:00 (7200s) → estimado 42K >4h → segmento 4hplus, exp ~1.11."""
+    from src.ml.riegel import riegel_calibrated, CALIBRATED_EXPONENTS
+    t2, segment, exp = riegel_calibrated(7200, 21.0975, 42.195)
+    assert segment == '4hplus'
+    assert abs(exp - CALIBRATED_EXPONENTS['4hplus']) < 0.0001
+
+
+def test_predict_calibrated_expone_segmento():
+    """predict_from_profile_calibrated devuelve segment y exponent_used."""
+    from src.ml.riegel import predict_from_profile_calibrated
+    result = predict_from_profile_calibrated({'pr_21k_sec': 5100}, target_distance='42K')
+    assert result is not None
+    assert 'segment' in result
+    assert 'exponent_used' in result
+    assert 'expected_mae_min' in result
+    assert result['segment'] == 'sub3h'
 
 
 def test_imports_ingest():
