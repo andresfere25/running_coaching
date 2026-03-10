@@ -21,6 +21,38 @@ Este proyecto tiene **dos dimensiones que deben coexistir**, no competir:
 
 ---
 
+## Lo que se construyó en la sesión 2026-03-10
+
+### Módulo ML de predicción multi-distancia (commits `…` → `f5c86b4`)
+
+#### Calibración Riegel + tests (NB03 + `src/ml/riegel.py`)
+- `ml/notebooks/03_calibracion_riegel_boston.ipynb` — calibración con Boston 2015-2018 (103K corredores)
+- Exponentes calibrados por segmento: elite=1.0366, sub3h=1.0332, 3to4h=1.0613, 4hplus=1.1100
+- `riegel_calibrated()` y `predict_from_profile_calibrated()` en `src/ml/riegel.py`
+- Tests ampliados a 39 (todos pasan); corrección de bugs en tests de segmento
+
+#### Arquitectura 4 capas + corrección demográfica (NB04)
+- `ml/notebooks/04_arquitectura_capas_y_correccion_demografica.ipynb`
+- Capa 2a: prior demográfico desde Results.csv (429K maratonistas) — MAE ~35-45 min
+- Capa 2b: corrección residual Ridge sobre Boston por edad×género — mejora ~1-2 min
+- Confirmado: Results.csv es solo 42K; 16620238 no tiene tiempos de carrera (solo volumen)
+
+#### Sistema integrado de predicción (NB05 + `src/ml/predictor.py`)
+- `ml/notebooks/05_sistema_prediccion_integrado_y_rango_ritmo.ipynb`
+- `src/ml/predictor.py` — Capas 0+1+2 operativas; Capas 3+4 reservadas
+- Salida: `pace_range_fmt` (ritmo ± MAE), `time_range_fmt`, `confidence`, `layers_active`
+- `check_pr_consistency()` — detecta PRs contradictorios
+- Run Club dataset descartado (confirmado sintético: 97.5% tiempos enteros, 221 valores únicos en 80K filas)
+
+#### Endpoint de predicción + panel en el dashboard (commit `f5c86b4`)
+- `GET /athletes/{cedula}/prediction?target=5K|10K|21K|42K` en `api/routers/athletes.py`
+  Lee PRs desde `profile.json`, llama `predict_race_time_range()`, retorna JSON completo
+- `frontend/app.js`: estado `prediction`/`predTarget`, `fetchPrediction()`, auto-set desde `race_distance`
+- `frontend/index.html`: sección 2.5 con selector de distancia, rango de ritmo, badge de confianza,
+  capas activas, corrección demográfica, soporte empírico, nota de extrapolación descendente
+
+---
+
 ## Lo que se construyó en la sesión 2026-03-07
 
 ### Estabilización del repo (commit `12909a5`)
@@ -60,11 +92,11 @@ Este proyecto tiene **dos dimensiones que deben coexistir**, no competir:
 
 | Opción | Qué desbloquea | Esfuerzo |
 |---|---|---|
-| **A — EDA del módulo ML** | Componente académico: explorar `archive(3)/Results.csv`, implementar baseline Riegel, primer notebook de predicción de tiempo | 1-2 sesiones |
+| **A — NB06: Capa 3 con Injury Prediction dataset** | Corrección por carga CTL/ATL — cierra el loop académico de la arquitectura de 4 capas | 1 sesión |
 | **B — Migrar `data/` a Supabase** | CI real, deploy del backend, múltiples atletas sin depender del disco local | 2-3 sesiones |
-| **C — Instalar Node.js + migrar frontend a React/Vite** | HMR, componentes reutilizables, TypeScript, base seria para el frontend final | 1 sesión |
+| **C — Fix `pr_21k_sec: 85.0`** | Bug pendiente en `ingest_forms.py`: parser HH:MM → segundos falla para "1:25" | < 1 sesión |
 
-**Recomendación**: ir por **A** primero. El componente ML es el diferenciador académico y no requiere infraestructura nueva. Luego **B** para desbloquear el deploy. Luego **C** para el frontend final.
+**Recomendación**: ir por **C** primero (bug de 30 min que corrompe el predictor para el atleta real), luego **A** para completar el componente académico, luego **B** para desbloquear deploy.
 
 ---
 
@@ -76,9 +108,9 @@ Este proyecto tiene **dos dimensiones que deben coexistir**, no competir:
 |---|---|---|
 | Entregable | PDF (legado) + dashboard Alpine.js en `/app` | App/web React con auth y deploy |
 | Storage | `data/` local + Google Sheets | Supabase (PostgreSQL + Storage) |
-| Backend | FastAPI local (`api/`) — 8 endpoints funcionales | FastAPI deployado en Fly.io/Railway |
+| Backend | FastAPI local (`api/`) — 9 endpoints funcionales | FastAPI deployado en Fly.io/Railway |
 | Frontend | Alpine.js servido por FastAPI (sin Node) | React + Vite + Next.js |
-| ML | Heurísticas (reglas if/else) | Modelos entrenados con datos reales |
+| ML | Riegel calibrado + corrección demográfica (Capas 0-2 operativas) | Capas 3-4 + modelo supervisado con datos reales |
 | CI/CD | GitHub Actions estabilizado (cédula por secret) | Pipeline + deploy automático |
 
 **El PDF es legado/fallback.** No es el objetivo. No construir nuevas features sobre el PDF.
@@ -88,11 +120,14 @@ Este proyecto tiene **dos dimensiones que deben coexistir**, no competir:
 ## Prioridad actual (en orden)
 
 1. ~~Estabilizar GitHub~~ ✅ resuelto
-2. ~~Backend API~~ ✅ FastAPI con 8 endpoints funcional
+2. ~~Backend API~~ ✅ FastAPI con 9 endpoints funcionales
 3. ~~Frontend mínimo~~ ✅ Alpine.js dashboard en `/app`
-4. **EDA + baseline ML**: notebooks en `ml/`, explorar datasets, implementar Riegel
-5. **Migrar storage a Supabase**: desbloquea CI real y deploy
-6. **Migrar frontend a React/Vite**: cuando Node.js esté disponible
+4. ~~EDA + baseline ML~~ ✅ NB03–NB05: Riegel calibrado, arquitectura 4 capas, predictor multi-distancia
+5. ~~Predicción en el dashboard~~ ✅ endpoint + panel visual con rango de ritmo
+6. **Fix bug `pr_21k_sec: 85.0`**: parser HH:MM falla en `ingest_forms.py` — el predictor da resultados incorrectos con el atleta real
+7. **NB06 — Capa 3**: corrección por carga con Injury Prediction dataset (74 atletas)
+8. **Migrar storage a Supabase**: desbloquea CI real y deploy
+9. **Migrar frontend a React/Vite**: cuando Node.js esté disponible
 
 ---
 
