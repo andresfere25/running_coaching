@@ -323,16 +323,41 @@ def test_predict_range_todas_las_distancias():
         assert r['estimate_sec'] > 0
 
 
-def test_predict_range_confianza_menor_en_5k():
-    """La confianza debe ser menor para 5K que para 42K dado el mismo PR fuente."""
+def test_predict_range_confianza_menor_en_5k_con_extrapolacion():
+    """
+    Cuando la predicción 5K requiere extrapolación real (source ≠ 5K),
+    la confianza debe degradarse respecto a la de 42K (mismo PR fuente, 1 paso).
+    """
     from src.ml.predictor import predict_race_time_range
-    # Usar 21K como fuente forzada para ambos (sin PR de 5K ni 42K directo)
+    # Solo 21K disponible: fuerza extrapolación (steps=1 para 42K, steps=2 para 5K)
     profile = {'pr_21k_sec': 5100}
     r42 = predict_race_time_range(profile, '42K', age=35, gender='M')
     r5  = predict_race_time_range(profile, '5K',  age=35, gender='M')
-    # 42K debe tener mayor o igual confianza que 5K
     confidence_order = ['ALTA', 'MEDIA', 'MEDIA-BAJA', 'BAJA']
+    assert r5['extrapolation_steps'] > 0, "5K debe extrapolarse desde 21K"
     assert confidence_order.index(r42['confidence']) <= confidence_order.index(r5['confidence'])
+
+
+def test_predict_range_confianza_no_degrada_cuando_mismo_pr():
+    """
+    Cuando source_pr == target (extrapolation_steps=0), la confianza NO debe
+    degradarse para 5K/10K: la predicción es el PR directo, no una extrapolación.
+    """
+    from src.ml.predictor import predict_race_time_range
+    # 5K PR disponible → steps=0 → confidence = MEDIA-BAJA por falta de demo, no por modelo
+    r5_directo   = predict_race_time_range({'pr_5k_sec': 1140},  '5K',  age=35, gender='M')
+    r10_directo  = predict_race_time_range({'pr_10k_sec': 2280}, '10K', age=35, gender='M')
+    r21_directo  = predict_race_time_range({'pr_21k_sec': 5100}, '21K', age=35, gender='M')
+
+    assert r5_directo['extrapolation_steps']  == 0
+    assert r10_directo['extrapolation_steps'] == 0
+
+    # Con mismo PR y datos demográficos, confianza base es MEDIA para todos
+    assert r5_directo['confidence']  == 'MEDIA', \
+        f"5K con PR directo+demo debe ser MEDIA, no {r5_directo['confidence']}"
+    assert r10_directo['confidence'] == 'MEDIA', \
+        f"10K con PR directo+demo debe ser MEDIA, no {r10_directo['confidence']}"
+    assert r21_directo['confidence'] == 'MEDIA'
 
 
 def test_consistency_ok_prs_coherentes():

@@ -156,11 +156,17 @@ def _fmt_pace(sec_per_km: float) -> str:
 
 
 def _fmt_time(total_sec: float) -> str:
-    """Formatea segundos totales como 'H:MM:SS'. Ej: 13545 → '3:45:45'."""
+    """
+    Formatea segundos totales.
+    - >= 1 hora:  'H:MM:SS'  (ej: 10800 → '3:00:00')
+    - <  1 hora:  'MM:SS'    (ej: 1140  → '19:00', evita '0:19:00')
+    """
     if not total_sec or total_sec <= 0 or math.isnan(total_sec):
         return '--'
     h, rem = divmod(int(round(total_sec)), 3600)
     m, s   = divmod(rem, 60)
+    if h == 0:
+        return f'{m}:{s:02d}'
     return f'{h}:{m:02d}:{s:02d}'
 
 
@@ -491,10 +497,14 @@ def predict_race_time_range(
         confidence        = 'MEDIA-BAJA'
         confidence_reason = f'PR de {source_dist} sin corrección demográfica'
 
-    if target_distance in ('5K', '10K') and confidence != 'BAJA':
+    # Degradar confianza por menor soporte empírico de Riegel para distancias
+    # cortas, SOLO cuando hay extrapolación real (steps > 0).
+    # Cuando source_pr == target (steps=0), la predicción es el PR directo del
+    # atleta — la incertidumbre del modelo Riegel no aplica.
+    if target_distance in ('5K', '10K') and confidence != 'BAJA' and extrapolation_steps > 0:
         _down = {'ALTA': 'MEDIA', 'MEDIA': 'MEDIA-BAJA', 'MEDIA-BAJA': 'BAJA'}
         confidence        = _down.get(confidence, confidence)
-        confidence_reason += f'; menor soporte empírico para {target_distance}'
+        confidence_reason += f'; menor soporte empírico de Riegel para {target_distance}'
 
     direction_note = ''
     if is_downward:
