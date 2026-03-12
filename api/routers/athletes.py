@@ -24,6 +24,92 @@ from fastapi.responses import FileResponse
 from api.deps import get_athlete_dir, get_data_dir, require_api_key, sanitize_json
 from src.storage.reader import read_snapshot, read_plan, read_features, read_checkin, read_activities
 
+
+def _build_activities_summary(
+    rows: list[dict],
+    period: str,
+    last_n: int,
+    sport_type_filter: "str | None",
+) -> list[dict]:
+    """
+    Agrupa actividades por semana o mes y calcula métricas clave.
+    Retorna lista ordenada de más reciente a más antigua (máx last_n períodos).
+    """
+    if not rows:
+        return []
+
+    df = pd.DataFrame(rows)
+
+    # Filtrar por sport_type antes de agregar
+    if sport_type_filter:
+        mask = df["sport_type"].str.lower().str.contains(sport_type_filter.lower(), na=False)
+        df = df[mask]
+    if df.empty:
+        return []
+
+    # Parsear fechas (activity_date puede traer timezone info)
+    df["activity_date"] = pd.to_datetime(df["activity_date"], utc=True, errors="coerce")
+    df = df.dropna(subset=["activity_date"])
+    df["distance_km"] = pd.to_numeric(df["distance_km"], errors="coerce")
+    df["pace_sec_per_km"] = pd.to_numeric(df["pace_sec_per_km"], errors="coerce")
+    df["average_heartrate"] = pd.to_numeric(df["average_heartrate"], errors="coerce")
+    df["elevation_m"] = pd.to_numeric(df["elevation_m"], errors="coerce")
+    df["duration_sec"] = pd.to_numeric(df["duration_sec"], errors="coerce")
+
+    # Normalizar a UTC naive antes de asignar período (evita warning de timezone en Period)
+    dt_utc = df["activity_date"].dt.tz_convert("UTC").dt.tz_localize(None)
+    if period == "week":
+        df["period_start"] = dt_utc.dt.to_period("W-MON").apply(lambda p: p.start_time)
+    else:
+        df["period_start"] = dt_utc.dt.to_period("M").apply(lambda p: p.start_time)
+
+    # Agregados base
+    agg = (
+        df.groupby("period_start")
+        .agg(
+            sessions=("activity_id", "count"),
+            km_total=("distance_km", "sum"),
+            elevation_m_total=("elevation_m", "sum"),
+            duration_sec_total=("duration_sec", "sum"),
+            avg_heartrate=("average_heartrate", "mean"),
+        )
+        .reset_index()
+    )
+
+    # Pace promedio ponderado por km (evita distorsión de actividades cortas)
+    def _weighted_pace(group: pd.DataFrame) -> "float | None":
+        valid = group.dropna(subset=["pace_sec_per_km", "distance_km"])
+        valid = valid[valid["distance_km"] > 0]
+        if valid.empty:
+            return None
+        return (valid["pace_sec_per_km"] * valid["distance_km"]).sum() / valid["distance_km"].sum()
+
+    pace_by_period = (
+        df.groupby("period_start")
+        .apply(_weighted_pace)
+        .reset_index(name="avg_pace_sec_km")
+    )
+    agg = agg.merge(pace_by_period, on="period_start", how="left")
+
+    # Ordenar descendente, tomar los últimos N períodos
+    agg = agg.sort_values("period_start", ascending=False).head(last_n).reset_index(drop=True)
+
+    # Formatear para JSON
+    result = []
+    for _, row in agg.iterrows():
+        km = round(float(row["km_total"]), 2) if pd.notna(row["km_total"]) else 0.0
+        result.append({
+            "period_start":       row["period_start"].strftime("%Y-%m-%d"),
+            "period":             period,
+            "sessions":           int(row["sessions"]),
+            "km_total":           km,
+            "elevation_m_total":  round(float(row["elevation_m_total"]), 1) if pd.notna(row["elevation_m_total"]) else None,
+            "duration_sec_total": int(row["duration_sec_total"]) if pd.notna(row["duration_sec_total"]) else None,
+            "avg_pace_sec_km":    round(float(row["avg_pace_sec_km"]), 1) if pd.notna(row["avg_pace_sec_km"]) else None,
+            "avg_heartrate":      round(float(row["avg_heartrate"]), 1) if pd.notna(row["avg_heartrate"]) else None,
+        })
+    return result
+
 router = APIRouter()
 
 
@@ -231,6 +317,64 @@ def get_activities(
         "count":    len(rows),
         "limit":    limit,
         "data":     rows,
+    })
+
+
+# ─── Summary de actividades ──────────────────────────────────────────────────
+
+@router.get("/{cedula}/activities/summary")
+def get_activities_summary(
+    cedula: str,
+    period: str = Query(default="week", description="Agrupar por 'week' o 'month'"),
+    last_n: int = Query(default=8, ge=1, le=52, description="Últimos N períodos a devolver"),
+    sport_type: str | None = Query(default=None, description="Filtrar por tipo, ej: 'run'"),
+    _: None = Depends(require_api_key),
+):
+    """
+    Resumen de actividades agrupado por semana o mes. Listo para gráficas.
+
+    Lee todas las actividades disponibles (Supabase → local) y las agrega
+    por el período solicitado.
+
+    Parámetros:
+    - period: 'week' (lunes como inicio) o 'month'
+    - last_n: cuántos períodos devolver (default 8, max 52)
+    - sport_type: filtrar antes de agregar, ej: 'run', 'Ride'
+
+    Campos por período:
+    - period_start: fecha de inicio del período (YYYY-MM-DD)
+    - sessions: número de actividades
+    - km_total: km totales
+    - elevation_m_total: desnivel acumulado
+    - duration_sec_total: tiempo total en segundos
+    - avg_pace_sec_km: pace promedio ponderado por km (None si no hay runs)
+    - avg_heartrate: FC promedio (None si no hay datos de HR)
+    """
+    if period not in ("week", "month"):
+        raise HTTPException(
+            status_code=422,
+            detail="El parámetro 'period' debe ser 'week' o 'month'.",
+        )
+
+    athlete_dir = get_data_dir() / cedula
+    # Leer todas las actividades disponibles para poder agrupar
+    rows = read_activities(
+        cedula,
+        athlete_dir if athlete_dir.exists() else None,
+        limit=1000,  # suficiente para cualquier atleta real
+    )
+    if rows is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Activities no disponibles. Ejecuta primero: POST /athletes/{cedula}/sync",
+        )
+
+    summary = _build_activities_summary(rows, period, last_n, sport_type)
+    return sanitize_json({
+        "cedula":   cedula,
+        "period":   period,
+        "count":    len(summary),
+        "data":     summary,
     })
 
 

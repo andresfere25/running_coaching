@@ -7,10 +7,17 @@ Para cada tipo de dato:
 3. Si tampoco hay datos locales, retorna None.
 
 Funciones públicas:
-  read_snapshot(cedula, athlete_dir)        → dict | None
-  read_plan(cedula, athlete_dir)            → dict | None
-  read_features(cedula, athlete_dir, weeks) → list[dict] | None
-  read_checkin(cedula, athlete_dir)         → dict | None
+  read_snapshot(cedula, athlete_dir)                              → dict | None
+  read_plan(cedula, athlete_dir)                                  → dict | None
+  read_features(cedula, athlete_dir, weeks)                       → list[dict] | None
+  read_activities(cedula, athlete_dir, limit, from_date, to_date, sport_type)
+                                                                  → list[dict] | None
+  read_checkin(cedula, athlete_dir)                               → dict | None
+
+Schema canónico de actividad (read_activities siempre devuelve este shape):
+  activity_id, cedula, name, sport_type, activity_date,
+  distance_m, distance_km, duration_sec, elevation_m,
+  pace_sec_per_km, average_heartrate, average_cadence
 """
 
 import json
@@ -18,13 +25,57 @@ from pathlib import Path
 
 from src.storage.supabase_client import get_client
 
-# Columnas de Supabase que se exponen en el endpoint (sin raw para no inflar la respuesta)
-_ACTIVITY_COLS = "strava_id,cedula,name,sport_type,activity_date,distance_m,duration_sec,elevation_m,avg_pace_sec_km"
+# Incluye raw para extraer HR/cadencia que no tienen columna propia en Supabase
+_ACTIVITY_COLS = (
+    "strava_id,cedula,name,sport_type,activity_date,"
+    "distance_m,duration_sec,elevation_m,avg_pace_sec_km,raw"
+)
+
+
+# ─── Normalización de activities ─────────────────────────────────────────────
+
+def _normalize_activity(row: dict, source: str) -> dict:
+    """
+    Normaliza una fila de actividad al schema canónico de 12 campos.
+    Independiente de si viene de Supabase o del parquet local.
+    """
+    if source == "supabase":
+        raw = row.get("raw") or {}
+        dist_m = row.get("distance_m") or 0
+        return {
+            "activity_id":       row.get("strava_id"),
+            "cedula":            row.get("cedula"),
+            "name":              row.get("name"),
+            "sport_type":        row.get("sport_type"),
+            "activity_date":     row.get("activity_date"),
+            "distance_m":        dist_m,
+            "distance_km":       round(dist_m / 1000, 3) if dist_m else None,
+            "duration_sec":      row.get("duration_sec"),
+            "elevation_m":       row.get("elevation_m"),
+            "pace_sec_per_km":   row.get("avg_pace_sec_km"),
+            "average_heartrate": raw.get("average_heartrate"),
+            "average_cadence":   raw.get("average_cadence"),
+        }
+    else:  # local parquet
+        return {
+            "activity_id":       row.get("activity_id"),
+            "cedula":            row.get("cedula"),
+            "name":              row.get("name"),
+            "sport_type":        row.get("sport_type"),
+            "activity_date":     row.get("start_date_local"),
+            "distance_m":        row.get("distance_m"),
+            "distance_km":       row.get("distance_km"),
+            "duration_sec":      row.get("moving_time_s"),
+            "elevation_m":       row.get("total_elevation_gain_m"),
+            "pace_sec_per_km":   row.get("pace_sec_per_km"),
+            "average_heartrate": row.get("average_heartrate"),
+            "average_cadence":   row.get("average_cadence"),
+        }
 
 
 # ─── snapshot ────────────────────────────────────────────────────────────────
 
-def read_snapshot(cedula: str, athlete_dir: Path | None) -> dict | None:
+def read_snapshot(cedula: str, athlete_dir: "Path | None") -> "dict | None":
     """
     Lee athlete_snapshot.json.
     Fuente 1: Supabase athlete_snapshots.raw
@@ -55,7 +106,7 @@ def read_snapshot(cedula: str, athlete_dir: Path | None) -> dict | None:
 
 # ─── plan ─────────────────────────────────────────────────────────────────────
 
-def read_plan(cedula: str, athlete_dir: Path | None) -> dict | None:
+def read_plan(cedula: str, athlete_dir: "Path | None") -> "dict | None":
     """
     Lee weekly_plan.json.
     Fuente 1: Supabase weekly_plans.plan_json (más reciente)
@@ -87,7 +138,7 @@ def read_plan(cedula: str, athlete_dir: Path | None) -> dict | None:
 
 # ─── features ────────────────────────────────────────────────────────────────
 
-def read_features(cedula: str, athlete_dir: Path | None, weeks: int = 12) -> list[dict] | None:
+def read_features(cedula: str, athlete_dir: "Path | None", weeks: int = 12) -> "list[dict] | None":
     """
     Lee historial de weekly_features.
     Fuente 1: Supabase weekly_features.raw (últimas N semanas, orden ascendente)
@@ -106,7 +157,6 @@ def read_features(cedula: str, athlete_dir: Path | None, weeks: int = 12) -> lis
                 .execute()
             )
             if res.data:
-                # Invertir para orden ascendente (más antiguo primero)
                 return [r["raw"] for r in reversed(res.data)]
         except Exception as exc:
             print(f"[reader] Supabase features error para {cedula}: {exc}")
@@ -134,14 +184,10 @@ def read_activities(
 ) -> "list[dict] | None":
     """
     Lee activities (historial de actividades Strava).
-    Fuente 1: Supabase activities (columnas estructuradas, sin raw)
-    Fuente 2: silver/activities.parquet (filtrado en pandas)
+    Fuente 1: Supabase activities — normalizado al schema canónico
+    Fuente 2: silver/activities.parquet — normalizado al schema canónico
 
-    Parámetros:
-      limit      — máximo de actividades a devolver (default 50)
-      from_date  — ISO date "YYYY-MM-DD" para filtrar desde esa fecha
-      to_date    — ISO date "YYYY-MM-DD" para filtrar hasta esa fecha (inclusive)
-      sport_type — string para filtrar por tipo (e.g. "run")
+    Siempre devuelve el mismo shape de 12 campos independientemente de la fuente.
     """
     client = get_client()
     if client:
@@ -161,7 +207,7 @@ def read_activities(
                 q = q.ilike("sport_type", f"%{sport_type}%")
             res = q.execute()
             if res.data:
-                return res.data
+                return [_normalize_activity(r, "supabase") for r in res.data]
         except Exception as exc:
             print(f"[reader] Supabase activities error para {cedula}: {exc}")
 
@@ -170,7 +216,6 @@ def read_activities(
         path = athlete_dir / "silver" / "activities.parquet"
         if path.exists():
             import duckdb
-            import pandas as pd
             df = duckdb.query(
                 f"SELECT * FROM '{path.as_posix()}' ORDER BY start_date_local DESC"
             ).to_df()
@@ -182,14 +227,14 @@ def read_activities(
                 mask = df["sport_type"].str.lower().str.contains(sport_type.lower(), na=False)
                 df = df[mask]
             df = df.head(limit).reset_index(drop=True)
-            return df.to_dict(orient="records")
+            return [_normalize_activity(r, "local") for r in df.to_dict(orient="records")]
 
     return None
 
 
 # ─── checkin ─────────────────────────────────────────────────────────────────
 
-def read_checkin(cedula: str, athlete_dir: Path | None) -> dict | None:
+def read_checkin(cedula: str, athlete_dir: "Path | None") -> "dict | None":
     """
     Lee latest_checkin.json.
     Fuente 1: Supabase checkins.raw (más reciente por checkin_date)
