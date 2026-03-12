@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from api.routers import athletes, health, pipeline
+from api.routers import athletes, health, pipeline, coach, sync
 
 # ─── App ─────────────────────────────────────────────────────────────────────
 
@@ -50,6 +50,8 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(athletes.router, prefix="/athletes", tags=["athletes"])
 app.include_router(pipeline.router, prefix="/athletes", tags=["pipeline"])
+app.include_router(sync.router,     prefix="/athletes", tags=["sync"])
+app.include_router(coach.router,    prefix="/athletes", tags=["coach"])
 
 
 # ─── Root ────────────────────────────────────────────────────────────────────

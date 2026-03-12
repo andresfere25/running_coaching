@@ -1,0 +1,306 @@
+"""
+src/storage/writer.py — Escritura dual (local → Supabase).
+
+Fase A: Lee los archivos ya generados por el pipeline local y los sube a Supabase.
+No modifica ni depende de la lógica del pipeline.
+
+Cada función retorna un dict {"ok": bool, "detail": str}.
+Si el cliente Supabase no está configurado, retorna ok=True con detail="skipped".
+
+Funciones públicas:
+    push_all(cedula, athlete_dir)   → sube todo lo disponible
+    push_athlete(cedula, name)      → upsert tabla athletes
+    push_profile(cedula, dir)       → upsert athlete_profiles
+    push_snapshot(cedula, dir)      → upsert athlete_snapshots
+    push_weekly_features(cedula, dir) → upsert weekly_features (histórico completo)
+    push_plan(cedula, dir)          → upsert weekly_plans (plan actual)
+    push_checkin(cedula, dir)       → upsert checkins (último check-in)
+"""
+
+import json
+from datetime import date, datetime
+from pathlib import Path
+from typing import Any
+
+from src.storage.supabase_client import get_client
+
+
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+
+def _ok(detail: str = "ok") -> dict:
+    return {"ok": True, "detail": detail}
+
+
+def _err(detail: str) -> dict:
+    return {"ok": False, "detail": detail}
+
+
+def _skipped() -> dict:
+    return {"ok": True, "detail": "skipped (Supabase not configured)"}
+
+
+def _clean(obj: Any) -> Any:
+    """Convierte tipos no serializables por supabase-py (date → str, NaN → None)."""
+    import math
+    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return None
+    if isinstance(obj, (date, datetime)):
+        return obj.isoformat()
+    if isinstance(obj, dict):
+        return {k: _clean(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_clean(v) for v in obj]
+    return obj
+
+
+def _read_json(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+# ─── Funciones por tabla ──────────────────────────────────────────────────────
+
+def push_athlete(cedula: str, name: str | None = None) -> dict:
+    """Upsert tabla athletes (registro maestro)."""
+    client = get_client()
+    if not client:
+        return _skipped()
+    try:
+        row = _clean({"cedula": cedula, "name": name})
+        client.table("athletes").upsert(row, on_conflict="cedula").execute()
+        return _ok("athletes upserted")
+    except Exception as exc:
+        return _err(f"athletes: {exc}")
+
+
+def push_profile(cedula: str, athlete_dir: Path) -> dict:
+    """Upsert athlete_profiles desde meta/profile.json."""
+    client = get_client()
+    if not client:
+        return _skipped()
+
+    data = _read_json(athlete_dir / "meta" / "profile.json")
+    if not data:
+        return _err("profile.json not found")
+
+    row = _clean({
+        "cedula":        cedula,
+        "age":           data.get("age"),
+        "sex":           data.get("sex"),
+        "weight_kg":     data.get("weight_kg"),
+        "height_cm":     data.get("height_cm"),
+        "pr_5k_sec":     data.get("pr_5k_sec"),
+        "pr_10k_sec":    data.get("pr_10k_sec"),
+        "pr_21k_sec":    data.get("pr_21k_sec"),
+        "pr_42k_sec":    data.get("pr_42k_sec"),
+        "race_distance": data.get("race_distance"),
+        "race_date_raw": data.get("race_date_raw"),
+        "time_goal_sec": data.get("time_goal_sec"),
+        "raw":           data,
+    })
+    try:
+        client.table("athlete_profiles").upsert(row, on_conflict="cedula").execute()
+        return _ok("athlete_profiles upserted")
+    except Exception as exc:
+        return _err(f"athlete_profiles: {exc}")
+
+
+def push_snapshot(cedula: str, athlete_dir: Path) -> dict:
+    """Upsert athlete_snapshots desde features/athlete_snapshot.json."""
+    client = get_client()
+    if not client:
+        return _skipped()
+
+    data = _read_json(athlete_dir / "features" / "athlete_snapshot.json")
+    if not data:
+        return _err("athlete_snapshot.json not found")
+
+    generated_at = data.get("generated_at")
+
+    row = _clean({
+        "cedula":               cedula,
+        "generated_at":         generated_at,
+        "semaforo":             data.get("semaforo_latest_checkin"),
+        "readiness_score":      data.get("readiness_score"),
+        "acwr_zone":            data.get("acwr_zone_latest"),
+        "race_countdown_days":  data.get("race_countdown_days"),
+        "data_weeks_available": data.get("data_weeks_available"),
+        "raw":                  data,
+    })
+    try:
+        client.table("athlete_snapshots").upsert(row, on_conflict="cedula").execute()
+        return _ok("athlete_snapshots upserted")
+    except Exception as exc:
+        return _err(f"athlete_snapshots: {exc}")
+
+
+def push_weekly_features(cedula: str, athlete_dir: Path) -> dict:
+    """
+    Upsert weekly_features desde features/weekly_features.parquet.
+    Hace upsert de todas las filas (ON CONFLICT cedula+week_start → UPDATE).
+    """
+    client = get_client()
+    if not client:
+        return _skipped()
+
+    parquet_path = athlete_dir / "features" / "weekly_features.parquet"
+    if not parquet_path.exists():
+        return _err("weekly_features.parquet not found")
+
+    try:
+        import duckdb
+        df = duckdb.query(f"SELECT * FROM '{parquet_path.as_posix()}'").to_df()
+    except Exception as exc:
+        return _err(f"parquet read: {exc}")
+
+    if df.empty:
+        return _ok("weekly_features: 0 rows (empty parquet)")
+
+    rows = []
+    for _, r in df.iterrows():
+        raw = {k: (None if hasattr(v, "__float__") and __import__("math").isnan(float(v)) else v)
+               for k, v in r.items()
+               if k not in ("__null_dask_index__",)}
+        week_start = str(r.get("week_start", ""))[:10]  # DATE yyyy-mm-dd
+        row = _clean({
+            "cedula":           cedula,
+            "week_start":       week_start,
+            "km_total":         r.get("km_total"),
+            "sessions":         r.get("sessions"),
+            "longest_run_km":   r.get("fondo_largo_4s") or r.get("longest_run_km"),
+            "avg_pace_sec_km":  r.get("avg_pace_sec_km"),
+            "ctl":              r.get("ctl"),
+            "atl":              r.get("atl"),
+            "tsb":              r.get("tsb"),
+            "acwr":             r.get("acwr"),
+            "racha_semanas":    r.get("racha_semanas"),
+            "km_trend":         r.get("km_trend"),
+            "pace_delta_4s_sec": r.get("pace_delta_4s_sec"),
+            "semana_spike":     bool(r.get("semana_spike")) if r.get("semana_spike") is not None else None,
+            "raw":              raw,
+        })
+        rows.append(row)
+
+    try:
+        # Supabase upsert en lotes de 500
+        batch_size = 500
+        for i in range(0, len(rows), batch_size):
+            client.table("weekly_features").upsert(
+                rows[i:i + batch_size],
+                on_conflict="cedula,week_start",
+            ).execute()
+        return _ok(f"weekly_features: {len(rows)} rows upserted")
+    except Exception as exc:
+        return _err(f"weekly_features upsert: {exc}")
+
+
+def push_plan(cedula: str, athlete_dir: Path) -> dict:
+    """
+    Upsert weekly_plans desde features/weekly_plan.json.
+    Usa la semana actual (lunes) como week_start.
+    """
+    client = get_client()
+    if not client:
+        return _skipped()
+
+    data = _read_json(athlete_dir / "features" / "weekly_plan.json")
+    if not data:
+        return _err("weekly_plan.json not found")
+
+    # week_start = lunes de la semana actual (o del campo week_start en el JSON)
+    week_start = data.get("week_start")
+    if not week_start:
+        today = date.today()
+        monday = today - __import__("datetime").timedelta(days=today.weekday())
+        week_start = monday.isoformat()
+
+    targets = data.get("targets", {})
+    row = _clean({
+        "cedula":        cedula,
+        "week_start":    str(week_start)[:10],
+        "week_type":     data.get("week_type"),
+        "semaforo":      data.get("semaforo"),
+        "km_target":     targets.get("km_target") or targets.get("km"),
+        "running_days":  targets.get("running_days") or targets.get("dias_running"),
+        "strength_days": targets.get("strength_days") or targets.get("dias_fuerza"),
+        "plan_json":     data,
+    })
+    try:
+        client.table("weekly_plans").upsert(row, on_conflict="cedula,week_start").execute()
+        return _ok("weekly_plans upserted")
+    except Exception as exc:
+        return _err(f"weekly_plans: {exc}")
+
+
+def push_checkin(cedula: str, athlete_dir: Path) -> dict:
+    """Upsert checkins desde meta/latest_checkin.json."""
+    client = get_client()
+    if not client:
+        return _skipped()
+
+    data = _read_json(athlete_dir / "meta" / "latest_checkin.json")
+    if not data:
+        return _err("latest_checkin.json not found")
+
+    checkin_date = data.get("date") or data.get("checkin_date")
+    if not checkin_date:
+        return _err("checkin: no date field in latest_checkin.json")
+
+    row = _clean({
+        "cedula":       cedula,
+        "checkin_date": str(checkin_date)[:10],
+        "pain":         data.get("pain"),
+        "fatigue":      data.get("fatigue"),
+        "feeling":      data.get("feeling"),
+        "sleep":        data.get("sleep"),
+        "stress":       data.get("stress"),
+        "semaforo":     data.get("semaforo"),
+        "is_recent":    bool(data.get("is_recent", False)),
+        "raw":          data,
+    })
+    try:
+        client.table("checkins").upsert(row, on_conflict="cedula,checkin_date").execute()
+        return _ok("checkins upserted")
+    except Exception as exc:
+        return _err(f"checkins: {exc}")
+
+
+# ─── Función principal ────────────────────────────────────────────────────────
+
+def push_all(cedula: str, athlete_dir: Path) -> dict:
+    """
+    Sube todos los datos locales disponibles a Supabase.
+    Retorna un resumen de los resultados por tabla.
+    Si Supabase no está configurado, todas las operaciones retornan 'skipped'.
+
+    Uso típico (después de que el pipeline haya corrido):
+        from src.storage.writer import push_all
+        from pathlib import Path
+        result = push_all("1070982737", Path("data/athletes/1070982737"))
+    """
+    # Leer nombre desde profile.json (si existe)
+    profile = _read_json(athlete_dir / "meta" / "profile.json")
+    name = profile.get("name") if profile else None
+
+    results = {
+        "athletes":        push_athlete(cedula, name),
+        "profile":         push_profile(cedula, athlete_dir),
+        "snapshot":        push_snapshot(cedula, athlete_dir),
+        "weekly_features": push_weekly_features(cedula, athlete_dir),
+        "plan":            push_plan(cedula, athlete_dir),
+        "checkin":         push_checkin(cedula, athlete_dir),
+    }
+
+    all_ok = all(v["ok"] for v in results.values())
+    errors = {k: v["detail"] for k, v in results.items() if not v["ok"]}
+
+    return {
+        "ok":      all_ok,
+        "cedula":  cedula,
+        "results": {k: v["detail"] for k, v in results.items()},
+        "errors":  errors,
+    }

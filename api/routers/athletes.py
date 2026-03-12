@@ -19,6 +19,7 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 
 from api.deps import get_athlete_dir, get_data_dir, require_api_key, sanitize_json
 
@@ -235,3 +236,42 @@ def get_prediction(
         gender=gender,
     )
     return sanitize_json(result)
+
+
+# ─── Reporte PDF ──────────────────────────────────────────────────────────────
+
+@router.get("/{cedula}/report.pdf")
+def get_report_pdf(
+    cedula: str,
+    athlete_dir: Path = Depends(get_athlete_dir),
+    _: None = Depends(require_api_key),
+):
+    """
+    Descarga el último reporte PDF generado para el atleta.
+    El PDF se genera en el paso 'pdf' del pipeline (legado/fallback).
+
+    Retorna el archivo más reciente en data/athletes/{cedula}/outputs/*.pdf.
+    """
+    outputs_dir = athlete_dir / "outputs"
+    if not outputs_dir.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Directorio outputs/ no encontrado. Ejecuta el pipeline con step 'pdf'.",
+        )
+
+    pdfs = sorted(outputs_dir.glob("*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not pdfs:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No hay reportes PDF disponibles. "
+                f"Ejecuta: POST /athletes/{cedula}/pipeline?steps=pdf"
+            ),
+        )
+
+    latest_pdf = pdfs[0]
+    return FileResponse(
+        path=str(latest_pdf),
+        media_type="application/pdf",
+        filename=f"coaching_report_{cedula}_{latest_pdf.stem}.pdf",
+    )
