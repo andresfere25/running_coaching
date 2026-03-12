@@ -18,6 +18,9 @@ from pathlib import Path
 
 from src.storage.supabase_client import get_client
 
+# Columnas de Supabase que se exponen en el endpoint (sin raw para no inflar la respuesta)
+_ACTIVITY_COLS = "strava_id,cedula,name,sport_type,activity_date,distance_m,duration_sec,elevation_m,avg_pace_sec_km"
+
 
 # ─── snapshot ────────────────────────────────────────────────────────────────
 
@@ -114,6 +117,71 @@ def read_features(cedula: str, athlete_dir: Path | None, weeks: int = 12) -> lis
             import duckdb
             df = duckdb.query(f"SELECT * FROM '{path.as_posix()}'").to_df()
             df = df.sort_values("week_start").tail(weeks).reset_index(drop=True)
+            return df.to_dict(orient="records")
+
+    return None
+
+
+# ─── activities ──────────────────────────────────────────────────────────────
+
+def read_activities(
+    cedula: str,
+    athlete_dir: "Path | None",
+    limit: int = 50,
+    from_date: "str | None" = None,
+    to_date: "str | None" = None,
+    sport_type: "str | None" = None,
+) -> "list[dict] | None":
+    """
+    Lee activities (historial de actividades Strava).
+    Fuente 1: Supabase activities (columnas estructuradas, sin raw)
+    Fuente 2: silver/activities.parquet (filtrado en pandas)
+
+    Parámetros:
+      limit      — máximo de actividades a devolver (default 50)
+      from_date  — ISO date "YYYY-MM-DD" para filtrar desde esa fecha
+      to_date    — ISO date "YYYY-MM-DD" para filtrar hasta esa fecha (inclusive)
+      sport_type — string para filtrar por tipo (e.g. "run")
+    """
+    client = get_client()
+    if client:
+        try:
+            q = (
+                client.table("activities")
+                .select(_ACTIVITY_COLS)
+                .eq("cedula", cedula)
+                .order("activity_date", desc=True)
+                .limit(limit)
+            )
+            if from_date:
+                q = q.gte("activity_date", from_date)
+            if to_date:
+                q = q.lte("activity_date", to_date + "T23:59:59")
+            if sport_type:
+                q = q.ilike("sport_type", f"%{sport_type}%")
+            res = q.execute()
+            if res.data:
+                return res.data
+        except Exception as exc:
+            print(f"[reader] Supabase activities error para {cedula}: {exc}")
+
+    # Fallback local — filtros aplicados en pandas (sin SQL dinámico)
+    if athlete_dir:
+        path = athlete_dir / "silver" / "activities.parquet"
+        if path.exists():
+            import duckdb
+            import pandas as pd
+            df = duckdb.query(
+                f"SELECT * FROM '{path.as_posix()}' ORDER BY start_date_local DESC"
+            ).to_df()
+            if from_date:
+                df = df[df["start_date_local"].astype(str) >= from_date]
+            if to_date:
+                df = df[df["start_date_local"].astype(str) <= to_date + "T23:59:59"]
+            if sport_type:
+                mask = df["sport_type"].str.lower().str.contains(sport_type.lower(), na=False)
+                df = df[mask]
+            df = df.head(limit).reset_index(drop=True)
             return df.to_dict(orient="records")
 
     return None

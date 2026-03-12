@@ -236,6 +236,78 @@ def push_plan(cedula: str, athlete_dir: Path) -> dict:
         return _err(f"weekly_plans: {exc}")
 
 
+def push_activities(cedula: str, athlete_dir: Path) -> dict:
+    """
+    Upsert activities desde silver/activities.parquet.
+    Hace upsert de todas las actividades (ON CONFLICT strava_id → UPDATE).
+
+    Mapeo de columnas parquet → Supabase:
+      activity_id          → strava_id
+      start_date_local     → activity_date
+      moving_time_s        → duration_sec
+      total_elevation_gain_m → elevation_m
+      pace_sec_per_km      → avg_pace_sec_km
+    """
+    client = get_client()
+    if not client:
+        return _skipped()
+
+    parquet_path = athlete_dir / "silver" / "activities.parquet"
+    if not parquet_path.exists():
+        return _err("activities.parquet not found")
+
+    try:
+        import duckdb
+        df = duckdb.query(f"SELECT * FROM '{parquet_path.as_posix()}'").to_df()
+    except Exception as exc:
+        return _err(f"parquet read: {exc}")
+
+    if df.empty:
+        return _ok("activities: 0 rows (empty parquet)")
+
+    rows = []
+    for _, r in df.iterrows():
+        # raw: fila completa sin NaN
+        raw = {
+            k: (None if hasattr(v, "__float__") and __import__("math").isnan(float(v)) else v)
+            for k, v in r.items()
+        }
+
+        activity_id = r.get("activity_id")
+        activity_date = str(r.get("start_date_local", ""))[:19]  # "2025-01-15T10:30:00"
+
+        if not activity_id or not activity_date:
+            continue
+
+        row = _clean({
+            "strava_id":       int(activity_id),
+            "cedula":          cedula,
+            "name":            r.get("name"),
+            "sport_type":      r.get("sport_type"),
+            "activity_date":   activity_date,
+            "distance_m":      r.get("distance_m"),
+            "duration_sec":    r.get("moving_time_s"),
+            "elevation_m":     r.get("total_elevation_gain_m"),
+            "avg_pace_sec_km": r.get("pace_sec_per_km"),
+            "raw":             raw,
+        })
+        rows.append(row)
+
+    if not rows:
+        return _ok("activities: 0 valid rows")
+
+    try:
+        batch_size = 500
+        for i in range(0, len(rows), batch_size):
+            client.table("activities").upsert(
+                rows[i:i + batch_size],
+                on_conflict="strava_id",
+            ).execute()
+        return _ok(f"activities: {len(rows)} rows upserted")
+    except Exception as exc:
+        return _err(f"activities upsert: {exc}")
+
+
 def push_checkin(cedula: str, athlete_dir: Path) -> dict:
     """Upsert checkins desde meta/latest_checkin.json."""
     client = get_client()
@@ -246,19 +318,24 @@ def push_checkin(cedula: str, athlete_dir: Path) -> dict:
     if not data:
         return _err("latest_checkin.json not found")
 
-    checkin_date = data.get("date") or data.get("checkin_date")
+    # El archivo tiene el check-in real anidado en data["latest_checkin"]
+    payload = data.get("latest_checkin")
+    if not isinstance(payload, dict):
+        payload = data
+
+    checkin_date = payload.get("date") or payload.get("checkin_date")
     if not checkin_date:
-        return _err("checkin: no date field in latest_checkin.json")
+        return _err("checkin: no date/checkin_date field in latest_checkin.json")
 
     row = _clean({
         "cedula":       cedula,
         "checkin_date": str(checkin_date)[:10],
-        "pain":         data.get("pain"),
-        "fatigue":      data.get("fatigue"),
-        "feeling":      data.get("feeling"),
-        "sleep":        data.get("sleep"),
-        "stress":       data.get("stress"),
-        "semaforo":     data.get("semaforo"),
+        "pain":         payload.get("pain") if payload.get("pain") is not None else payload.get("pain_0_10"),
+        "fatigue":      payload.get("fatigue") if payload.get("fatigue") is not None else payload.get("fatigue_1_10"),
+        "feeling":      payload.get("feeling") if payload.get("feeling") is not None else payload.get("feeling_1_10"),
+        "sleep":        payload.get("sleep") if payload.get("sleep") is not None else payload.get("sleep_text"),
+        "stress":       payload.get("stress") if payload.get("stress") is not None else payload.get("stress_text"),
+        "semaforo":     payload.get("semaforo") or data.get("semaforo"),
         "is_recent":    bool(data.get("is_recent", False)),
         "raw":          data,
     })
@@ -293,6 +370,7 @@ def push_all(cedula: str, athlete_dir: Path) -> dict:
         "weekly_features": push_weekly_features(cedula, athlete_dir),
         "plan":            push_plan(cedula, athlete_dir),
         "checkin":         push_checkin(cedula, athlete_dir),
+        "activities":      push_activities(cedula, athlete_dir),
     }
 
     all_ok = all(v["ok"] for v in results.values())

@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from api.deps import get_athlete_dir, get_data_dir, require_api_key, sanitize_json
-from src.storage.reader import read_snapshot, read_plan, read_features, read_checkin
+from src.storage.reader import read_snapshot, read_plan, read_features, read_checkin, read_activities
 
 router = APIRouter()
 
@@ -178,6 +178,60 @@ def get_latest_checkin(
             detail="Check-in no disponible. El paso 'ingest' del pipeline no ha corrido.",
         )
     return data
+
+
+# ─── Actividades Strava ──────────────────────────────────────────────────────
+
+@router.get("/{cedula}/activities")
+def get_activities(
+    cedula: str,
+    limit: int = Query(default=50, ge=1, le=500, description="Máximo de actividades a devolver"),
+    from_date: str | None = Query(default=None, description="Fecha inicio ISO, ej: 2025-01-01"),
+    to_date: str | None = Query(default=None, description="Fecha fin ISO, ej: 2025-03-12"),
+    sport_type: str | None = Query(default=None, description="Filtrar por tipo, ej: 'run'"),
+    _: None = Depends(require_api_key),
+):
+    """
+    Devuelve el historial de actividades Strava del atleta.
+
+    Lee desde Supabase primero; si no hay datos, fallback a silver/activities.parquet.
+
+    Parámetros:
+    - limit: máximo de actividades (default 50, max 500), ordenadas de más reciente a más antigua
+    - from_date: filtrar actividades desde esta fecha (YYYY-MM-DD)
+    - to_date: filtrar actividades hasta esta fecha (YYYY-MM-DD)
+    - sport_type: filtrar por tipo de actividad (ej: "run", "VirtualRun")
+
+    Campos por actividad:
+    - strava_id: ID único de Strava (desde Supabase) o activity_id (desde local)
+    - name: nombre de la actividad
+    - sport_type: tipo (Run, VirtualRun, etc.)
+    - activity_date / start_date_local: fecha/hora local
+    - distance_m, duration_sec, elevation_m, avg_pace_sec_km
+    """
+    athlete_dir = get_data_dir() / cedula
+    rows = read_activities(
+        cedula,
+        athlete_dir if athlete_dir.exists() else None,
+        limit=limit,
+        from_date=from_date,
+        to_date=to_date,
+        sport_type=sport_type,
+    )
+    if rows is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Activities no disponibles. "
+                f"Ejecuta primero: POST /athletes/{cedula}/sync"
+            ),
+        )
+    return sanitize_json({
+        "cedula":   cedula,
+        "count":    len(rows),
+        "limit":    limit,
+        "data":     rows,
+    })
 
 
 # ─── Predicción de rendimiento ───────────────────────────────────────────────
