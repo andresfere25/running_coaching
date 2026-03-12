@@ -5,7 +5,7 @@ Fase A: Corre el pipeline localmente y luego hace dual-write a Supabase.
 Fase B (futura): El pipeline escribe directamente a Supabase; data/ local queda como caché.
 
 Endpoints:
-  POST /athletes/{cedula}/sync       → pipeline + push a Supabase
+  POST /athletes/{cedula}/sync       → pipeline + push a Supabase (síncrono, devuelve resultado)
   POST /athletes/{cedula}/sync/push  → solo push (asume pipeline ya corrió)
   GET  /athletes/{cedula}/sync/status → estado del último sync
 """
@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.deps import get_data_dir, require_api_key
 from src.storage.supabase_client import is_configured
@@ -32,27 +32,19 @@ VALID_STEPS  = ["ingest", "strava", "features", "plan"]
 _sync_status: dict[str, dict] = {}
 
 
-# ─── Helpers ─────────────────────────────────────────────────────────────────
-
-def _athlete_dir(cedula: str) -> Path:
-    return get_data_dir() / cedula
-
+# ─── Helper central ──────────────────────────────────────────────────────────
 
 def _run_pipeline_and_push(
     cedula: str,
     steps: list[str],
     skip_strava: bool,
     push_to_supabase: bool,
-) -> None:
+) -> dict:
     """
-    Tarea de background:
-    1. Corre el pipeline como subproceso.
-    2. Si push_to_supabase=True y Supabase está configurado → push_all().
-    Actualiza _sync_status[cedula] con el resultado.
+    Ejecuta pipeline + push Supabase de forma síncrona.
+    Retorna dict con ok, status, pipeline_ok, supabase.
     """
-    global _sync_status
     started_at = datetime.now().isoformat(timespec="seconds")
-    _sync_status[cedula] = {"status": "running", "started_at": started_at}
 
     # ── Paso 1: pipeline ───────────────────────────────────────────────────────
     cmd = [
@@ -79,18 +71,22 @@ def _run_pipeline_and_push(
     pipeline_ok = proc.returncode == 0
     if not pipeline_ok:
         print(f"[sync] Pipeline FALLÓ para cedula={cedula} (exit={proc.returncode})")
-        _sync_status[cedula] = {
-            "status":     "error",
-            "stage":      "pipeline",
-            "started_at": started_at,
-            "finished_at": datetime.now().isoformat(timespec="seconds"),
+        return {
+            "ok":           False,
+            "cedula":       cedula,
+            "status":       "error",
+            "stage_failed": "pipeline",
+            "pipeline_ok":  False,
+            "started_at":   started_at,
+            "finished_at":  datetime.now().isoformat(timespec="seconds"),
+            "pipeline_steps": steps,
+            "supabase":     None,
         }
-        return
 
     print(f"[sync] Pipeline OK para cedula={cedula}")
 
     # ── Paso 2: push a Supabase ────────────────────────────────────────────────
-    supabase_result: dict = {"detail": "skipped (not requested)"}
+    supabase_result: dict = {"ok": True, "detail": "skipped (not requested)"}
 
     if push_to_supabase:
         if not is_configured():
@@ -98,7 +94,7 @@ def _run_pipeline_and_push(
         else:
             try:
                 from src.storage.writer import push_all
-                athlete_dir = _athlete_dir(cedula)
+                athlete_dir = get_data_dir() / cedula
                 supabase_result = push_all(cedula, athlete_dir)
                 if supabase_result.get("ok"):
                     print(f"[sync] Supabase push OK para cedula={cedula}")
@@ -108,13 +104,19 @@ def _run_pipeline_and_push(
                 supabase_result = {"ok": False, "detail": str(exc)}
                 print(f"[sync] Supabase push ERROR para cedula={cedula}: {exc}")
 
-    _sync_status[cedula] = {
-        "status":         "ok" if supabase_result.get("ok", True) else "partial",
+    push_ok = supabase_result.get("ok", True)
+    result = {
+        "ok":             push_ok,
+        "cedula":         cedula,
+        "status":         "ok" if push_ok else "partial",
+        "stage_failed":   None if push_ok else "push",
+        "pipeline_ok":    True,
         "started_at":     started_at,
         "finished_at":    datetime.now().isoformat(timespec="seconds"),
         "pipeline_steps": steps,
         "supabase":       supabase_result,
     }
+    return result
 
 
 # ─── Endpoints ───────────────────────────────────────────────────────────────
@@ -122,7 +124,6 @@ def _run_pipeline_and_push(
 @router.post("/{cedula}/sync")
 def sync_athlete(
     cedula: str,
-    background_tasks: BackgroundTasks,
     steps: Annotated[
         list[str],
         Query(description="Pasos del pipeline. Default: ingest, features, plan.")
@@ -132,18 +133,18 @@ def sync_athlete(
     _: None = Depends(require_api_key),
 ):
     """
-    Dispara el pipeline para un atleta y (opcionalmente) hace push a Supabase.
+    Ejecuta el pipeline para un atleta y hace push a Supabase. Respuesta síncrona.
 
-    Fase A: pipeline local → push a Supabase (dual write).
-    Fase B: pipeline escribirá directo a Supabase.
+    Espera ~30-90s mientras corre el pipeline y el push.
+    Retorna el resultado consolidado directamente (no hace polling).
 
-    - Responde inmediatamente (pipeline corre en background).
-    - Para ver resultados: GET /athletes/{cedula}/sync/status  (después de ~30-90s).
-    - Luego: GET /athletes/{cedula}/snapshot para los datos actualizados.
+    - Si el pipeline falla → ok=false, stage_failed="pipeline", sin push.
+    - Si el pipeline OK pero push parcial → ok=false, stage_failed="push", detalle por tabla.
+    - Si todo OK → ok=true, status="ok".
 
     Diferencia vs /pipeline:
-    - /pipeline: solo corre el ETL local, sin Supabase.
-    - /sync: corre el ETL + hace push a Supabase (si está configurado).
+    - /pipeline: solo corre el ETL local, sin Supabase, responde inmediatamente.
+    - /sync: corre el ETL + hace push a Supabase, espera y devuelve resultado.
     """
     invalid = [s for s in steps if s not in VALID_STEPS]
     if invalid:
@@ -152,23 +153,12 @@ def sync_athlete(
             detail=f"Steps inválidos: {invalid}. Válidos: {VALID_STEPS}",
         )
 
-    background_tasks.add_task(
-        _run_pipeline_and_push,
-        cedula, list(steps), skip_strava, push,
-    )
+    result = _run_pipeline_and_push(cedula, list(steps), skip_strava, push)
 
-    return {
-        "status":       "queued",
-        "cedula":       cedula,
-        "steps":        steps,
-        "skip_strava":  skip_strava,
-        "push_supabase": push and is_configured(),
-        "supabase_configured": is_configured(),
-        "message": (
-            f"Pipeline + sync iniciado en background para {cedula}. "
-            f"Consulta GET /athletes/{cedula}/sync/status en ~30-90s."
-        ),
-    }
+    # Guardar en _sync_status para que GET /sync/status también lo refleje
+    _sync_status[cedula] = result
+
+    return result
 
 
 @router.post("/{cedula}/sync/push")
@@ -188,7 +178,7 @@ def push_to_supabase(
             "detail": "Supabase no configurado. Agrega SUPABASE_URL y SUPABASE_SERVICE_KEY al .env.",
         }
 
-    athlete_dir = _athlete_dir(cedula)
+    athlete_dir = get_data_dir() / cedula
     if not athlete_dir.exists():
         raise HTTPException(
             status_code=404,
@@ -210,7 +200,7 @@ def get_sync_status(
 ):
     """
     Estado del último sync para un atleta.
-    Estados: queued / running / ok / partial / error
+    Estados: ok / partial / error
     """
     status = _sync_status.get(cedula)
     if not status:
