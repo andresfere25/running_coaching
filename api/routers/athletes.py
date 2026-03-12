@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from api.deps import get_athlete_dir, get_data_dir, require_api_key, sanitize_json
+from src.storage.reader import read_snapshot, read_plan, read_features, read_checkin
 
 router = APIRouter()
 
@@ -71,12 +72,13 @@ def get_profile(
 @router.get("/{cedula}/snapshot")
 def get_snapshot(
     cedula: str,
-    athlete_dir: Path = Depends(get_athlete_dir),
     _: None = Depends(require_api_key),
 ):
     """
     Devuelve el snapshot del atleta: última semana de features + semáforo.
     Es el dato principal para el dashboard del atleta.
+
+    Lee desde Supabase primero; si no hay datos, fallback a archivo local.
 
     Campos clave en la respuesta:
     - semaforo_latest_checkin: VERDE / AMARILLO / ROJO / SIN_CHECKIN
@@ -84,16 +86,14 @@ def get_snapshot(
     - profile: datos del atleta (nombre, objetivo, ritmos)
     - generated_at: timestamp del último pipeline ejecutado
     """
-    path = athlete_dir / "features" / "athlete_snapshot.json"
-    if not path.exists():
+    athlete_dir = get_data_dir() / cedula
+    data = read_snapshot(cedula, athlete_dir if athlete_dir.exists() else None)
+    if data is None:
         raise HTTPException(
             status_code=404,
-            detail=(
-                "Snapshot no disponible. "
-                f"Ejecuta primero: POST /athletes/{cedula}/pipeline"
-            ),
+            detail=f"Snapshot no disponible. Ejecuta primero: POST /athletes/{cedula}/pipeline",
         )
-    return sanitize_json(json.loads(path.read_text(encoding="utf-8")))
+    return sanitize_json(data)
 
 
 # ─── Plan semanal ────────────────────────────────────────────────────────────
@@ -101,11 +101,12 @@ def get_snapshot(
 @router.get("/{cedula}/plan")
 def get_plan(
     cedula: str,
-    athlete_dir: Path = Depends(get_athlete_dir),
     _: None = Depends(require_api_key),
 ):
     """
     Devuelve el plan semanal (running + fuerza) del atleta.
+
+    Lee desde Supabase primero; si no hay datos, fallback a archivo local.
 
     Campos clave:
     - week_type: DESCARGA / CONSERVADORA / PROGRESO
@@ -114,16 +115,14 @@ def get_plan(
     - plan_by_day: sesiones por día (Lunes a Domingo)
     - notes: recomendaciones adicionales
     """
-    path = athlete_dir / "features" / "weekly_plan.json"
-    if not path.exists():
+    athlete_dir = get_data_dir() / cedula
+    data = read_plan(cedula, athlete_dir if athlete_dir.exists() else None)
+    if data is None:
         raise HTTPException(
             status_code=404,
-            detail=(
-                "Plan no disponible. "
-                f"Ejecuta primero: POST /athletes/{cedula}/pipeline"
-            ),
+            detail=f"Plan no disponible. Ejecuta primero: POST /athletes/{cedula}/pipeline",
         )
-    return json.loads(path.read_text(encoding="utf-8"))
+    return data
 
 
 # ─── Historial de features ───────────────────────────────────────────────────
@@ -132,32 +131,29 @@ def get_plan(
 def get_features(
     cedula: str,
     weeks: int = Query(default=12, ge=1, le=104, description="Últimas N semanas de historial"),
-    athlete_dir: Path = Depends(get_athlete_dir),
     _: None = Depends(require_api_key),
 ):
     """
     Devuelve el historial semanal de features del atleta.
     Usado para gráficos de evolución (km, ritmo, ACWR, zonas).
 
+    Lee desde Supabase primero; si no hay datos, fallback a archivo local.
+
     Parámetros:
     - weeks: cuántas semanas incluir (default 12, max 104)
     """
-    path = athlete_dir / "features" / "weekly_features.parquet"
-    if not path.exists():
+    athlete_dir = get_data_dir() / cedula
+    rows = read_features(cedula, athlete_dir if athlete_dir.exists() else None, weeks)
+    if rows is None:
         raise HTTPException(
             status_code=404,
             detail="Features no disponibles. Ejecuta primero el pipeline.",
         )
-
-    df = duckdb.query(f"SELECT * FROM '{path.as_posix()}'").to_df()
-    df = df.sort_values("week_start").tail(weeks).reset_index(drop=True)
-
-    # Convertir NaN a None para JSON válido
     return sanitize_json({
         "cedula": cedula,
-        "weeks_returned": len(df),
+        "weeks_returned": len(rows),
         "weeks_requested": weeks,
-        "data": df.to_dict(orient="records"),
+        "data": rows,
     })
 
 
@@ -166,20 +162,22 @@ def get_features(
 @router.get("/{cedula}/checkin")
 def get_latest_checkin(
     cedula: str,
-    athlete_dir: Path = Depends(get_athlete_dir),
     _: None = Depends(require_api_key),
 ):
     """
     Devuelve el último check-in registrado del atleta.
     Incluye el flag is_recent (True si tiene menos de 10 días).
+
+    Lee desde Supabase primero; si no hay datos, fallback a archivo local.
     """
-    path = athlete_dir / "meta" / "latest_checkin.json"
-    if not path.exists():
+    athlete_dir = get_data_dir() / cedula
+    data = read_checkin(cedula, athlete_dir if athlete_dir.exists() else None)
+    if data is None:
         raise HTTPException(
             status_code=404,
             detail="Check-in no disponible. El paso 'ingest' del pipeline no ha corrido.",
         )
-    return json.loads(path.read_text(encoding="utf-8"))
+    return data
 
 
 # ─── Predicción de rendimiento ───────────────────────────────────────────────
