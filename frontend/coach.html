@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel del Coach — Running Coaching</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <style>
+    [x-cloak] { display: none !important; }
+    body       { font-family: 'Inter', system-ui, sans-serif; }
+    .card      { background:#fff; border-radius:12px; border:1px solid #e2e8f0;
+                 box-shadow:0 1px 4px rgba(0,0,0,.06); }
+    .label     { font-size:11px; font-weight:600; text-transform:uppercase;
+                 letter-spacing:.06em; color:#94a3b8; }
+    .field     { width:100%; border:1px solid #e2e8f0; border-radius:8px;
+                 padding:8px 12px; font-size:14px; color:#1e293b; outline:none;
+                 transition:border-color .15s; }
+    .field:focus { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,.12); }
+    .btn-primary  { background:#6366f1; color:#fff; font-weight:600; font-size:13px;
+                    padding:8px 18px; border-radius:8px; cursor:pointer;
+                    transition:background .15s; }
+    .btn-primary:hover:not(:disabled) { background:#4f46e5; }
+    .btn-primary:disabled  { opacity:.5; cursor:not-allowed; }
+    .btn-publish { background:#059669; color:#fff; font-weight:600; font-size:13px;
+                   padding:8px 18px; border-radius:8px; cursor:pointer;
+                   transition:background .15s; }
+    .btn-publish:hover:not(:disabled) { background:#047857; }
+    .btn-publish:disabled  { opacity:.5; cursor:not-allowed; }
+    .btn-ghost  { background:#f1f5f9; color:#475569; font-size:12px; font-weight:500;
+                  padding:5px 10px; border-radius:6px; cursor:pointer; }
+    .btn-ghost:hover { background:#e2e8f0; }
+    .chip       { display:inline-flex; align-items:center; gap:4px; padding:3px 10px;
+                  border-radius:99px; font-size:11px; font-weight:600; }
+  </style>
+</head>
+
+<body class="bg-slate-50 min-h-screen" x-data="coachApp()" x-cloak>
+
+  <!-- ══ HEADER ═══════════════════════════════════════════════════════════ -->
+  <header class="bg-gray-900 text-white px-6 py-4 flex items-center justify-between shadow-lg">
+    <div class="flex items-center gap-3">
+      <span class="text-2xl">🏋️</span>
+      <div>
+        <h1 class="text-lg font-bold leading-tight">Panel del Coach</h1>
+        <p class="text-xs text-gray-400">Editor de contenido semanal por atleta</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="/app" class="text-xs text-gray-400 hover:text-white transition-colors">← Dashboard atleta</a>
+      <!-- Selector de cédula -->
+      <div class="flex items-center gap-2">
+        <select x-model="cedula" @change="loadDraft()"
+                class="px-3 py-2 rounded-lg text-sm text-gray-900 bg-white border-0
+                       focus:outline-none focus:ring-2 focus:ring-indigo-400 w-48">
+          <template x-if="athletes.length === 0">
+            <option value="">Cargando atletas…</option>
+          </template>
+          <template x-for="a in athletes" :key="a">
+            <option :value="a" x-text="a"></option>
+          </template>
+        </select>
+        <button @click="loadDraft()" class="btn-ghost">↺</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ MAIN ══════════════════════════════════════════════════════════════ -->
+  <main class="max-w-6xl mx-auto px-4 py-6 space-y-4">
+
+    <!-- Error -->
+    <div x-show="error" x-transition
+         class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-5 py-3 text-sm flex items-start gap-2">
+      <span class="font-medium">⚠</span>
+      <span x-text="error"></span>
+      <button @click="error=null" class="ml-auto text-red-400 hover:text-red-600">✕</button>
+    </div>
+
+    <!-- Success -->
+    <div x-show="successMsg" x-transition
+         class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-5 py-3 text-sm flex items-center gap-2">
+      <span>✅</span>
+      <span x-text="successMsg"></span>
+      <button @click="successMsg=null" class="ml-auto text-emerald-400 hover:text-emerald-600">✕</button>
+    </div>
+
+    <!-- Loading -->
+    <div x-show="loading" class="flex items-center justify-center py-16 gap-3 text-slate-400">
+      <div class="w-6 h-6 border-3 border-indigo-400 border-t-transparent rounded-full animate-spin border-2"></div>
+      <span class="text-sm">Cargando datos del atleta…</span>
+    </div>
+
+    <!-- ── CONTENIDO (solo cuando cargó) ──────────────────────────────── -->
+    <div x-show="!loading && draft !== null" class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+      <!-- ═══════════════════════════════════════════════════════════════ -->
+      <!-- Columna izquierda: editor (2/3) -->
+      <!-- ═══════════════════════════════════════════════════════════════ -->
+      <div class="lg:col-span-2 space-y-4">
+
+        <!-- ── Status bar ──────────────────────────────────────────── -->
+        <div class="card px-5 py-3 flex flex-wrap items-center gap-3 justify-between">
+          <div class="flex items-center gap-3 flex-wrap">
+            <!-- Draft status -->
+            <span class="chip"
+                  :class="draft?.found ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'">
+              📝 <span x-text="draft?.found ? 'Draft guardado' : 'Plantilla nueva'"></span>
+            </span>
+            <!-- Published status -->
+            <template x-if="published?.source === 'published'">
+              <span class="chip"
+                    :class="published.is_stale ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'">
+                <span x-text="published.is_stale ? '⚠ Publicado · sem. anterior' : '✅ Publicado · sem. actual'"></span>
+                <span x-text="'(' + (published.week_start || '') + ')'"></span>
+              </span>
+            </template>
+            <template x-if="published?.source !== 'published'">
+              <span class="chip bg-gray-100 text-gray-500">Sin publicar</span>
+            </template>
+          </div>
+          <!-- Actions -->
+          <div class="flex gap-2">
+            <button @click="saveDraft()" :disabled="saving || publishing" class="btn-primary">
+              <span x-show="!saving">💾 Guardar borrador</span>
+              <span x-show="saving">Guardando…</span>
+            </button>
+            <button @click="publish()" :disabled="saving || publishing" class="btn-publish">
+              <span x-show="!publishing">🚀 Publicar</span>
+              <span x-show="publishing">Publicando…</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- ── Semana ──────────────────────────────────────────────── -->
+        <div class="card px-5 py-4">
+          <div class="label mb-2">Semana de inicio</div>
+          <input x-model="form.week_start" type="text" placeholder="YYYY-MM-DD"
+                 class="field w-48 font-mono" />
+          <p class="text-xs text-slate-400 mt-1">Lunes de la semana que aplica este contenido.</p>
+        </div>
+
+        <!-- ── Mensaje del coach ───────────────────────────────────── -->
+        <div class="card px-5 py-4">
+          <div class="label mb-2">Mensaje del coach <span class="text-red-400">*</span></div>
+          <textarea x-model="form.coach_message" rows="4"
+                    placeholder="Escribe el mensaje principal de la semana para este atleta…"
+                    class="field resize-none"></textarea>
+          <div class="flex gap-4 mt-3">
+            <div class="flex-1">
+              <div class="label mb-1">Foco semanal <span class="text-red-400">*</span></div>
+              <input x-model="form.weekly_focus" type="text"
+                     placeholder="Ej: Progresión aeróbica — fondo largo"
+                     class="field" />
+            </div>
+            <div class="flex-1">
+              <div class="label mb-1">Objetivo de la semana</div>
+              <input x-model="form.weekly_objective" type="text"
+                     placeholder="Ej: Completar la salida del sábado"
+                     class="field" />
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Alertas y restricciones ────────────────────────────── -->
+        <div class="card px-5 py-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+            <!-- Alertas -->
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <div class="label">Alertas</div>
+                <button @click="addAlert()" class="btn-ghost">+ Agregar</button>
+              </div>
+              <div class="space-y-2">
+                <template x-for="(a, i) in form.alerts" :key="i">
+                  <div class="flex gap-2">
+                    <input x-model="form.alerts[i]" type="text"
+                           placeholder="Ej: Rodilla sensible esta semana"
+                           class="field flex-1" />
+                    <button @click="removeAlert(i)"
+                            class="text-slate-300 hover:text-red-400 px-2 text-lg">✕</button>
+                  </div>
+                </template>
+                <p x-show="form.alerts.length === 0" class="text-xs text-slate-400 italic">Sin alertas.</p>
+              </div>
+            </div>
+
+            <!-- Restricciones -->
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <div class="label">Restricciones</div>
+                <button @click="addRestriction()" class="btn-ghost">+ Agregar</button>
+              </div>
+              <div class="space-y-2">
+                <template x-for="(r, i) in form.restrictions" :key="i">
+                  <div class="flex gap-2">
+                    <input x-model="form.restrictions[i]" type="text"
+                           placeholder="Ej: No correr >90 min este fin de semana"
+                           class="field flex-1" />
+                    <button @click="removeRestriction(i)"
+                            class="text-slate-300 hover:text-red-400 px-2 text-lg">✕</button>
+                  </div>
+                </template>
+                <p x-show="form.restrictions.length === 0" class="text-xs text-slate-400 italic">Sin restricciones.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ── Notas por sesión ────────────────────────────────────── -->
+        <div class="card px-5 py-4">
+          <div class="label mb-3">Notas por sesión</div>
+          <div class="space-y-2">
+            <template x-for="day in DAYS" :key="day">
+              <div class="flex items-center gap-3">
+                <span class="w-8 text-xs font-bold text-slate-400 shrink-0" x-text="day"></span>
+                <input x-model="form.session_notes[day]" type="text"
+                       :placeholder="'Nota para ' + day + ' (opcional)'"
+                       class="field flex-1 text-sm" />
+              </div>
+            </template>
+          </div>
+          <p class="text-xs text-slate-400 mt-2">Las notas vacías no se publican.</p>
+        </div>
+
+        <!-- ── Overrides del plan ──────────────────────────────────── -->
+        <div class="card px-5 py-4">
+          <div class="label mb-1">Ajustes al plan (overrides)</div>
+          <p class="text-xs text-slate-400 mb-3">
+            Modifica km, ritmo o agrega una nota para un día específico. Deja vacío para usar el plan automático.
+          </p>
+          <div class="space-y-2">
+            <template x-for="day in DAYS" :key="day">
+              <div class="flex items-center gap-2">
+                <span class="w-8 text-xs font-bold text-slate-400 shrink-0" x-text="day"></span>
+                <input x-model="form.plan_overrides[day].km" type="number" step="0.5" min="0"
+                       placeholder="km"
+                       class="field w-20 text-sm text-center" />
+                <input x-model="form.plan_overrides[day].pace" type="text"
+                       placeholder="ritmo (ej: 5:30–6:00)"
+                       class="field w-36 text-sm font-mono" />
+                <input x-model="form.plan_overrides[day].note" type="text"
+                       placeholder="nota (opcional)"
+                       class="field flex-1 text-sm" />
+              </div>
+            </template>
+          </div>
+        </div>
+
+      </div>
+      <!-- fin columna izquierda -->
+
+      <!-- ═══════════════════════════════════════════════════════════════ -->
+      <!-- Columna derecha: contexto del atleta (1/3) -->
+      <!-- ═══════════════════════════════════════════════════════════════ -->
+      <div class="space-y-4">
+
+        <!-- ── Estado de carga ─────────────────────────────────────── -->
+        <div class="card px-5 py-4">
+          <div class="label mb-3">Estado del atleta</div>
+
+          <!-- Semáforo -->
+          <template x-if="ctx.semaforo">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="text-sm font-semibold"
+                    :class="{
+                      'text-emerald-600': ctx.semaforo === 'VERDE',
+                      'text-amber-600':   ctx.semaforo === 'AMARILLO',
+                      'text-red-600':     ctx.semaforo === 'ROJO',
+                      'text-slate-500':   !['VERDE','AMARILLO','ROJO'].includes(ctx.semaforo),
+                    }"
+                    x-text="ctx.semaforo"></span>
+              <span class="text-xs text-slate-400">semáforo</span>
+            </div>
+          </template>
+
+          <!-- Readiness -->
+          <template x-if="ctx.readiness != null">
+            <div class="mb-3">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs text-slate-500">Readiness</span>
+                <span class="text-sm font-bold text-slate-700" x-text="ctx.readiness + '/100'"></span>
+              </div>
+              <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full rounded-full transition-all"
+                     :style="{ width: ctx.readiness + '%', background: ctx.readiness >= 75 ? '#059669' : ctx.readiness >= 55 ? '#3b82f6' : ctx.readiness >= 40 ? '#d97706' : '#dc2626' }">
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- CTL / ATL / TSB -->
+          <div class="grid grid-cols-3 gap-2 mb-3">
+            <div class="bg-blue-50 rounded-lg p-2 text-center">
+              <div class="label text-blue-400">CTL</div>
+              <div class="text-sm font-bold text-blue-700"
+                   x-text="ctx.ctl != null ? Number(ctx.ctl).toFixed(1) : '—'"></div>
+            </div>
+            <div class="bg-violet-50 rounded-lg p-2 text-center">
+              <div class="label text-violet-400">ATL</div>
+              <div class="text-sm font-bold text-violet-600"
+                   x-text="ctx.atl != null ? Number(ctx.atl).toFixed(1) : '—'"></div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-2 text-center">
+              <div class="label text-slate-400">TSB</div>
+              <div class="text-sm font-bold text-slate-700"
+                   x-text="ctx.tsb != null ? Number(ctx.tsb).toFixed(1) : '—'"></div>
+            </div>
+          </div>
+
+          <!-- ACWR -->
+          <template x-if="ctx.acwr != null">
+            <div class="flex items-center justify-between text-sm mb-2">
+              <span class="text-slate-500">ACWR</span>
+              <span class="font-mono font-semibold"
+                    :class="ctx.acwr > 1.3 ? 'text-amber-600' : ctx.acwr < 0.8 ? 'text-blue-600' : 'text-emerald-600'"
+                    x-text="Number(ctx.acwr).toFixed(2)"></span>
+            </div>
+          </template>
+
+          <!-- Semana tipo + km -->
+          <div class="border-t border-slate-100 pt-3 space-y-1">
+            <template x-if="ctx.week_type">
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-500">Tipo semana</span>
+                <span class="font-semibold"
+                      :class="{
+                        'text-emerald-600': ctx.week_type === 'PROGRESO',
+                        'text-amber-600':   ctx.week_type === 'CONSERVADORA',
+                        'text-red-600':     ctx.week_type === 'DESCARGA',
+                      }"
+                      x-text="ctx.week_type"></span>
+              </div>
+            </template>
+            <template x-if="ctx.km_last_week != null">
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-500">Km sem. anterior</span>
+                <span class="font-mono font-semibold text-slate-700"
+                      x-text="Number(ctx.km_last_week).toFixed(1) + ' km'"></span>
+              </div>
+            </template>
+            <template x-if="ctx.target_km != null">
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-500">Km objetivo</span>
+                <span class="font-mono font-semibold text-orange-700"
+                      x-text="ctx.target_km + ' km'"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- ── Contenido publicado activo ─────────────────────────── -->
+        <div class="card px-5 py-4">
+          <div class="label mb-3">Contenido publicado activo</div>
+          <template x-if="published?.source === 'published'">
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="text-slate-500">Semana</span>
+                <span class="font-mono text-slate-700" x-text="published.week_start || '—'"></span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-500">Publicado</span>
+                <span class="text-slate-600 text-xs"
+                      x-text="published.published_at ? published.published_at.slice(0,16).replace('T',' ') : '—'"></span>
+              </div>
+              <template x-if="published.is_stale">
+                <div class="bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 text-xs text-amber-700">
+                  ⚠ El contenido publicado es de una semana anterior. Considera republicar.
+                </div>
+              </template>
+              <template x-if="!published.is_stale">
+                <div class="bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 text-xs text-emerald-700">
+                  ✅ Contenido vigente para la semana actual.
+                </div>
+              </template>
+              <!-- Preview del mensaje -->
+              <template x-if="published.coach_message">
+                <div class="border-t border-slate-100 pt-2">
+                  <div class="label mb-1">Mensaje publicado</div>
+                  <p class="text-xs text-slate-600 italic leading-relaxed line-clamp-3"
+                     x-text="published.coach_message"></p>
+                </div>
+              </template>
+            </div>
+          </template>
+          <template x-if="published?.source !== 'published'">
+            <p class="text-sm text-slate-400 italic">Sin contenido publicado para este atleta.</p>
+          </template>
+        </div>
+
+        <!-- ── Instrucciones rápidas ───────────────────────────────── -->
+        <div class="card px-5 py-4 bg-slate-50">
+          <div class="label mb-2">Flujo</div>
+          <ol class="text-xs text-slate-500 space-y-1.5 list-decimal list-inside leading-relaxed">
+            <li>Elige el atleta arriba</li>
+            <li>Escribe el mensaje + foco semanal</li>
+            <li>Agrega notas por día si es necesario</li>
+            <li>Ajusta el plan (overrides) si quieres cambiar km o ritmo</li>
+            <li>💾 <strong>Guardar borrador</strong> para revisar más tarde</li>
+            <li>🚀 <strong>Publicar</strong> cuando esté listo → el atleta lo ve en la app</li>
+          </ol>
+        </div>
+
+      </div>
+      <!-- fin columna derecha -->
+
+    </div>
+    <!-- fin grid -->
+
+  </main>
+</body>
+
+<script>
+const DAYS = ['LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB', 'DOM'];
+
+function emptyOverrides() {
+  return Object.fromEntries(DAYS.map(d => [d, { km: '', pace: '', note: '' }]));
+}
+
+function emptyNotes() {
+  return Object.fromEntries(DAYS.map(d => [d, '']));
+}
+
+function coachApp() {
+  return {
+    cedula:     '',
+    athletes:   [],
+    loading:    false,
+    saving:     false,
+    publishing: false,
+    error:      null,
+    successMsg: null,
+    draft:      null,
+    published:  null,
+
+    form: {
+      week_start:      '',
+      coach_message:   '',
+      weekly_focus:    '',
+      weekly_objective:'',
+      alerts:          [],
+      restrictions:    [],
+      session_notes:   emptyNotes(),
+      plan_overrides:  emptyOverrides(),
+    },
+
+    DAYS,
+
+    // ── Inicialización ──────────────────────────────────────────────────
+    async init() {
+      try {
+        const res  = await fetch('/athletes');
+        const data = await res.json();
+        this.athletes = data.athletes || [];
+        if (this.athletes.length > 0) {
+          this.cedula = this.athletes[0];
+          await this.loadDraft();
+        }
+      } catch (e) {
+        this.error = 'No se pudo cargar la lista de atletas: ' + e.message;
+      }
+    },
+
+    // ── Cargar draft + published ────────────────────────────────────────
+    async loadDraft() {
+      if (!this.cedula) return;
+      this.loading    = true;
+      this.error      = null;
+      this.successMsg = null;
+      this.draft      = null;
+      try {
+        const [draftRes, publishedRes] = await Promise.all([
+          fetch(`/athletes/${this.cedula}/coach-draft`),
+          fetch(`/athletes/${this.cedula}/coach-content`),
+        ]);
+        this.draft     = await draftRes.json();
+        this.published = await publishedRes.json();
+        this._fillForm(this.draft.editable || {});
+      } catch (e) {
+        this.error = 'Error al cargar: ' + e.message;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    // ── Rellenar formulario desde editable ─────────────────────────────
+    _fillForm(ed) {
+      this.form.week_start       = ed.week_start       || '';
+      this.form.coach_message    = ed.coach_message    || '';
+      this.form.weekly_focus     = ed.weekly_focus     || '';
+      this.form.weekly_objective = ed.weekly_objective || '';
+      this.form.alerts           = [...(ed.alerts       || [])];
+      this.form.restrictions     = [...(ed.restrictions || [])];
+
+      const notes = ed.session_notes || {};
+      this.form.session_notes = emptyNotes();
+      DAYS.forEach(d => { this.form.session_notes[d] = notes[d] || ''; });
+
+      const overrides = ed.plan_overrides || {};
+      this.form.plan_overrides = emptyOverrides();
+      DAYS.forEach(d => {
+        const o = overrides[d] || {};
+        this.form.plan_overrides[d] = {
+          km:   o.km   != null ? String(o.km) : '',
+          pace: o.pace || '',
+          note: o.note || '',
+        };
+      });
+    },
+
+    // ── Construir payload para el PUT ───────────────────────────────────
+    _buildPayload() {
+      const plan_overrides = {};
+      DAYS.forEach(d => {
+        const o = this.form.plan_overrides[d];
+        const entry = {};
+        if (o.km && !isNaN(Number(o.km)) && Number(o.km) > 0) entry.km = Number(o.km);
+        if (o.pace && o.pace.trim()) entry.pace = o.pace.trim();
+        if (o.note && o.note.trim()) entry.note = o.note.trim();
+        if (Object.keys(entry).length > 0) plan_overrides[d] = entry;
+      });
+
+      return {
+        week_start:       this.form.week_start,
+        coach_message:    this.form.coach_message,
+        weekly_focus:     this.form.weekly_focus,
+        weekly_objective: this.form.weekly_objective,
+        alerts:           this.form.alerts.filter(a => a.trim()),
+        restrictions:     this.form.restrictions.filter(r => r.trim()),
+        session_notes:    Object.fromEntries(DAYS.map(d => [d, this.form.session_notes[d]])),
+        plan_overrides,
+      };
+    },
+
+    // ── Guardar borrador ────────────────────────────────────────────────
+    async saveDraft() {
+      this.saving     = true;
+      this.error      = null;
+      this.successMsg = null;
+      try {
+        const res = await fetch(`/athletes/${this.cedula}/coach-draft`, {
+          method:  'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify(this._buildPayload()),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.detail || `Error ${res.status}`);
+        }
+        this.draft = { ...this.draft, found: true };
+        this.successMsg = 'Borrador guardado ✓';
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    // ── Publicar ────────────────────────────────────────────────────────
+    async publish() {
+      if (!confirm(`¿Publicar este contenido para el atleta ${this.cedula}?\nEl atleta verá este mensaje en la app.`)) return;
+      this.publishing = true;
+      this.error      = null;
+      this.successMsg = null;
+      try {
+        // 1. Guardar draft actualizado primero
+        await this.saveDraft();
+        if (this.error) throw new Error(this.error);
+
+        // 2. Publicar
+        const res  = await fetch(`/athletes/${this.cedula}/coach-publish`, { method: 'POST' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const detail = data.detail;
+          if (detail?.validation_errors) throw new Error(detail.validation_errors.join(' | '));
+          throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+        }
+
+        // 3. Recargar published
+        const pubRes   = await fetch(`/athletes/${this.cedula}/coach-content`);
+        this.published = await pubRes.json();
+        this.draft     = { ...this.draft, found: true };
+        this.successMsg = `✅ Publicado para semana ${data.week_start}`;
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.publishing = false;
+      }
+    },
+
+    // ── Helpers de listas ───────────────────────────────────────────────
+    addAlert()           { this.form.alerts.push(''); },
+    removeAlert(i)       { this.form.alerts.splice(i, 1); },
+    addRestriction()     { this.form.restrictions.push(''); },
+    removeRestriction(i) { this.form.restrictions.splice(i, 1); },
+
+    // ── Contexto auto (shorthand) ───────────────────────────────────────
+    get ctx() { return this.draft?.context || {}; },
+  };
+}
+</script>
+</html>
