@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS coach_content (
 
 COMMENT ON TABLE  coach_content IS 'Contenido editorial semanal publicado por el coach. Una fila por atleta por semana.';
 COMMENT ON COLUMN coach_content.week_start     IS 'Lunes de la semana (YYYY-MM-DD). Clave de negocio junto con cedula.';
-COMMENT ON COLUMN coach_content.is_stale       IS 'Campo calculado en la API (no almacenado): week_start != lunes actual.';
+-- Nota: is_stale es un campo CALCULADO en la API (week_start != lunes actual), NO se almacena.
 COMMENT ON COLUMN coach_content.raw            IS 'weekly_published.json completo para auditoría y rollback.';
 COMMENT ON COLUMN coach_content.plan_overrides IS 'Ajustes sobre el plan automático por día. Ej: {"SAB": {"km": 14, "pace": "6:00–6:30"}}.';
 COMMENT ON COLUMN coach_content.session_notes  IS 'Notas por sesión por día. Ej: {"MIE": "Corre suave...", "SAB": "Fondo largo..."}.';
