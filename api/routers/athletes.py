@@ -378,6 +378,112 @@ def get_activities_summary(
     })
 
 
+# ─── Dashboard / Home del atleta ─────────────────────────────────────────────
+
+@router.get("/{cedula}/dashboard")
+def get_dashboard(
+    cedula: str,
+    _: None = Depends(require_api_key),
+):
+    """
+    Resumen agregado para la vista principal (home) del atleta.
+
+    Reúne en una sola llamada los datos más relevantes para el dashboard:
+    - athlete:           nombre, objetivo, días para la carrera
+    - status:            semáforo, readiness, ACWR zone, estado check-in
+    - week:              km hechos vs objetivo, tipo semana, foco semanal
+    - load:              CTL, TSB, racha_semanas, km_trend, semana_spike
+    - recent_activities: últimas 5 actividades (schema canónico)
+    - volume_trend:      resumen semanal de las últimas 4 semanas
+
+    Fuentes: Supabase primero, fallback local para cada sección.
+    Las secciones se incluyen aunque falten datos (null en lugar de 404).
+    """
+    athlete_dir = get_data_dir() / cedula
+    adir = athlete_dir if athlete_dir.exists() else None
+
+    # ── Lecturas paralelas (todas tolerantes a None) ──────────────────────────
+    snap     = read_snapshot(cedula, adir) or {}
+    plan     = read_plan(cedula, adir) or {}
+    chk_wrap = read_checkin(cedula, adir) or {}
+    acts     = read_activities(cedula, adir, limit=100) or []
+
+    chk = chk_wrap.get("latest_checkin") or {}
+    profile = snap.get("profile") or {}
+    lw      = snap.get("latest_week") or {}
+
+    # ── athlete ───────────────────────────────────────────────────────────────
+    athlete_section = {
+        "name":               profile.get("name"),
+        "race_distance":      profile.get("race_distance"),
+        "race_date_raw":      profile.get("race_date_raw"),
+        "race_countdown_days": snap.get("race_countdown_days"),
+        "time_goal_formatted": snap.get("time_goal_formatted") or profile.get("time_goal_formatted"),
+        "pr_21k_sec":         profile.get("pr_21k_sec"),
+        "pr_42k_sec":         profile.get("pr_42k_sec"),
+    }
+
+    # ── status ────────────────────────────────────────────────────────────────
+    status_section = {
+        "semaforo":        snap.get("semaforo_latest_checkin"),
+        "readiness_score": snap.get("readiness_score"),
+        "acwr_zone":       snap.get("acwr_zone_latest"),
+        "data_weeks_available": snap.get("data_weeks_available"),
+        "checkin_is_recent":    chk_wrap.get("is_recent", False),
+        "last_checkin_date":    chk.get("checkin_date"),
+        "last_checkin_feeling": chk.get("feeling_1_10"),
+        "last_checkin_fatigue": chk.get("fatigue_1_10"),
+        "last_checkin_pain":    chk.get("pain_0_10"),
+    }
+
+    # ── week ──────────────────────────────────────────────────────────────────
+    targets = plan.get("targets") or {}
+    week_section = {
+        "week_start":    lw.get("week_start"),
+        "week_type":     plan.get("week_type"),
+        "weekly_focus":  plan.get("weekly_focus"),
+        "week_summary":  plan.get("week_summary"),
+        "km_done":       round(lw.get("km_week") or 0, 2),
+        "km_target":     targets.get("target_km_week"),
+        "sessions_done": lw.get("sessions_week"),
+        "days_running":  targets.get("days_running"),
+        "days_strength": targets.get("days_strength"),
+        "notes":         (plan.get("notes") or [None])[0],
+    }
+
+    # ── load ──────────────────────────────────────────────────────────────────
+    load_section = {
+        "ctl":           round(lw.get("ctl") or 0, 2),
+        "atl":           round(lw.get("atl") or 0, 2),
+        "tsb":           round(lw.get("tsb") or 0, 2),
+        "acwr":          round(lw.get("acwr") or 0, 3),
+        "racha_semanas": lw.get("racha_semanas"),
+        "km_trend":      lw.get("km_trend"),
+        "semana_spike":  lw.get("semana_spike", False),
+        "pctZ1":         lw.get("pctZ1"),
+        "pctZ2":         lw.get("pctZ2"),
+        "pctZ3":         lw.get("pctZ3"),
+        "pctZ4":         lw.get("pctZ4"),
+    }
+
+    # ── recent_activities (últimas 5) ─────────────────────────────────────────
+    recent = acts[:5]
+
+    # ── volume_trend (4 semanas, todas las actividades) ───────────────────────
+    volume_trend = _build_activities_summary(acts, "week", 4, None)
+
+    return sanitize_json({
+        "cedula":             cedula,
+        "generated_at":       snap.get("generated_at"),
+        "athlete":            athlete_section,
+        "status":             status_section,
+        "week":               week_section,
+        "load":               load_section,
+        "recent_activities":  recent,
+        "volume_trend":       volume_trend,
+    })
+
+
 # ─── Predicción de rendimiento ───────────────────────────────────────────────
 
 @router.get("/{cedula}/prediction")
