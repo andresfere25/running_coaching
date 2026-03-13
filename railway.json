@@ -9,5 +9,12 @@
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
-  }
+  },
+  "cron": [
+    {
+      "name": "weekly-sync",
+      "schedule": "0 11 * * 1",
+      "command": "curl -s -X POST http://localhost:${PORT}/athletes/1070982737/sync?skip_strava=false -H 'X-API-Key: ${API_KEY}'"
+    }
+  ]
 }
