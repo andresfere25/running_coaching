@@ -445,6 +445,30 @@ function athleteApp() {
       return overrides[key] || null;
     },
 
+    /**
+     * Aplica el override del coach a un array de sessions.
+     * override = { km?, pace?, note? }
+     * Regla: km/pace reemplazan al primer Running del día.
+     *        Si no hay Running, aplica al primero de cualquier tipo.
+     *        Añade _coachOverride=true para el badge visual.
+     */
+    _applyOverride(sessions, override) {
+      if (!override || (!override.km && !override.pace)) return sessions;
+      let applied = false;
+      const hasRun = sessions.some(s => s.type === 'Running');
+      return sessions.map(s => {
+        const isTarget = !applied && (s.type === 'Running' || !hasRun);
+        if (!isTarget) return s;
+        applied = true;
+        return {
+          ...s,
+          km:   override.km   != null ? String(override.km)   : s.km,
+          pace: override.pace != null ? String(override.pace) : s.pace,
+          _coachOverride: true,
+        };
+      });
+    },
+
     // ── Resumen del coach ─────────────────────────────────────────────────
     get coachSummary() {
       if (!this.plan) return null;
@@ -483,13 +507,21 @@ function athleteApp() {
       return s.length > 110 ? s.slice(0, 107) + '…' : s;
     },
 
-    // ── Sesión correspondiente al día actual de la semana ─────────────────
+    // ── Sesión correspondiente al día actual (con override del coach aplicado) ─
     get todaySession() {
-      if (!this.plan?.plan_by_day) return { day: '—', sessions: [] };
+      if (!this.plan?.plan_by_day) return { day: '—', sessions: [], override: null, note: null };
       const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
       const today = days[new Date().getDay()];
-      const sessions = this.plan.plan_by_day[today] || [];
-      return { day: today, sessions };
+      const base  = this.plan.plan_by_day[today] || [];
+      const dayKey = DAY_KEY_MAP[today] || today;
+      const override = (this.coachContent?.plan_overrides || {})[dayKey] || null;
+      const note     = (this.coachContent?.session_notes   || {})[dayKey] || null;
+      return {
+        day: today,
+        sessions: this._applyOverride(base, override),
+        override,
+        note,
+      };
     },
 
     // ── Distribución de km ────────────────────────────────────────────────
@@ -526,13 +558,45 @@ function athleteApp() {
       ];
     },
 
-    // ── Plan semanal ──────────────────────────────────────────────────────
+    // ── Plan semanal (con overrides del coach aplicados) ─────────────────
     get planDays() {
       if (!this.plan?.plan_by_day) return [];
-      return WEEK_DAYS.map(day => ({
-        day,
-        sessions: this.plan.plan_by_day[day] || [],
-      }));
+      return WEEK_DAYS.map(day => {
+        const base    = this.plan.plan_by_day[day] || [];
+        const dayKey  = DAY_KEY_MAP[day] || day;
+        const override = (this.coachContent?.plan_overrides || {})[dayKey] || null;
+        return {
+          day,
+          sessions: this._applyOverride(base, override),
+          override,
+        };
+      });
+    },
+
+    // ── Km objetivo semanal efectivo (recalcula si hay overrides de km) ──
+    get effectiveTargetKm() {
+      const overrides = this.coachContent?.plan_overrides || {};
+      const hasKmOverride = Object.values(overrides).some(o => o?.km != null);
+      if (!hasKmOverride) return this.plan?.targets?.target_km_week ?? null;
+
+      if (!this.plan?.plan_by_day) return this.plan?.targets?.target_km_week ?? null;
+      let total = 0;
+      for (const day of WEEK_DAYS) {
+        const dayKey   = DAY_KEY_MAP[day];
+        const override = overrides[dayKey];
+        const sessions = this.plan.plan_by_day[day] || [];
+        const runSessions = sessions.filter(s => s.type === 'Running');
+        if (runSessions.length > 0) {
+          // Primer Running: usar override.km si existe
+          const baseKm = Number(runSessions[0].km) || 0;
+          total += override?.km != null ? Number(override.km) : baseKm;
+          // Demás Running del mismo día: siempre base
+          for (let i = 1; i < runSessions.length; i++) {
+            total += Number(runSessions[i].km) || 0;
+          }
+        }
+      }
+      return total > 0 ? Math.round(total * 10) / 10 : this.plan?.targets?.target_km_week ?? null;
     },
 
     // ── Día con la sesión de running más larga (sesión clave) ─────────────

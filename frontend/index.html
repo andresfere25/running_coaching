@@ -202,13 +202,19 @@
                     <div class="text-base font-semibold leading-tight"
                          :style="{ color: sessionColor(s.type) }"
                          x-text="s.session"></div>
-                    <template x-if="s.km">
-                      <div class="text-sm font-medium text-gray-700 mt-1"
-                           x-text="s.km + ' km'"></div>
-                    </template>
-                    <template x-if="s.pace">
-                      <div class="text-sm font-mono text-gray-500 mt-0.5" x-text="s.pace"></div>
-                    </template>
+                    <div class="flex items-center gap-2 mt-1 flex-wrap">
+                      <template x-if="s.km">
+                        <span class="text-sm font-medium text-gray-700"
+                              x-text="s.km + ' km'"></span>
+                      </template>
+                      <!-- Badge coach override -->
+                      <template x-if="s._coachOverride">
+                        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-600">✏ Coach</span>
+                      </template>
+                      <template x-if="s.pace">
+                        <span class="text-sm font-mono text-gray-500" x-text="s.pace"></span>
+                      </template>
+                    </div>
                     <template x-if="s.details && s.details.length > 0">
                       <div class="mt-2 space-y-1">
                         <template x-for="(det, idx) in s.details.slice(0, 3)" :key="idx">
@@ -221,6 +227,13 @@
                         :style="{ color: sessionColor(s.type), backgroundColor: sessionBg(s.type), border: '1px solid ' + sessionColor(s.type) + '60' }"
                         x-text="s.type"></span>
                 </div>
+              </div>
+            </template>
+            <!-- Nota del coach para hoy -->
+            <template x-if="todaySession.note">
+              <div class="p-3 bg-violet-50 border border-violet-100 rounded-lg">
+                <span class="text-[10px] font-bold text-violet-400 uppercase tracking-wide">Nota del coach</span>
+                <p class="text-xs text-slate-600 leading-relaxed mt-1" x-text="todaySession.note"></p>
               </div>
             </template>
           </div>
@@ -783,8 +796,12 @@
           <div class="mb-4">
             <div class="flex items-center justify-between mb-2">
               <span class="metric-label text-slate-400">Distribución de km</span>
-              <span class="text-sm font-bold text-slate-700"
-                    x-text="(plan && plan.targets ? plan.targets.target_km_week : '—') + ' km esta semana'"></span>
+              <span class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                <span x-text="(effectiveTargetKm ?? '—') + ' km esta semana'"></span>
+                <template x-if="effectiveTargetKm !== (plan?.targets?.target_km_week ?? null)">
+                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-600">✏ Coach</span>
+                </template>
+              </span>
             </div>
             <div class="space-y-2">
               <template x-for="bar in distributionBars" :key="bar.label">
@@ -898,6 +915,10 @@
                                 :class="s.type === 'Running' ? 'text-orange-700' : 'text-indigo-700'"
                                 x-text="s.km + ' km'"></span>
                         </template>
+                        <!-- Badge coach override -->
+                        <template x-if="s._coachOverride">
+                          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-600">✏</span>
+                        </template>
                         <template x-if="s.pace">
                           <span class="text-xs font-mono text-slate-500" x-text="s.pace"></span>
                         </template>
@@ -920,35 +941,29 @@
                   </template>
                 </div>
 
-                <!-- Override del coach + nota del día: bloque unificado cuando coexisten -->
+                <!-- Bloque coach: indicador de override + nota de sesión -->
                 <template x-if="planOverrideFor(d.day) || sessionNoteFor(d.day)">
                   <div class="mt-3 pt-3 border-t border-violet-100">
                     <div class="bg-violet-50 border border-violet-100 rounded-lg px-3 py-2.5 space-y-2">
 
-                      <!-- Override -->
-                      <template x-if="planOverrideFor(d.day)">
-                        <div class="flex items-start gap-2">
-                          <span class="text-[10px] font-bold text-violet-500 uppercase tracking-wide shrink-0 mt-0.5">✏ Coach ajustó</span>
-                          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-violet-700 font-medium">
-                            <template x-if="planOverrideFor(d.day).km">
-                              <span class="font-bold tabular-nums" x-text="planOverrideFor(d.day).km + ' km'"></span>
-                            </template>
-                            <template x-if="planOverrideFor(d.day).pace">
-                              <span class="font-mono" x-text="planOverrideFor(d.day).pace"></span>
-                            </template>
-                            <template x-if="planOverrideFor(d.day).note">
-                              <span class="text-violet-500 font-normal" x-text="planOverrideFor(d.day).note"></span>
-                            </template>
-                          </div>
+                      <!-- Indicador: km/ritmo ajustados (ya aplicados en la sesión arriba) -->
+                      <template x-if="planOverrideFor(d.day) && (planOverrideFor(d.day).km || planOverrideFor(d.day).pace)">
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-[10px] font-bold text-violet-500 uppercase tracking-wide">✏ km/ritmo ajustados por coach</span>
                         </div>
                       </template>
 
-                      <!-- Separador entre override y nota (solo cuando ambos existen) -->
+                      <!-- Nota adicional dentro del override -->
+                      <template x-if="planOverrideFor(d.day) && planOverrideFor(d.day).note">
+                        <p class="text-xs text-slate-600 leading-relaxed" x-text="planOverrideFor(d.day).note"></p>
+                      </template>
+
+                      <!-- Separador entre override y nota de sesión -->
                       <template x-if="planOverrideFor(d.day) && sessionNoteFor(d.day)">
                         <div class="border-t border-violet-200"></div>
                       </template>
 
-                      <!-- Nota del coach -->
+                      <!-- Nota de sesión (session_notes) -->
                       <template x-if="sessionNoteFor(d.day)">
                         <div class="flex items-start gap-2">
                           <span class="text-[10px] font-bold text-violet-400 uppercase tracking-wide shrink-0 mt-0.5">Nota</span>
