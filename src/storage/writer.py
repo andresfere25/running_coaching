@@ -8,13 +8,14 @@ Cada función retorna un dict {"ok": bool, "detail": str}.
 Si el cliente Supabase no está configurado, retorna ok=True con detail="skipped".
 
 Funciones públicas:
-    push_all(cedula, athlete_dir)   → sube todo lo disponible
-    push_athlete(cedula, name)      → upsert tabla athletes
-    push_profile(cedula, dir)       → upsert athlete_profiles
-    push_snapshot(cedula, dir)      → upsert athlete_snapshots
-    push_weekly_features(cedula, dir) → upsert weekly_features (histórico completo)
-    push_plan(cedula, dir)          → upsert weekly_plans (plan actual)
-    push_checkin(cedula, dir)       → upsert checkins (último check-in)
+    push_all(cedula, athlete_dir)        → sube todo lo disponible
+    push_athlete(cedula, name)           → upsert tabla athletes
+    push_profile(cedula, dir)            → upsert athlete_profiles
+    push_snapshot(cedula, dir)           → upsert athlete_snapshots
+    push_weekly_features(cedula, dir)    → upsert weekly_features (histórico completo)
+    push_plan(cedula, dir)               → upsert weekly_plans (plan actual)
+    push_checkin(cedula, dir)            → upsert checkins (último check-in)
+    push_coach_content(cedula, data)     → upsert coach_content (publicado del coach)
 """
 
 import json
@@ -344,6 +345,44 @@ def push_checkin(cedula: str, athlete_dir: Path) -> dict:
         return _ok("checkins upserted")
     except Exception as exc:
         return _err(f"checkins: {exc}")
+
+
+# ─── Coach content ───────────────────────────────────────────────────────────
+
+def push_coach_content(cedula: str, published_data: dict) -> dict:
+    """
+    Upsert coach_content desde el dict del publicado.
+
+    Recibe el mismo dict que escribe publish.py en weekly_published.json.
+    Requiere week_start para el upsert (cedula, week_start).
+    """
+    client = get_client()
+    if not client:
+        return _skipped()
+
+    week_start = published_data.get("week_start")
+    if not week_start:
+        return _err("coach_content: week_start missing")
+
+    row = _clean({
+        "cedula":           cedula,
+        "week_start":       str(week_start)[:10],
+        "published_at":     published_data.get("published_at"),
+        "status":           published_data.get("status", "published"),
+        "coach_message":    published_data.get("coach_message"),
+        "weekly_focus":     published_data.get("weekly_focus"),
+        "weekly_objective": published_data.get("weekly_objective"),
+        "alerts":           published_data.get("alerts") or [],
+        "restrictions":     published_data.get("restrictions") or [],
+        "session_notes":    published_data.get("session_notes") or {},
+        "plan_overrides":   published_data.get("plan_overrides") or {},
+        "raw":              published_data,
+    })
+    try:
+        client.table("coach_content").upsert(row, on_conflict="cedula,week_start").execute()
+        return _ok(f"coach_content upserted (week {week_start})")
+    except Exception as exc:
+        return _err(f"coach_content: {exc}")
 
 
 # ─── Función principal ────────────────────────────────────────────────────────
