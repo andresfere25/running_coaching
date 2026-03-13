@@ -538,3 +538,213 @@ def test_piso_elevado_datos_escasos():
         last_week_km=2.0, km_week_min=15.0, data_weeks_available=2,
     )
     assert target_km >= 12.0  # piso 80% de 15 km
+
+
+# ─── build_features: funciones auxiliares ────────────────────────────────────
+
+def test_readiness_score_optimo():
+    """TSB ideal + ACWR óptimo + VERDE → score alto."""
+    from src.features.build_features import compute_readiness_score
+    score = compute_readiness_score(tsb=15, acwr=1.0, semaforo="VERDE")
+    # tsb_score=100 (40%) + acwr_score=100 (35%) + sem_score=100 (25%) = 100
+    assert score == 100
+
+
+def test_readiness_score_rojo_bajo():
+    """TSB muy fatigado + ACWR alto + ROJO → score bajo."""
+    from src.features.build_features import compute_readiness_score
+    score = compute_readiness_score(tsb=-40, acwr=1.8, semaforo="ROJO")
+    # tsb_score=20 (40%) + acwr_score=30 (35%) + sem_score=30 (25%) = 8+10.5+7.5 = 26
+    assert score <= 30
+
+
+def test_readiness_score_sin_datos_neutrales():
+    """Sin datos (None) → componentes neutrales 50 → score ~50."""
+    from src.features.build_features import compute_readiness_score
+    score = compute_readiness_score(tsb=None, acwr=None, semaforo="SIN_CHECKIN")
+    # 0.40*50 + 0.35*50 + 0.25*50 = 50
+    assert score == 50
+
+
+def test_readiness_score_rango():
+    """Score siempre entre 0 y 100."""
+    from src.features.build_features import compute_readiness_score
+    for tsb in [-50, -15, 0, 10, 35]:
+        for acwr in [0.4, 0.9, 1.4, 2.0]:
+            for sem in ["VERDE", "AMARILLO", "ROJO", "SIN_CHECKIN"]:
+                s = compute_readiness_score(tsb, acwr, sem)
+                assert 0 <= s <= 100, f"Score fuera de rango: {s} (tsb={tsb}, acwr={acwr}, sem={sem})"
+
+
+def test_racha_semanas_basico():
+    """Streak se acumula con actividad y se reinicia sin actividad."""
+    import pandas as pd
+    from src.features.build_features import _compute_racha_semanas
+    has = pd.Series([True, True, False, True, True, True])
+    result = _compute_racha_semanas(has)
+    assert list(result) == [1, 2, 0, 1, 2, 3]
+
+
+def test_racha_semanas_todo_activo():
+    import pandas as pd
+    from src.features.build_features import _compute_racha_semanas
+    has = pd.Series([True] * 5)
+    result = _compute_racha_semanas(has)
+    assert list(result) == [1, 2, 3, 4, 5]
+
+
+def test_racha_semanas_todo_inactivo():
+    import pandas as pd
+    from src.features.build_features import _compute_racha_semanas
+    has = pd.Series([False] * 4)
+    result = _compute_racha_semanas(has)
+    assert list(result) == [0, 0, 0, 0]
+
+
+def test_km_trend_growing():
+    """Serie creciente → últimas semanas deben ser 'growing'."""
+    import pandas as pd
+    from src.features.build_features import _compute_km_trend
+    km = pd.Series([10.0, 10.0, 10.0, 10.0, 20.0])  # último >10% sobre promedio prev
+    result = _compute_km_trend(km, window=4)
+    assert result.iloc[-1] == "growing"
+
+
+def test_km_trend_declining():
+    """Serie decreciente → último valor 'declining'."""
+    import pandas as pd
+    from src.features.build_features import _compute_km_trend
+    km = pd.Series([20.0, 20.0, 20.0, 20.0, 5.0])
+    result = _compute_km_trend(km, window=4)
+    assert result.iloc[-1] == "declining"
+
+
+def test_km_trend_stable():
+    """Serie plana → 'stable'."""
+    import pandas as pd
+    from src.features.build_features import _compute_km_trend
+    km = pd.Series([15.0, 15.0, 15.0, 15.0, 15.5])  # <10% cambio
+    result = _compute_km_trend(km, window=4)
+    assert result.iloc[-1] == "stable"
+
+
+def test_km_trend_insuficiente_none():
+    """Con una sola semana no hay promedio previo → None."""
+    import pandas as pd
+    from src.features.build_features import _compute_km_trend
+    km = pd.Series([20.0])
+    result = _compute_km_trend(km, window=4)
+    assert result.iloc[0] is None or result.iloc[0] != result.iloc[0]  # None o NaN
+
+
+def test_build_race_snapshots_sin_historial():
+    """Sin race_history → lista vacía."""
+    import pandas as pd
+    from src.features.build_features import build_race_snapshots
+    profile = {"race_history": []}
+    snapshots = build_race_snapshots(profile, pd.DataFrame())
+    assert snapshots == []
+
+
+def test_build_race_snapshots_sin_campo():
+    """Perfil sin campo race_history → lista vacía."""
+    import pandas as pd
+    from src.features.build_features import build_race_snapshots
+    snapshots = build_race_snapshots({}, pd.DataFrame())
+    assert snapshots == []
+
+
+def test_build_race_snapshots_sin_strava_match():
+    """Carrera con fecha fuera del rango Strava → snapshot_usable=False, no error."""
+    import pandas as pd
+    from src.features.build_features import build_race_snapshots
+
+    profile = {
+        "race_history": [
+            {"distance_key": "21K", "time_sec": 5100, "date_iso": "2023-01-15"}
+        ]
+    }
+    # DataFrame con columnas requeridas pero sin filas que coincidan con la fecha
+    weekly_df = pd.DataFrame({
+        "week_start": ["2024-01-01", "2024-01-08"],
+        "ctl": [30.0, 32.0],
+        "atl": [28.0, 30.0],
+        "tsb": [2.0, 2.0],
+        "acwr": [0.95, 0.98],
+        "km_week": [40.0, 42.0],
+        "pace_sec_per_km_week": [310.0, 308.0],
+    })
+    snapshots = build_race_snapshots(profile, weekly_df)
+    assert len(snapshots) == 1
+    assert snapshots[0]["snapshot_usable"] is False
+    assert snapshots[0]["distance_key"] == "21K"
+    assert snapshots[0]["time_sec"] == 5100
+
+
+# ─── src.coach.publish — validación y plantilla ───────────────────────────────
+
+def test_coach_validate_draft_ok():
+    """Draft con campos requeridos completos → sin errores."""
+    from src.coach.publish import validate_draft
+    draft = {
+        "coach_message": "Esta semana consolidamos la base aeróbica.",
+        "weekly_focus":  "Base aeróbica",
+        "week_start":    "2026-03-09",
+        "session_notes": {"LUN": "Inicia suave", "SAB": "Sesión clave"},
+        "plan_overrides": {},
+    }
+    assert validate_draft(draft) == []
+
+
+def test_coach_validate_draft_campo_vacio():
+    """coach_message vacío → error de campo requerido."""
+    from src.coach.publish import validate_draft
+    draft = {
+        "coach_message": "",
+        "weekly_focus":  "Base aeróbica",
+        "week_start":    "2026-03-09",
+    }
+    errors = validate_draft(draft)
+    assert any("coach_message" in e for e in errors)
+
+
+def test_coach_validate_draft_clave_dia_invalida():
+    """Clave de día no canónica → error con nombre de la clave."""
+    from src.coach.publish import validate_draft
+    draft = {
+        "coach_message": "Mensaje OK",
+        "weekly_focus":  "Focus OK",
+        "week_start":    "2026-03-09",
+        "session_notes": {"Lunes": "nota"},   # nombre completo no válido
+    }
+    errors = validate_draft(draft)
+    assert any("Lunes" in e for e in errors)
+
+
+def test_coach_validate_draft_claves_canonicas_validas():
+    """Todas las claves canónicas deben pasar sin error."""
+    from src.coach.publish import validate_draft, VALID_DAY_KEYS
+    notes = {k: "nota" for k in VALID_DAY_KEYS}
+    draft = {
+        "coach_message": "Mensaje OK",
+        "weekly_focus":  "Focus OK",
+        "week_start":    "2026-03-09",
+        "session_notes": notes,
+    }
+    assert validate_draft(draft) == []
+
+
+def test_coach_make_template_estructura():
+    """make_template debe incluir todos los campos esperados."""
+    from src.coach.publish import make_template
+    t = make_template("1070982737", snapshot={}, plan={})
+    assert "coach_message" in t
+    assert "weekly_focus" in t
+    assert "week_start" in t
+    assert "session_notes" in t
+    assert "plan_overrides" in t
+    assert "_auto_context" in t
+    assert t["status"] == "draft"
+    # Las 7 claves canónicas de día deben estar en session_notes
+    for key in ("LUN", "MAR", "MIE", "JUE", "VIE", "SAB", "DOM"):
+        assert key in t["session_notes"]
