@@ -21,6 +21,69 @@ Este proyecto tiene **dos dimensiones que deben coexistir**, no competir:
 
 ---
 
+## Lo que se construyó en la sesión 2026-03-11
+
+### Dashboard Strava enriquecido + pipeline de race_snapshots
+
+#### `src/features/build_features.py` — refactor completo
+- **ACWR** reemplazado por versión EWMA (via `add_load_metrics()`). Columna `acwr` conserva nombre; columnas `ctl`, `atl`, `tsb` añadidas.
+- Nuevas funciones: `_compute_racha_semanas()`, `_compute_km_trend()`, `compute_readiness_score()`
+- Nuevas columnas en `weekly_features.parquet`: `fondo_largo_4s`, `racha_semanas`, `km_trend`, `pace_delta_4s_sec`, `semana_spike`, `pico_semana_ratio`
+- Nueva función `build_race_snapshots(profile, weekly_df)` → escribe `race_snapshots.json` (pipeline silencioso, no expuesto en API)
+- `main()` añade `readiness_score` y `acwr_zone_latest` al snapshot JSON
+
+#### `src/ingest/ingest_forms.py` — campo `race_history`
+- Agrega parsing de hasta 3 carreras pasadas (Distancia / Tiempo / Fecha) al perfil normalizado
+- Requiere 3 nuevos grupos de preguntas en Google Form (acción externa pendiente)
+
+#### Frontend — panel de forma y analítica de carga
+- `app.js`: `ACWR_ZONE_CONFIG`, getter `formaPanel`, chart CTL/ATL, KPI "Racha activa"
+- `index.html`: Sección 1b (readiness score, CTL/ATL/TSB/ACWR grid, km_trend, pace_delta, spike alert, disclaimer heurístico), tabla historial 9 columnas (Semana/Km/Ses/Fondo/Ritmo/CTL/TSB/ACWR/Racha), gráfico CTL/ATL
+- `needsMoreData` warning actualizado: menciona CTL (≥8 semanas) además de ACWR
+
+#### Tests
+- 13 nuevos tests: `compute_readiness_score`, `_compute_racha_semanas`, `_compute_km_trend`, `build_race_snapshots`
+- Total: 61/61 pasando
+
+#### Roles de datos clarificados (decisión arquitectural)
+- Strava: producto/visualización/coaching analytics — **NO para entrenamiento del modelo base**
+- Datasets externos (Boston, Results.csv): modelo base exclusivamente
+- Personalización individual futura: solo datos del atleta (≥3 carreras con carga, Tier 3)
+
+---
+
+## Lo que se construyó en sesiones anteriores (2026-03-10 en adelante)
+
+### NB06 — Capa 3: señal de carga y diseño heurístico
+
+- `ml/notebooks/06_capa3_carga_y_riesgo_lesion.ipynb` — 23 celdas, LOAO-CV con 74 atletas
+- Dataset: Injury Prediction for Competitive Runners, `week_approach_maskedID_timeseries.csv` (42K filas)
+- **Hallazgos clave**:
+  - ACWR ratio simple → injury: r=+0.011, injury rate PLANA entre zonas (1.40%-1.48%). Sin evidencia.
+  - Señal más fuerte: `avg_exertion` (r=+0.048, +26% en medias). Débil pero presente.
+  - LOAO-CV: Mediana AUC=0.607, Std=0.157, P25-P75=[0.501-0.695]. INESTABLE.
+- **Decisión**: Capa 3 diseñada pero **apagada** en producción. Sin evidencia suficiente.
+- Umbrales de `acwr_zone()` son heurísticos (Hulin 2016) — no validados en este dataset.
+
+### Refactor predictor.py — rango de ritmo relativo (sesión misma)
+
+- Remplazado MAE absoluto por `CALIBRATED_RELATIVE_MAE` (Boston NB03): elite=1.8%, sub3h=2.2%, 3to4h=3.0%, 4hplus=4.4%
+- `EXTRAPOLATION_STEP_MULTIPLIER = {0:0.85, 1:1.00, 2:1.60, 3:2.30}` — heurística metodológica
+- `DISTANCE_RANK` + `_extrapolation_steps()` para calcular paso de extrapolación
+- Clasificación de segmento ahora desde `ref_42k = riegel(source_sec, source_km, 42.195, 1.06)` (evita "always elite")
+- Fix `_fmt_time` para tiempos < 1h (MM:SS en lugar de 0:MM:SS)
+- Fix confidence: no degrada si `extrapolation_steps == 0`
+- Tests: 47/47 pasando
+
+### NB05b — Validación step multipliers con splits de Boston
+
+- `ml/notebooks/05b_validacion_step_multipliers_boston.ipynb`
+- Paso 2 (10K→Full, mult=1.60): VALIDADO para 3to4h (empírico=1.66, +4%)
+- Paso 3 (5K→Full, mult=2.30): heurístico conservador — pacing artifact infla el empírico a 2.85
+- Capas 0–2 consideradas cerradas metodológicamente
+
+---
+
 ## Lo que se construyó en la sesión 2026-03-10
 
 ### Módulo ML de predicción multi-distancia (commits `…` → `f5c86b4`)
@@ -124,10 +187,15 @@ Este proyecto tiene **dos dimensiones que deben coexistir**, no competir:
 3. ~~Frontend mínimo~~ ✅ Alpine.js dashboard en `/app`
 4. ~~EDA + baseline ML~~ ✅ NB03–NB05: Riegel calibrado, arquitectura 4 capas, predictor multi-distancia
 5. ~~Predicción en el dashboard~~ ✅ endpoint + panel visual con rango de ritmo
-6. **Fix bug `pr_21k_sec: 85.0`**: parser HH:MM falla en `ingest_forms.py` — el predictor da resultados incorrectos con el atleta real
-7. **NB06 — Capa 3**: corrección por carga con Injury Prediction dataset (74 atletas)
-8. **Migrar storage a Supabase**: desbloquea CI real y deploy
-9. **Migrar frontend a React/Vite**: cuando Node.js esté disponible
+6. ~~Fix bug `pr_21k_sec: 85.0`~~ ✅ resuelto (parser correcto, profile.json verified)
+7. ~~Refactor predictor.py — rango relativo~~ ✅ CALIBRATED_RELATIVE_MAE + step multipliers
+8. ~~NB05b — validación step multipliers~~ ✅ paso 2 validado, paso 3 heurístico justificado
+9. ~~NB06 — Capa 3~~ ✅ diseñada, evidencia débil → **apagada en producción**
+10. ~~Dashboard Strava enriquecido~~ ✅ CTL/ATL/TSB, readiness, race_snapshots pipeline
+11. ~~Agregar preguntas al Google Form~~ **FUERA DE ALCANCE por ahora** — formulario base intacto, race_history queda vacío (inofensivo), Capa 4 pospuesta
+12. **Verificar end-to-end con atleta real**: correr pipeline completo y confirmar que readiness_score/acwr_zone_latest/CTL aparecen en el dashboard
+13. **Migrar storage a Supabase**: desbloquea CI real y deploy
+14. **Migrar frontend a React/Vite**: cuando Node.js esté disponible
 
 ---
 
