@@ -289,19 +289,21 @@ def main(cedula: str | None = None):
         parser.add_argument("--cedula", required=True, help="Cédula del atleta")
         args = parser.parse_args()
         cedula = args.cedula
-    data_dir = Path(os.getenv("DATA_DIR", "data/athletes"))
-
+    data_dir    = Path(os.getenv("DATA_DIR", "data/athletes"))
     athlete_dir = data_dir / cedula
-    snapshot_path = athlete_dir / "features" / "athlete_snapshot.json"
-    weekly_path = athlete_dir / "features" / "weekly_features.parquet"
+    local_dir   = athlete_dir if athlete_dir.exists() else None
 
-    snapshot = load_json(snapshot_path)
+    # ── Inputs: Supabase-first + fallback local ────────────────────────────
+    from src.storage.reader import read_snapshot, read_features
+
+    snapshot = read_snapshot(cedula, local_dir)
     if not snapshot:
-        raise RuntimeError("No existe athlete_snapshot.json. Ejecuta build_features primero.")
+        raise RuntimeError("No existe athlete_snapshot. Ejecuta features primero.")
 
-    weekly = read_parquet(weekly_path)
-    if weekly.empty:
-        raise RuntimeError("No existe weekly_features.parquet. Ejecuta build_features primero.")
+    features_list = read_features(cedula, local_dir, weeks=200)
+    if not features_list:
+        raise RuntimeError("No existen weekly_features. Ejecuta features primero.")
+    weekly = pd.DataFrame(features_list)
 
     profile = snapshot.get("profile", {})
     semaforo = snapshot.get("semaforo_latest_checkin", "SIN_CHECKIN")
@@ -419,6 +421,7 @@ def main(cedula: str | None = None):
     }
 
     out_path = athlete_dir / "features" / "weekly_plan.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print("✅ Plan semanal generado:")
