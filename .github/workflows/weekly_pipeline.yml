@@ -69,7 +69,11 @@ jobs:
           ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
           EOF
 
-      # 6. Correr el pipeline
+      # 6. Correr tests antes del pipeline
+      - name: Run tests
+        run: pytest tests/ -q --tb=short
+
+      # 7. Correr el pipeline
       #    Resolución de cédula (en orden de prioridad):
       #      1. Input manual de workflow_dispatch
       #      2. Secret CEDULA_DEFAULT configurado en el repo
@@ -90,7 +94,7 @@ jobs:
           echo "Procesando cedula: $CEDULA"
           python run_pipeline.py $CEDULA_FLAG $STRAVA_FLAG
 
-      # 7. Subir PDFs generados como artefactos descargables
+      # 8. Subir PDFs generados como artefactos descargables
       - name: Upload PDF reports
         if: always()
         uses: actions/upload-artifact@v4

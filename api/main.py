@@ -8,10 +8,19 @@ Desde la raíz del proyecto (donde está run_pipeline.py).
 """
 
 from pathlib import Path
+import os
 
 from dotenv import load_dotenv
 
-load_dotenv()  # carga .env antes de importar routers
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+ENV_FILE = PROJECT_ROOT / ".env"
+
+load_dotenv(dotenv_path=ENV_FILE, override=False)
+
+print(f"[api] cwd={Path.cwd()}")
+print(f"[api] env_file={ENV_FILE} exists={ENV_FILE.exists()}")
+print(f"[api] SUPABASE_URL loaded={bool(os.getenv('SUPABASE_URL', '').strip())}")
+print(f"[api] SUPABASE_SERVICE_KEY loaded={bool(os.getenv('SUPABASE_SERVICE_KEY', '').strip())}")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,12 +43,15 @@ app = FastAPI(
 )
 
 # ─── CORS ────────────────────────────────────────────────────────────────────
-# En desarrollo: permite cualquier origen.
-# En producción: restringir a los dominios del frontend.
+# Dev:  ALLOWED_ORIGINS no configurado → permite cualquier origen (["*"])
+# Prod: ALLOWED_ORIGINS=https://tudominio.com,https://app.tudominio.com
+
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "").strip()
+_allowed_origins: list[str] = _raw_origins.split(",") if _raw_origins else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # TODO: restringir en producción al dominio del frontend
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
