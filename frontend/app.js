@@ -545,9 +545,41 @@ function athleteApp() {
       };
     },
 
+    // ── Clasificación de sesión de running por tipo ───────────────────────
+    // Retorna 'fondo' | 'quality' | 'easy' según el título de la sesión.
+    _classifyRunSession(s) {
+      if (!s || s.type !== 'Running') return null;
+      const title = (s.session || s.title || '').toLowerCase();
+      if (title.includes('fondo') || title.includes('largo'))                   return 'fondo';
+      if (title.includes('tempo') || title.includes('interval') ||
+          title.includes('series') || title.includes('velocidad') ||
+          title.includes('calidad'))                                             return 'quality';
+      return 'easy';
+    },
+
+    // Distribución efectiva calculada desde planDays (overrides ya aplicados)
+    get effectiveDistribution() {
+      if (!this.planDays.length) return null;
+      let easy_km = 0, fondo_km = 0, quality_km = 0;
+      for (const d of this.planDays) {
+        for (const s of d.sessions) {
+          const km = Number(s.km) || 0;
+          if (!km || s.type !== 'Running') continue;
+          const cat = this._classifyRunSession(s);
+          if (cat === 'fondo')        fondo_km   += km;
+          else if (cat === 'quality') quality_km += km;
+          else                        easy_km    += km;
+        }
+      }
+      const total = easy_km + fondo_km + quality_km;
+      return total > 0 ? { easy_km, fondo_km, quality_km } : null;
+    },
+
     // ── Distribución de km ────────────────────────────────────────────────
+    // Fuente única: effectiveDistribution (calcula desde el plan efectivo).
+    // Fallback al plan base solo si no hay sesiones con km definidos.
     get distributionBars() {
-      const d = this.plan?.distribution_km;
+      const d = this.effectiveDistribution || this.plan?.distribution_km;
       if (!d) return [];
       const total = (d.easy_km || 0) + (d.fondo_km || 0) + (d.quality_km || 0);
       if (total === 0) return [];
@@ -634,8 +666,14 @@ function athleteApp() {
       return key;
     },
 
+    // week_type efectivo: override del coach (si existe) > plan automático
     get weekType() {
-      return this.plan?.week_type || '—';
+      return this.coachContent?.week_type_override || this.plan?.week_type || '—';
+    },
+
+    // ¿El week_type viene del coach (no del sistema)?
+    get weekTypeFromCoach() {
+      return !!(this.hasPublishedCoach && this.coachContent?.week_type_override);
     },
 
     get weekTypeColor() {

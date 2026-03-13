@@ -280,9 +280,14 @@
                 </span>
               </template>
             </div>
-            <span class="text-xs font-semibold px-3 py-1.5 rounded-full text-white shrink-0"
-                  :style="{ backgroundColor: weekTypeColor }"
-                  x-text="weekType"></span>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <template x-if="weekTypeFromCoach">
+                <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600">Coach</span>
+              </template>
+              <span class="text-xs font-semibold px-3 py-1.5 rounded-full text-white"
+                    :style="{ backgroundColor: weekTypeColor }"
+                    x-text="weekType"></span>
+            </div>
           </div>
 
           <!-- Mensaje del coach: published tiene prioridad, fallback al automático -->
@@ -789,9 +794,14 @@
               </p>
             </template>
           </div>
-          <span class="text-xs font-semibold px-3 py-1.5 rounded-full text-white shrink-0"
+          <div class="flex items-center gap-1.5 shrink-0">
+          <template x-if="weekTypeFromCoach">
+            <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600">Coach</span>
+          </template>
+          <span class="text-xs font-semibold px-3 py-1.5 rounded-full text-white"
                 :style="{ backgroundColor: weekTypeColor }"
                 x-text="weekType"></span>
+        </div>
         </div>
 
         <!-- Distribución de km — barras en el header -->

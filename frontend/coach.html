@@ -142,10 +142,28 @@
 
         <!-- ── Semana ──────────────────────────────────────────────── -->
         <div class="card px-5 py-4">
-          <div class="label mb-2">Semana de inicio</div>
-          <input x-model="form.week_start" type="text" placeholder="YYYY-MM-DD"
-                 class="field w-48 font-mono" />
-          <p class="text-xs text-slate-400 mt-1">Lunes de la semana que aplica este contenido.</p>
+          <div class="flex flex-wrap gap-6 items-start">
+            <div>
+              <div class="label mb-2">Semana de inicio</div>
+              <input x-model="form.week_start" type="text" placeholder="YYYY-MM-DD"
+                     class="field w-48 font-mono" />
+              <p class="text-xs text-slate-400 mt-1">Lunes de la semana que aplica este contenido.</p>
+            </div>
+            <div>
+              <div class="label mb-2">Tipo de semana
+                <span class="font-normal text-slate-400 ml-1">(override opcional)</span>
+              </div>
+              <select x-model="form.week_type_override" class="field w-44">
+                <option value="">— Automático (del sistema) —</option>
+                <option value="PROGRESO">PROGRESO</option>
+                <option value="CONSERVADORA">CONSERVADORA</option>
+                <option value="DESCARGA">DESCARGA</option>
+              </select>
+              <p class="text-xs text-slate-400 mt-1">
+                Solo si quieres sobreescribir la etiqueta visible en la app.
+              </p>
+            </div>
+          </div>
         </div>
 
         <!-- ── Mensaje del coach ───────────────────────────────────── -->
@@ -466,14 +484,15 @@ function coachApp() {
     published:  null,
 
     form: {
-      week_start:      '',
-      coach_message:   '',
-      weekly_focus:    '',
-      weekly_objective:'',
-      alerts:          [],
-      restrictions:    [],
-      session_notes:   emptyNotes(),
-      plan_overrides:  emptyOverrides(),
+      week_start:         '',
+      week_type_override: '',
+      coach_message:      '',
+      weekly_focus:       '',
+      weekly_objective:   '',
+      alerts:             [],
+      restrictions:       [],
+      session_notes:      emptyNotes(),
+      plan_overrides:     emptyOverrides(),
     },
 
     DAYS,
@@ -525,10 +544,11 @@ function coachApp() {
 
     // ── Rellenar formulario desde editable ─────────────────────────────
     _fillForm(ed) {
-      this.form.week_start       = ed.week_start       || '';
-      this.form.coach_message    = ed.coach_message    || '';
-      this.form.weekly_focus     = ed.weekly_focus     || '';
-      this.form.weekly_objective = ed.weekly_objective || '';
+      this.form.week_start         = ed.week_start         || '';
+      this.form.week_type_override = ed.week_type_override || '';
+      this.form.coach_message      = ed.coach_message      || '';
+      this.form.weekly_focus       = ed.weekly_focus       || '';
+      this.form.weekly_objective   = ed.weekly_objective   || '';
       this.form.alerts           = [...(ed.alerts       || [])];
       this.form.restrictions     = [...(ed.restrictions || [])];
 
@@ -564,7 +584,7 @@ function coachApp() {
         if (Object.keys(entry).length > 0) plan_overrides[d] = entry;
       });
 
-      return {
+      const payload = {
         week_start:       this.form.week_start,
         coach_message:    this.form.coach_message,
         weekly_focus:     this.form.weekly_focus,
@@ -574,6 +594,11 @@ function coachApp() {
         session_notes:    Object.fromEntries(DAYS.map(d => [d, this.form.session_notes[d]])),
         plan_overrides,
       };
+      // Solo incluir week_type_override si tiene valor
+      if (this.form.week_type_override) {
+        payload.week_type_override = this.form.week_type_override;
+      }
+      return payload;
     },
 
     // ── Guardar borrador ────────────────────────────────────────────────
