@@ -447,13 +447,34 @@ function athleteApp() {
 
     /**
      * Aplica el override del coach a un array de sessions.
-     * override = { km?, pace?, note? }
-     * Regla: km/pace reemplazan al primer Running del día.
-     *        Si no hay Running, aplica al primero de cualquier tipo.
-     *        Añade _coachOverride=true para el badge visual.
+     * override = { type?, title?, km?, pace?, note? }
+     *
+     * Regla:
+     *   - Si override.type o override.title → REEMPLAZO COMPLETO:
+     *       descarta las sesiones base, construye 1 nueva sesión del coach.
+     *       km/pace son opcionales (fallback al base si no se especifican).
+     *   - Si solo km/pace → PARCHE PARCIAL al primer Running (o primero).
+     *   - Añade _coachOverride=true y _coachReplace=true según el caso.
      */
     _applyOverride(sessions, override) {
-      if (!override || (!override.km && !override.pace)) return sessions;
+      if (!override) return sessions;
+
+      // ── Reemplazo completo ─────────────────────────────────────────────
+      if (override.type || override.title) {
+        const base = sessions[0] || {};
+        return [{
+          type:    override.type  || base.type    || 'Running',
+          session: override.title || base.session || 'Sesión del coach',
+          km:      override.km   != null ? String(override.km)   : (base.km   || null),
+          pace:    override.pace != null ? String(override.pace) : (base.pace || null),
+          details: [],
+          _coachOverride: true,
+          _coachReplace:  true,
+        }];
+      }
+
+      // ── Parche parcial (solo km/pace) ──────────────────────────────────
+      if (!override.km && !override.pace) return sessions;
       let applied = false;
       const hasRun = sessions.some(s => s.type === 'Running');
       return sessions.map(s => {

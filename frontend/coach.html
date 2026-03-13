@@ -237,21 +237,43 @@
         <div class="card px-5 py-4">
           <div class="label mb-1">Ajustes al plan (overrides)</div>
           <p class="text-xs text-slate-400 mb-3">
-            Modifica km, ritmo o agrega una nota para un día específico. Deja vacío para usar el plan automático.
+            <strong>Tipo + Título</strong> → reemplaza la sesión base por completo (ej: cambiar Fuerza por Running).<br>
+            Solo <strong>km/ritmo</strong> → ajusta la carga de la sesión existente sin cambiar su tipo.
           </p>
-          <div class="space-y-2">
+          <div class="space-y-3">
             <template x-for="day in DAYS" :key="day">
-              <div class="flex items-center gap-2">
-                <span class="w-8 text-xs font-bold text-slate-400 shrink-0" x-text="day"></span>
-                <input x-model="form.plan_overrides[day].km" type="number" step="0.5" min="0"
-                       placeholder="km"
-                       class="field w-20 text-sm text-center" />
-                <input x-model="form.plan_overrides[day].pace" type="text"
-                       placeholder="ritmo (ej: 5:30–6:00)"
-                       class="field w-36 text-sm font-mono" />
-                <input x-model="form.plan_overrides[day].note" type="text"
-                       placeholder="nota (opcional)"
-                       class="field flex-1 text-sm" />
+              <div class="border rounded-lg p-3 space-y-2 transition-colors"
+                   :class="(form.plan_overrides[day].type || form.plan_overrides[day].title || form.plan_overrides[day].km || form.plan_overrides[day].pace || form.plan_overrides[day].note)
+                     ? 'border-violet-200 bg-violet-50/40'
+                     : 'border-slate-100'">
+
+                <!-- Fila 1: día + tipo + título (reemplazo) -->
+                <div class="flex items-center gap-2">
+                  <span class="w-8 text-xs font-bold text-slate-500 shrink-0" x-text="day"></span>
+                  <select x-model="form.plan_overrides[day].type"
+                          class="field text-sm" style="width:140px">
+                    <option value="">Tipo: sin cambio</option>
+                    <option value="Running">🏃 Running</option>
+                    <option value="Fuerza">💪 Fuerza</option>
+                  </select>
+                  <input x-model="form.plan_overrides[day].title" type="text"
+                         placeholder="Título de sesión (si quieres reemplazarla)"
+                         class="field flex-1 text-sm" />
+                </div>
+
+                <!-- Fila 2: km + ritmo + nota -->
+                <div class="flex items-center gap-2 pl-10">
+                  <input x-model="form.plan_overrides[day].km" type="number" step="0.5" min="0"
+                         placeholder="km"
+                         class="field text-sm text-center" style="width:72px" />
+                  <input x-model="form.plan_overrides[day].pace" type="text"
+                         placeholder="ritmo (ej: 5:30–6:00)"
+                         class="field text-sm font-mono" style="width:148px" />
+                  <input x-model="form.plan_overrides[day].note" type="text"
+                         placeholder="nota opcional"
+                         class="field flex-1 text-sm" />
+                </div>
+
               </div>
             </template>
           </div>
@@ -405,7 +427,7 @@
             <li>Elige el atleta arriba</li>
             <li>Escribe el mensaje + foco semanal</li>
             <li>Agrega notas por día si es necesario</li>
-            <li>Ajusta el plan (overrides) si quieres cambiar km o ritmo</li>
+            <li>Ajusta el plan: define tipo+título para reemplazar la sesión, o solo km/ritmo para ajustar la carga</li>
             <li>💾 <strong>Guardar borrador</strong> para revisar más tarde</li>
             <li>🚀 <strong>Publicar</strong> cuando esté listo → el atleta lo ve en la app</li>
           </ol>
@@ -424,7 +446,7 @@
 const DAYS = ['LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB', 'DOM'];
 
 function emptyOverrides() {
-  return Object.fromEntries(DAYS.map(d => [d, { km: '', pace: '', note: '' }]));
+  return Object.fromEntries(DAYS.map(d => [d, { type: '', title: '', km: '', pace: '', note: '' }]));
 }
 
 function emptyNotes() {
@@ -511,9 +533,11 @@ function coachApp() {
       DAYS.forEach(d => {
         const o = overrides[d] || {};
         this.form.plan_overrides[d] = {
-          km:   o.km   != null ? String(o.km) : '',
-          pace: o.pace || '',
-          note: o.note || '',
+          type:  o.type  || '',
+          title: o.title || '',
+          km:    o.km   != null ? String(o.km) : '',
+          pace:  o.pace || '',
+          note:  o.note || '',
         };
       });
     },
@@ -524,6 +548,8 @@ function coachApp() {
       DAYS.forEach(d => {
         const o = this.form.plan_overrides[d];
         const entry = {};
+        if (o.type  && o.type.trim())  entry.type  = o.type.trim();
+        if (o.title && o.title.trim()) entry.title = o.title.trim();
         if (o.km && !isNaN(Number(o.km)) && Number(o.km) > 0) entry.km = Number(o.km);
         if (o.pace && o.pace.trim()) entry.pace = o.pace.trim();
         if (o.note && o.note.trim()) entry.note = o.note.trim();
