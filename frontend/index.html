@@ -252,6 +252,17 @@
                   Coach
                 </span>
               </template>
+              <!-- Semana del contenido publicado -->
+              <template x-if="hasPublishedCoach && coachContent.week_start">
+                <span class="text-[10px] text-slate-400 font-mono"
+                      x-text="weekLabel(coachContent.week_start)"></span>
+              </template>
+              <!-- Aviso si el contenido es de una semana anterior -->
+              <template x-if="hasPublishedCoach && coachContent.is_stale">
+                <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-600">
+                  ⚠ sem. anterior
+                </span>
+              </template>
             </div>
             <span class="text-xs font-semibold px-3 py-1.5 rounded-full text-white shrink-0"
                   :style="{ backgroundColor: weekTypeColor }"
@@ -684,6 +695,60 @@
 
       </div>
       <!-- fin últimas salidas -->
+
+
+      <!-- ══ OTRAS ACTIVIDADES (cross-training) ══════════════════════════════ -->
+      <template x-if="!activitiesLoading && recentCross.length > 0">
+        <div class="card p-6">
+
+          <div class="flex items-center gap-2 mb-4">
+            <span class="text-lg">🏋️</span>
+            <h3 class="text-base font-semibold text-gray-800">Otras actividades</h3>
+            <span class="text-xs text-slate-400">Cross-training · contexto complementario</span>
+          </div>
+
+          <div class="space-y-1.5">
+            <template x-for="act in recentCross" :key="(act.activity_id || '') + act.activity_date">
+              <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
+
+                <!-- Icono de tipo -->
+                <div class="w-8 text-center text-xl shrink-0"
+                     x-text="crossTypeIcon(act.sport_type)"></div>
+
+                <!-- Badge tipo + nombre + fecha -->
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-0.5">
+                    <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+                          :class="crossTypeBadge(act.sport_type)"
+                          x-text="act.sport_type || 'Actividad'"></span>
+                  </div>
+                  <div class="text-sm text-slate-700 truncate"
+                       x-text="act.name || act.sport_type || 'Actividad'"></div>
+                  <div class="text-xs text-slate-400"
+                       x-text="(act.activity_date || '').slice(0, 10)"></div>
+                </div>
+
+                <!-- Duración + distancia (si aplica) -->
+                <div class="text-right shrink-0">
+                  <div class="text-sm font-mono text-slate-600"
+                       x-text="fmtDuration(act.duration_sec)"></div>
+                  <template x-if="act.distance_km && Number(act.distance_km) > 0.1">
+                    <div class="text-xs text-slate-400"
+                         x-text="Number(act.distance_km).toFixed(1) + ' km'"></div>
+                  </template>
+                </div>
+
+              </div>
+            </template>
+          </div>
+
+          <p class="text-xs text-slate-400 mt-3 italic">
+            No incluido en métricas de carga de running (CTL/ATL/ACWR).
+          </p>
+
+        </div>
+      </template>
+      <!-- fin otras actividades -->
 
 
       </div><!-- fin tab RENDIMIENTO -->

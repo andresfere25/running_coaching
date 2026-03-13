@@ -208,8 +208,9 @@ function athleteApp() {
     async fetchActivities() {
       this.activitiesLoading = true;
       try {
+        // Sin filtro de sport_type: traemos todas para separar en getters
         this.activities = await apiFetch(
-          `/athletes/${this.cedula}/activities?limit=20&sport_type=run`
+          `/athletes/${this.cedula}/activities?limit=30`
         );
       } catch (e) {
         this.activities = { data: [], count: 0, error: e.message };
@@ -219,7 +220,40 @@ function athleteApp() {
     },
 
     get recentRuns() {
-      return this.activities?.data || [];
+      return (this.activities?.data || []).filter(
+        a => (a.sport_type || '').toLowerCase().includes('run')
+      );
+    },
+
+    get recentCross() {
+      return (this.activities?.data || []).filter(
+        a => !(a.sport_type || '').toLowerCase().includes('run')
+      ).slice(0, 8);
+    },
+
+    /** Icono emoji según tipo de actividad */
+    crossTypeIcon(sport_type) {
+      const t = (sport_type || '').toLowerCase();
+      if (t.includes('ride') || t.includes('cycl') || t.includes('bik')) return '🚴';
+      if (t.includes('swim'))                                              return '🏊';
+      if (t.includes('yoga'))                                              return '🧘';
+      if (t.includes('walk') || t.includes('hike'))                       return '🥾';
+      if (t.includes('weight') || t.includes('strength') || t.includes('workout')) return '💪';
+      if (t.includes('soccer') || t.includes('football'))                 return '⚽';
+      if (t.includes('tennis'))                                            return '🎾';
+      if (t.includes('ski'))                                               return '⛷️';
+      return '⚡';
+    },
+
+    /** Clases Tailwind para el badge de tipo */
+    crossTypeBadge(sport_type) {
+      const t = (sport_type || '').toLowerCase();
+      if (t.includes('ride') || t.includes('cycl') || t.includes('bik')) return 'bg-blue-100 text-blue-700';
+      if (t.includes('swim'))                                              return 'bg-cyan-100 text-cyan-700';
+      if (t.includes('yoga'))                                              return 'bg-green-100 text-green-700';
+      if (t.includes('weight') || t.includes('strength') || t.includes('workout')) return 'bg-indigo-100 text-indigo-700';
+      if (t.includes('walk') || t.includes('hike'))                       return 'bg-amber-100 text-amber-700';
+      return 'bg-gray-100 text-gray-600';
     },
 
     /** Formatea segundos como "1h 23min" o "45 min" */
