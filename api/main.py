@@ -7,20 +7,25 @@ Corre con:
 Desde la raíz del proyecto (donde está run_pipeline.py).
 """
 
-from pathlib import Path
+import logging
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
+
+logger = logging.getLogger("api.startup")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = PROJECT_ROOT / ".env"
 
 load_dotenv(dotenv_path=ENV_FILE, override=False)
 
-print(f"[api] cwd={Path.cwd()}")
-print(f"[api] env_file={ENV_FILE} exists={ENV_FILE.exists()}")
-print(f"[api] SUPABASE_URL loaded={bool(os.getenv('SUPABASE_URL', '').strip())}")
-print(f"[api] SUPABASE_SERVICE_KEY loaded={bool(os.getenv('SUPABASE_SERVICE_KEY', '').strip())}")
+# ─── Logs de arranque (útiles en Railway/Fly, sin ensuciar) ──────────────────
+logger.info("cwd=%s", Path.cwd())
+logger.info("env_file=%s exists=%s", ENV_FILE, ENV_FILE.exists())
+logger.info("SUPABASE_URL loaded=%s", bool(os.getenv("SUPABASE_URL", "").strip()))
+logger.info("SUPABASE_KEY loaded=%s", bool(os.getenv("SUPABASE_SERVICE_KEY", "").strip()))
+logger.info("GOOGLE_SA_JSON path=%s", os.getenv("GOOGLE_SA_JSON", "secrets/google_service_account.json"))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,17 +39,16 @@ app = FastAPI(
     title="Running Coaching API",
     description=(
         "Backend API del sistema de running coaching. "
-        "Expone los datos del pipeline (ETL + features + plan) como endpoints REST. "
-        "Futura base para la app/web de coaching."
+        "Expone los datos del pipeline (ETL + features + plan) como endpoints REST."
     ),
     version="0.1.0",
-    docs_url="/docs",      # Swagger UI
-    redoc_url="/redoc",    # ReDoc
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 # ─── CORS ────────────────────────────────────────────────────────────────────
-# Dev:  ALLOWED_ORIGINS no configurado → permite cualquier origen (["*"])
-# Prod: ALLOWED_ORIGINS=https://tudominio.com,https://app.tudominio.com
+# Dev:  ALLOWED_ORIGINS vacío → permite cualquier origen (["*"])
+# Prod: ALLOWED_ORIGINS=https://app.arathleteslab.com,https://otra-url.com
 
 _raw_origins = os.getenv("ALLOWED_ORIGINS", "").strip()
 _allowed_origins: list[str] = _raw_origins.split(",") if _raw_origins else ["*"]
@@ -81,8 +85,7 @@ def root():
 
 # ─── Frontend estático ────────────────────────────────────────────────────────
 # Montado AL FINAL para que los routers de la API tengan prioridad.
-# Acceso: http://localhost:8000/app
-# El frontend llama a /athletes/... directamente (mismo origen, sin CORS).
+# Acceso: https://<dominio>/app  (o http://localhost:8000/app en dev)
 
 _frontend_dir = Path(__file__).parent.parent / "frontend"
 if _frontend_dir.exists():
