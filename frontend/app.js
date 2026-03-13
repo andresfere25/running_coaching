@@ -121,7 +121,7 @@ let chartCtl  = null;
 function athleteApp() {
   return {
     // Estado
-    cedula:       '1070982737',
+    cedula:       new URLSearchParams(window.location.search).get('cedula') || '1070982737',
     activeTab:    'hoy',
     loading:      false,
     error:        null,
