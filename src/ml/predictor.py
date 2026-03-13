@@ -536,6 +536,7 @@ def predict_race_time_range(
         'mae_effective_min':     round(half_width_sec / 60, 1),  # alias para compat.
         'segment':               segment,
         'exponent_used':         round(exponent, 4),
+        'target':                target_distance,   # alias corto para el frontend
         'target_distance':       target_distance,
         'target_km':             target_km,
         # ─── Origen del PR ───────────────────────────────────────────────────

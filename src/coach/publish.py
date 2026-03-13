@@ -19,7 +19,7 @@ Los campos con prefijo '_' en el draft se excluyen del publicado.
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 # ─── Constantes ────────────────────────────────────────────────────────────
@@ -51,6 +51,11 @@ def load_plan(cedula: str, data_dir: Path) -> dict:
 
 # ─── Creación de plantilla de draft ────────────────────────────────────────
 
+def _current_monday() -> str:
+    today = date.today()
+    return (today - timedelta(days=today.weekday())).isoformat()
+
+
 def make_template(cedula: str, snapshot: dict, plan: dict) -> dict:
     """
     Genera un draft pre-rellenado con el contexto automático actual.
@@ -60,7 +65,7 @@ def make_template(cedula: str, snapshot: dict, plan: dict) -> dict:
     lw = snapshot.get("latest_week") or {}
     return {
         "cedula": cedula,
-        "week_start": lw.get("week_start", "YYYY-MM-DD"),
+        "week_start": _current_monday(),
         "status": "draft",
 
         # ── Contenido que escribe el coach ──────────────────────────────

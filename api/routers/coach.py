@@ -95,7 +95,7 @@ def get_coach_content(cedula: str) -> dict:
                 client.table("coach_content")
                 .select("*")
                 .eq("cedula", cedula)
-                .order("week_start", desc=True)
+                .order("published_at", desc=True)
                 .limit(1)
                 .execute()
             )
