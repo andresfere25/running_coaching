@@ -34,10 +34,22 @@ def _current_week_monday() -> str:
 
 
 def _build_response(data: dict) -> dict:
-    """Construye el dict de respuesta normalizado desde cualquier fuente."""
+    """
+    Construye el dict de respuesta normalizado desde cualquier fuente.
+
+    Para los campos effective_*, busca primero en la fila directa (columnas Supabase)
+    y luego en data["raw"] como fallback (cubre filas antiguas antes de la migración 003).
+    """
     week_start = data.get("week_start")
     if week_start:
-        week_start = str(week_start)[:10]  # DATE puede venir como 'YYYY-MM-DD' o datetime
+        week_start = str(week_start)[:10]
+
+    # Fallback para campos effective_* que pueden estar en raw (pre-migración)
+    raw: dict = data.get("raw") or {}
+
+    def _ef(key: str):
+        return data.get(key) or raw.get(key)
+
     return {
         "source":           "published",
         "week_start":       week_start,
@@ -51,6 +63,12 @@ def _build_response(data: dict) -> dict:
         "restrictions":     data.get("restrictions") or [],
         "session_notes":    data.get("session_notes") or {},
         "plan_overrides":   data.get("plan_overrides") or {},
+        # ── Plan efectivo (persistido al publicar) ──────────────────────────
+        "week_type_override":     _ef("week_type_override"),
+        "week_type_system":       _ef("week_type_system"),
+        "effective_week_type":    _ef("effective_week_type"),
+        "effective_distribution": _ef("effective_distribution"),
+        "effective_totals":       _ef("effective_totals"),
     }
 
 

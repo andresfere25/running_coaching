@@ -365,18 +365,24 @@ def push_coach_content(cedula: str, published_data: dict) -> dict:
         return _err("coach_content: week_start missing")
 
     row = _clean({
-        "cedula":           cedula,
-        "week_start":       str(week_start)[:10],
-        "published_at":     published_data.get("published_at"),
-        "status":           published_data.get("status", "published"),
-        "coach_message":    published_data.get("coach_message"),
-        "weekly_focus":     published_data.get("weekly_focus"),
-        "weekly_objective": published_data.get("weekly_objective"),
-        "alerts":           published_data.get("alerts") or [],
-        "restrictions":     published_data.get("restrictions") or [],
-        "session_notes":    published_data.get("session_notes") or {},
-        "plan_overrides":   published_data.get("plan_overrides") or {},
-        "raw":              published_data,
+        "cedula":                cedula,
+        "week_start":            str(week_start)[:10],
+        "published_at":          published_data.get("published_at"),
+        "status":                published_data.get("status", "published"),
+        "coach_message":         published_data.get("coach_message"),
+        "weekly_focus":          published_data.get("weekly_focus"),
+        "weekly_objective":      published_data.get("weekly_objective"),
+        "alerts":                published_data.get("alerts") or [],
+        "restrictions":          published_data.get("restrictions") or [],
+        "session_notes":         published_data.get("session_notes") or {},
+        "plan_overrides":        published_data.get("plan_overrides") or {},
+        # ── Plan efectivo (calculado en publish_coach_content_api) ───────────
+        "week_type_override":     published_data.get("week_type_override"),
+        "week_type_system":       published_data.get("week_type_system"),
+        "effective_week_type":    published_data.get("effective_week_type"),
+        "effective_distribution": published_data.get("effective_distribution"),
+        "effective_totals":       published_data.get("effective_totals"),
+        "raw":                    published_data,
     })
     try:
         client.table("coach_content").upsert(row, on_conflict="cedula,week_start").execute()
