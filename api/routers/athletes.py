@@ -412,6 +412,10 @@ def get_dashboard(
     profile = snap.get("profile") or {}
     lw      = snap.get("latest_week") or {}
 
+    # Separar actividades: running vs. cross-training
+    runs  = [a for a in acts if "run" in (a.get("sport_type") or "").lower()]
+    cross = [a for a in acts if "run" not in (a.get("sport_type") or "").lower()]
+
     # ── athlete ───────────────────────────────────────────────────────────────
     athlete_section = {
         "name":               profile.get("name"),
@@ -466,21 +470,36 @@ def get_dashboard(
         "pctZ4":         lw.get("pctZ4"),
     }
 
-    # ── recent_activities (últimas 5) ─────────────────────────────────────────
-    recent = acts[:5]
+    # ── recent_runs (últimas 5 carreras) — núcleo del coaching ───────────────
+    recent_runs = runs[:5]
 
-    # ── volume_trend (4 semanas, todas las actividades) ───────────────────────
-    volume_trend = _build_activities_summary(acts, "week", 4, None)
+    # ── running_trend (4 semanas, solo runs) — para gráfica de volumen ───────
+    running_trend = _build_activities_summary(runs, "week", 4, None)
+
+    # ── recent_cross_training (últimas 5 actividades no running) ─────────────
+    # Ordenadas por fecha desc; sin métricas de carga (no contaminan el plan)
+    recent_cross = [
+        {
+            "activity_id":  a.get("activity_id"),
+            "name":         a.get("name"),
+            "sport_type":   a.get("sport_type"),
+            "activity_date": a.get("activity_date"),
+            "distance_km":  a.get("distance_km"),
+            "duration_sec": a.get("duration_sec"),
+        }
+        for a in cross[:5]
+    ]
 
     return sanitize_json({
-        "cedula":             cedula,
-        "generated_at":       snap.get("generated_at"),
-        "athlete":            athlete_section,
-        "status":             status_section,
-        "week":               week_section,
-        "load":               load_section,
-        "recent_activities":  recent,
-        "volume_trend":       volume_trend,
+        "cedula":               cedula,
+        "generated_at":         snap.get("generated_at"),
+        "athlete":              athlete_section,
+        "status":               status_section,
+        "week":                 week_section,
+        "load":                 load_section,
+        "recent_runs":          recent_runs,
+        "running_trend":        running_trend,
+        "recent_cross_training": recent_cross,
     })
 
 
