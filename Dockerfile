@@ -43,8 +43,8 @@ EXPOSE 8000
 # GOOGLE_SA_JSON_B64: si está presente, se decodifica y escribe a disco antes de arrancar.
 CMD sh -c '\
   if [ -n "$GOOGLE_SA_JSON_B64" ]; then \
-    echo "$GOOGLE_SA_JSON_B64" | base64 -d > secrets/google_service_account.json && \
-    echo "[startup] Google SA JSON escrito desde GOOGLE_SA_JSON_B64"; \
+    printf "%s" "$GOOGLE_SA_JSON_B64" | tr -d "\r\n " | base64 -d > secrets/google_service_account.json && \
+    echo "[startup] Google SA JSON escrito desde GOOGLE_SA_JSON_B64 ($(wc -c < secrets/google_service_account.json) bytes)"; \
   fi && \
   exec python -m uvicorn api.main:app --host 0.0.0.0 --port "${PORT:-8000}" \
 '
