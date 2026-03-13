@@ -20,14 +20,28 @@
   <style>
     [x-cloak] { display: none !important; }
     body { font-family: 'Inter', system-ui, sans-serif; }
-    .card { @apply bg-white rounded-xl shadow-sm border border-gray-100; }
-    .section-title { @apply text-base font-semibold text-gray-800 mb-4; }
-    .dist-bar-track { height: 8px; background: #f3f4f6; border-radius: 4px; overflow: hidden; }
+    .card {
+      background: #ffffff;
+      border-radius: 16px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .card-elevated {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.06);
+    }
+    .section-title { @apply text-base font-semibold text-slate-800 mb-4; }
+    .metric-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .dist-bar-track { height: 6px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
     .dist-bar-fill  { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
   </style>
 </head>
 
-<body class="bg-gray-50 min-h-screen" x-data="athleteApp()" x-cloak>
+<body class="bg-slate-50 min-h-screen" x-data="athleteApp()" x-cloak>
 
   <!-- ══ HEADER ═══════════════════════════════════════════════════════════ -->
   <header class="bg-gray-900 text-white px-6 py-4 flex items-center justify-between shadow-lg">
@@ -49,7 +63,7 @@
       <button
         type="submit"
         :disabled="loading"
-        class="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300
+        class="px-4 py-2 bg-orange-700 hover:bg-orange-800 disabled:bg-orange-300
                text-white text-sm font-medium rounded-lg transition-colors"
       >
         <span x-show="!loading">Buscar</span>
@@ -59,7 +73,7 @@
   </header>
 
   <!-- ══ MAIN ══════════════════════════════════════════════════════════════ -->
-  <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+  <main class="max-w-6xl mx-auto px-4 pb-10">
 
     <!-- Error -->
     <div x-show="error" x-transition
@@ -81,248 +95,392 @@
     </div>
 
     <!-- ── DASHBOARD ──────────────────────────────────────────────────── -->
-    <div x-show="snapshot && !loading" x-transition class="space-y-6">
+    <div x-show="snapshot && !loading" x-transition>
 
-      <!-- ══ 1. SEMÁFORO + ATLETA + KPIs ══════════════════════════════════ -->
+      <!-- ══ TAB BAR ══════════════════════════════════════════════════════ -->
+      <div class="flex gap-0 border-b border-gray-200 mt-4 mb-6">
+        <template x-for="tab in [
+          { id: 'hoy',         label: 'Hoy' },
+          { id: 'plan',        label: 'Plan' },
+          { id: 'rendimiento', label: 'Rendimiento' },
+          { id: 'analitica',   label: 'Analítica' },
+          { id: 'glosario',    label: 'Glosario' },
+        ]" :key="tab.id">
+          <button
+            @click="switchTab(tab.id)"
+            class="px-5 py-3 text-sm font-medium border-b-2 transition-colors -mb-px"
+            :class="activeTab === tab.id
+              ? 'border-orange-700 text-orange-800'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'"
+            x-text="tab.label"
+          ></button>
+        </template>
+      </div>
+
+      <!-- ══ CONTENT WRAPPER — ancho por pestaña ══════════════════════════ -->
+      <div :class="{
+        'max-w-2xl mx-auto': activeTab === 'hoy' || activeTab === 'glosario',
+        'max-w-5xl mx-auto': activeTab === 'plan' || activeTab === 'analitica',
+        'max-w-3xl mx-auto': activeTab === 'rendimiento',
+      }">
+
+      <!-- ════════════════ TAB: HOY ════════════════════════════════════════ -->
+      <div x-show="activeTab === 'hoy'" class="space-y-4">
+
+      <!-- ══ HERO CARD ═════════════════════════════════════════════════════ -->
       <div class="card overflow-hidden">
 
-        <!-- Banda de semáforo -->
-        <div class="px-6 py-5" :style="{ backgroundColor: semConfig.bg }">
-          <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-            <div>
-              <div class="text-white/70 text-xs font-medium uppercase tracking-wider mb-1">Estado semanal</div>
-              <div class="text-white text-2xl font-bold" x-text="semLabel"></div>
-              <div class="text-white/80 text-sm" x-text="semConfig.label"></div>
-              <!-- week_summary — nuevo -->
-              <template x-if="plan?.week_summary">
-                <div class="mt-2 text-white/90 text-xs leading-relaxed max-w-xl"
-                     x-text="plan.week_summary"></div>
+        <!-- Banda principal — color del semáforo -->
+        <div class="px-6 py-6" :style="{ backgroundColor: semConfig.bg }">
+          <div class="flex items-start gap-4">
+
+            <!-- Izquierda: estado + nombre + frase corta -->
+            <div class="flex-1 min-w-0">
+              <div class="text-white/70 text-xs font-medium uppercase tracking-wider mb-1"
+                   x-text="semConfig.label"></div>
+              <h2 class="text-white text-2xl font-bold leading-tight"
+                  x-text="athleteName"></h2>
+              <p class="text-white/60 text-xs mt-0.5" x-text="profile.city_country || ''"></p>
+              <template x-if="shortSummary">
+                <p class="text-white/85 text-sm mt-3 leading-relaxed max-w-sm"
+                   x-text="shortSummary"></p>
               </template>
             </div>
-            <div class="text-right shrink-0">
-              <div class="text-white/70 text-xs">Semana del</div>
-              <div class="text-white font-semibold text-lg"
-                   x-text="snapshot?.latest_week?.week_start || '—'"></div>
-              <div class="text-white/60 text-xs mt-0.5"
-                   x-text="'Gen: ' + (snapshot?.generated_at?.slice(0,16)?.replace('T',' ') || '—')"></div>
-            </div>
-          </div>
-        </div>
 
-        <!-- ── Bloque de objetivo de carrera (nuevo) ────────────────── -->
-        <div class="px-6 py-4 bg-gray-50 border-b border-gray-100">
-          <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-
-            <!-- Nombre + ciudad -->
-            <div>
-              <h2 class="text-xl font-bold text-gray-900" x-text="athleteName"></h2>
-              <p class="text-sm text-gray-500 mt-0.5" x-text="profile.city_country || ''"></p>
-            </div>
-
-            <!-- Objetivo: carrera + meta + PR + días -->
-            <div class="flex flex-wrap gap-3 items-start">
-
-              <!-- Carrera objetivo -->
+            <!-- Derecha: carrera + días restantes -->
+            <div class="flex flex-col gap-2 shrink-0 text-center">
               <template x-if="goalInfo.raceDistance">
-                <div class="bg-white border border-gray-200 rounded-lg px-3 py-2 text-center min-w-[90px]">
-                  <div class="text-xs text-gray-400 font-medium uppercase tracking-wide">Carrera</div>
-                  <div class="text-lg font-bold text-gray-900 leading-none mt-0.5"
+                <div class="bg-white/15 rounded-lg px-3 py-2">
+                  <div class="text-white/60 text-xs uppercase tracking-wide">Carrera</div>
+                  <div class="text-white font-bold text-xl leading-none mt-0.5"
                        x-text="goalInfo.raceDistance"></div>
-                  <div class="text-xs text-gray-500 mt-0.5" x-text="goalInfo.raceDate"></div>
                 </div>
               </template>
-
-              <!-- Días restantes -->
               <template x-if="goalInfo.countdownDays !== null">
-                <div class="bg-white border border-gray-200 rounded-lg px-3 py-2 text-center min-w-[90px]">
-                  <div class="text-xs text-gray-400 font-medium uppercase tracking-wide">Días restantes</div>
-                  <div class="text-lg font-bold leading-none mt-0.5"
-                       :class="goalInfo.countdownDays < 30 ? 'text-red-600' : goalInfo.countdownDays < 90 ? 'text-yellow-600' : 'text-gray-900'"
-                       x-text="goalInfo.countdownDays"></div>
-                  <div class="text-xs text-gray-400 mt-0.5">para la carrera</div>
+                <div class="bg-white/15 rounded-lg px-3 py-2">
+                  <div class="text-white/60 text-xs uppercase tracking-wide">Faltan</div>
+                  <div class="font-bold text-lg leading-none mt-0.5"
+                       :class="goalInfo.countdownDays < 30 ? 'text-red-200' : goalInfo.countdownDays < 90 ? 'text-yellow-200' : 'text-white'"
+                       x-text="goalInfo.countdownDays + ' d'"></div>
                 </div>
               </template>
-
-              <!-- Tiempo meta -->
-              <template x-if="goalInfo.timeGoalFormatted !== '—'">
-                <div class="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-center min-w-[90px]">
-                  <div class="text-xs text-blue-500 font-medium uppercase tracking-wide">Meta</div>
-                  <div class="text-lg font-bold font-mono text-blue-700 leading-none mt-0.5"
-                       x-text="goalInfo.timeGoalFormatted"></div>
-                  <div class="text-xs text-blue-400 mt-0.5">objetivo</div>
-                </div>
-              </template>
-
-              <!-- PR en la distancia objetivo -->
-              <template x-if="goalInfo.prFormatted">
-                <div class="bg-white border border-gray-200 rounded-lg px-3 py-2 text-center min-w-[90px]">
-                  <div class="text-xs text-gray-400 font-medium uppercase tracking-wide"
-                       x-text="'PR ' + (goalInfo.raceDistance || '')"></div>
-                  <div class="text-lg font-bold font-mono text-gray-800 leading-none mt-0.5"
-                       x-text="goalInfo.prFormatted"></div>
-                  <!-- Gap meta vs PR -->
-                  <template x-if="goalInfo.gapStr">
-                    <div class="text-xs mt-0.5"
-                         :class="goalInfo.needsImprovement ? 'text-amber-600' : 'text-green-600'"
-                         x-text="goalInfo.needsImprovement ? goalInfo.gapStr + ' por mejorar' : '✓ Meta superada'">
-                    </div>
-                  </template>
-                </div>
-              </template>
-
             </div>
-          </div>
 
-          <!-- Ritmos declarados -->
-          <div class="mt-3 flex flex-wrap gap-2 items-center">
-            <span class="text-xs text-gray-400">Ritmos reportados:</span>
-            <span class="font-mono bg-green-50 text-green-700 border border-green-100 px-2 py-1 rounded text-xs"
-                  x-text="'Suave: ' + paceStr(profile.easy_pace_sec_per_km)"></span>
-            <span class="font-mono bg-yellow-50 text-yellow-700 border border-yellow-100 px-2 py-1 rounded text-xs"
-                  x-text="'Mod: ' + paceStr(profile.mod_pace_sec_per_km)"></span>
-            <span class="font-mono bg-red-50 text-red-700 border border-red-100 px-2 py-1 rounded text-xs"
-                  x-text="'Rápido: ' + paceStr(profile.fast_pace_sec_per_km)"></span>
           </div>
         </div>
 
-        <!-- KPIs -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 p-6">
-          <template x-for="kpi in kpis" :key="kpi.label">
-            <div class="rounded-xl p-4 text-center"
-                 :style="{ backgroundColor: kpiCardStyle(kpi.color).bg }">
-              <div class="text-2xl font-bold leading-none"
-                   :style="{ color: kpiCardStyle(kpi.color).text }"
-                   x-text="kpi.value + (kpi.unit ? ' ' + kpi.unit : '')"></div>
-              <div class="text-xs text-gray-500 mt-2 leading-tight" x-text="kpi.label"></div>
-            </div>
-          </template>
+        <!-- Sub-banda: tipo de semana + semana legible -->
+        <div class="px-6 py-3 flex items-center justify-between"
+             :style="{ backgroundColor: weekTypeBg || '#f8fafc' }">
+          <span class="text-sm font-semibold"
+                :style="{ color: weekTypeColor }"
+                x-text="weekType + (effectiveWeeklyFocus ? ' · ' + effectiveWeeklyFocus.split('—')[0].trim() : '')">
+          </span>
+          <span class="text-xs text-slate-400 font-mono"
+                x-text="snapshot && snapshot.latest_week ? weekLabel(snapshot.latest_week.week_start) : ''"></span>
         </div>
 
-        <!-- Aviso de datos insuficientes para ACWR (nuevo) -->
-        <template x-if="needsMoreData">
-          <div class="mx-6 mb-5 px-4 py-2.5 bg-amber-50 border border-amber-100 rounded-lg
-                      flex items-start gap-2 text-xs text-amber-700">
-            <span class="shrink-0 mt-0.5">ℹ️</span>
-            <span>
-              <strong>ACWR y Monotonía</strong> requieren mínimo 4 semanas de datos de Strava.
-              Actualmente hay
-              <strong x-text="dataWeeksAvailable"></strong>
-              semana(s) disponibles — estos valores se calcularán cuando haya más historial.
-            </span>
+      </div>
+      <!-- fin hero card -->
+
+
+      <!-- ══ SESIÓN DE HOY ══════════════════════════════════════════════════ -->
+      <div class="card p-6">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="text-lg">🗓</span>
+          <h3 class="text-base font-semibold text-gray-800">Sesión de hoy</h3>
+          <span class="text-sm text-gray-400" x-text="'· ' + todaySession.day"></span>
+        </div>
+
+        <!-- Con sesión -->
+        <template x-if="todaySession.sessions.length > 0">
+          <div class="space-y-3">
+            <template x-for="s in todaySession.sessions" :key="s.session + s.type">
+              <div class="rounded-xl p-4" :style="{ backgroundColor: sessionBg(s.type) }">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex-1">
+                    <div class="text-base font-semibold leading-tight"
+                         :style="{ color: sessionColor(s.type) }"
+                         x-text="s.session"></div>
+                    <template x-if="s.km">
+                      <div class="text-sm font-medium text-gray-700 mt-1"
+                           x-text="s.km + ' km'"></div>
+                    </template>
+                    <template x-if="s.pace">
+                      <div class="text-sm font-mono text-gray-500 mt-0.5" x-text="s.pace"></div>
+                    </template>
+                    <template x-if="s.details && s.details.length > 0">
+                      <div class="mt-2 space-y-1">
+                        <template x-for="(det, idx) in s.details.slice(0, 3)" :key="idx">
+                          <div class="text-xs text-gray-500" x-text="det"></div>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
+                  <span class="text-xs font-medium px-2 py-1 rounded-full shrink-0"
+                        :style="{ color: sessionColor(s.type), backgroundColor: sessionBg(s.type), border: '1px solid ' + sessionColor(s.type) + '60' }"
+                        x-text="s.type"></span>
+                </div>
+              </div>
+            </template>
           </div>
         </template>
 
+        <!-- Descanso -->
+        <template x-if="todaySession.sessions.length === 0">
+          <div class="py-6 text-center">
+            <div class="text-3xl mb-2">💤</div>
+            <p class="text-gray-500 text-sm font-medium">Día de descanso</p>
+            <p class="text-gray-400 text-xs mt-1">El descanso es parte del entrenamiento.</p>
+          </div>
+        </template>
       </div>
-      <!-- fin card semáforo + atleta + KPIs -->
+      <!-- fin sesión de hoy -->
 
 
-      <!-- ══ 2. RESUMEN DEL COACH ══════════════════════════════════════════ -->
+      <!-- ══ VOZ DEL COACH ═════════════════════════════════════════════════ -->
       <template x-if="coachSummary">
         <div class="card p-6">
 
-          <!-- Header -->
-          <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-2">
-              <span class="text-lg">📋</span>
-              <h3 class="text-base font-semibold text-gray-800">Resumen del coach</h3>
+              <span class="text-lg">💬</span>
+              <h3 class="text-base font-semibold text-slate-800">Del coach</h3>
+              <!-- Badge cuando el contenido viene de published -->
+              <template x-if="hasPublishedCoach">
+                <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 uppercase tracking-wide">
+                  Coach
+                </span>
+              </template>
             </div>
-            <!-- Badge tipo de semana -->
             <span class="text-xs font-semibold px-3 py-1.5 rounded-full text-white shrink-0"
                   :style="{ backgroundColor: weekTypeColor }"
-                  x-text="weekType + ' — ' + (plan?.weekly_focus?.split('—')[0]?.trim() || '')"></span>
+                  x-text="weekType"></span>
           </div>
 
-          <!-- Frase resumen (week_summary) -->
-          <div class="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3 mb-4">
-            <p class="text-sm text-gray-700 leading-relaxed" x-text="coachSummary.weekSummary"></p>
+          <!-- Mensaje del coach: published tiene prioridad, fallback al automático -->
+          <div class="border-l-4 rounded-r-lg px-4 py-3 bg-gray-50"
+               :style="{ borderColor: weekTypeColor }">
+            <p class="text-sm text-slate-700 leading-relaxed"
+               x-text="(hasPublishedCoach && coachContent.coach_message)
+                        ? coachContent.coach_message
+                        : coachSummary.weekSummary"></p>
           </div>
 
-          <!-- Explicación técnica en 3 columnas -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+          <!-- Objetivo semanal del coach (solo si está publicado) -->
+          <template x-if="hasPublishedCoach && coachContent.weekly_objective">
+            <p class="text-sm font-medium text-slate-700 mt-3">
+              🎯 <span x-text="coachContent.weekly_objective"></span>
+            </p>
+          </template>
 
-            <!-- Trigger -->
-            <div class="bg-white border border-gray-100 rounded-lg px-4 py-3">
-              <div class="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Decisión</div>
-              <div class="text-sm font-semibold text-gray-800 font-mono"
-                   x-text="coachSummary.trigger"></div>
-              <div class="text-xs text-gray-500 mt-0.5">semáforo → tipo de semana</div>
-            </div>
-
-            <!-- Base × multiplier -->
-            <div class="bg-white border border-gray-100 rounded-lg px-4 py-3">
-              <div class="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Cálculo</div>
-              <div class="text-sm font-semibold text-gray-800">
-                <template x-if="coachSummary.baseKm">
-                  <span x-text="coachSummary.baseKm.toFixed(1) + ' km × ' + (coachSummary.multiplier?.toFixed(2) || '?')"></span>
-                </template>
-                <template x-if="!coachSummary.baseKm">
-                  <span class="text-gray-400">Sin datos Strava</span>
-                </template>
-              </div>
-              <div class="text-xs text-gray-500 mt-0.5">última semana Strava × factor</div>
-            </div>
-
-            <!-- Próxima si VERDE -->
-            <div class="bg-white border border-gray-100 rounded-lg px-4 py-3">
-              <div class="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Si check-in VERDE</div>
-              <div class="text-sm font-semibold text-green-700">
-                <template x-if="coachSummary.nextIfVerdeKm">
-                  <span x-text="'~' + coachSummary.nextIfVerdeKm + ' km próxima semana'"></span>
-                </template>
-                <template x-if="!coachSummary.nextIfVerdeKm">
-                  <span class="text-gray-400">—</span>
-                </template>
-              </div>
-              <div class="text-xs text-gray-500 mt-0.5">con progresión +7%</div>
-            </div>
+          <!-- Frase humana del cálculo (contexto secundario) -->
+          <div class="mt-3 pt-3 border-t border-slate-100">
+            <template x-if="coachCalcHuman">
+              <p class="text-xs italic text-slate-400" x-text="coachCalcHuman"></p>
+            </template>
+            <template x-if="!coachCalcHuman">
+              <p class="text-xs italic text-slate-400">Plan basado en el formulario de ingreso — sin datos Strava aún.</p>
+            </template>
           </div>
 
-          <!-- Distribución de km ── barra visual -->
-          <template x-if="distributionBars.length > 0">
-            <div>
-              <div class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-3">
-                Distribución de km
-                — objetivo:
-                <span class="font-semibold text-gray-700"
-                      x-text="(plan?.targets?.target_km_week || '—') + ' km esta semana'"></span>
-              </div>
-
-              <div class="space-y-3">
-                <template x-for="bar in distributionBars" :key="bar.label">
-                  <div class="flex items-center gap-3">
-                    <!-- Etiqueta -->
-                    <div class="w-16 text-xs font-medium text-gray-600 text-right shrink-0"
-                         x-text="bar.label"></div>
-                    <!-- Barra -->
-                    <div class="flex-1 dist-bar-track">
-                      <div class="dist-bar-fill"
-                           :style="{ width: bar.pct + '%', backgroundColor: bar.color }"></div>
-                    </div>
-                    <!-- Valor -->
-                    <div class="text-xs text-gray-600 w-20 shrink-0">
-                      <span class="font-semibold" :style="{ color: bar.text }"
-                            x-text="bar.km.toFixed(1) + ' km'"></span>
-                      <span class="text-gray-400 ml-1" x-text="'(' + bar.pct + '%)'"></span>
-                    </div>
-                  </div>
-                </template>
-              </div>
-
-              <!-- Rango declarado por el atleta -->
-              <template x-if="coachSummary.kmWeekMinProfile && coachSummary.kmWeekMaxProfile">
-                <div class="mt-3 text-xs text-gray-400">
-                  Rango declarado en el formulario:
-                  <span class="font-medium text-gray-500"
-                        x-text="coachSummary.kmWeekMinProfile + '–' + coachSummary.kmWeekMaxProfile + ' km/semana'"></span>
-                </div>
+          <!-- Alerts y restrictions del coach (al pie, separadas del mensaje) -->
+          <template x-if="hasPublishedCoach && ((coachContent.alerts && coachContent.alerts.length > 0) || (coachContent.restrictions && coachContent.restrictions.length > 0))">
+            <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
+              <template x-for="alert in (coachContent.alerts || [])" :key="alert">
+                <span class="flex items-center gap-1 text-xs bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1 rounded-full">
+                  <span>⚠</span>
+                  <span x-text="alert"></span>
+                </span>
+              </template>
+              <template x-for="r in (coachContent.restrictions || [])" :key="r">
+                <span class="flex items-center gap-1 text-xs bg-rose-50 border border-rose-200 text-rose-700 px-3 py-1 rounded-full">
+                  <span>🚫</span>
+                  <span x-text="r"></span>
+                </span>
               </template>
             </div>
           </template>
 
         </div>
       </template>
-      <!-- fin resumen del coach -->
+      <!-- fin voz del coach -->
 
+
+      <!-- ══ FORMA COMPACTA ════════════════════════════════════════════════ -->
+      <template x-if="snapshot && formaPanel.hasData">
+        <div class="card px-6 py-4">
+
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <span>⚡</span>
+              <span class="text-sm font-semibold text-gray-700">Forma</span>
+            </div>
+            <template x-if="formaPanel.readinessScore !== null">
+              <span class="text-xs font-semibold px-3 py-1 rounded-full"
+                    :class="{
+                      'bg-green-100 text-green-700':  formaPanel.rsColor === 'green',
+                      'bg-blue-100 text-blue-700':    formaPanel.rsColor === 'blue',
+                      'bg-yellow-100 text-yellow-700':formaPanel.rsColor === 'yellow',
+                      'bg-red-100 text-red-700':      formaPanel.rsColor === 'red',
+                      'bg-gray-100 text-gray-500':    formaPanel.rsColor === 'gray',
+                    }"
+                    x-text="'Readiness ' + formaPanel.readinessScore + '/100'"></span>
+            </template>
+          </div>
+
+          <!-- 4 chips -->
+          <div class="grid grid-cols-4 gap-2">
+
+            <!-- CTL -->
+            <div class="bg-blue-50 rounded-lg px-2 py-3 text-center">
+              <div class="metric-label text-blue-400">CTL</div>
+              <div class="text-base font-bold text-blue-700 mt-1 tabular-nums" x-text="formaPanel.ctl + ' km'"></div>
+              <div class="text-[10px] text-blue-300 mt-0.5">fitness</div>
+            </div>
+
+            <!-- ATL -->
+            <div class="bg-violet-50 rounded-lg px-2 py-3 text-center">
+              <div class="metric-label text-violet-400">ATL</div>
+              <div class="text-base font-bold text-violet-600 mt-1 tabular-nums" x-text="formaPanel.atl + ' km'"></div>
+              <div class="text-[10px] text-violet-300 mt-0.5">fatiga</div>
+            </div>
+
+            <!-- TSB -->
+            <div class="rounded-lg px-2 py-3 text-center"
+                 :class="{
+                   'bg-green-50':  formaPanel.tsbColor === 'green',
+                   'bg-blue-50':   formaPanel.tsbColor === 'blue',
+                   'bg-yellow-50': formaPanel.tsbColor === 'yellow',
+                   'bg-red-50':    formaPanel.tsbColor === 'red',
+                   'bg-gray-50':   formaPanel.tsbColor === 'gray',
+                 }">
+              <div class="metric-label"
+                   :class="{
+                     'text-green-400':  formaPanel.tsbColor === 'green',
+                     'text-blue-400':   formaPanel.tsbColor === 'blue',
+                     'text-yellow-500': formaPanel.tsbColor === 'yellow',
+                     'text-red-400':    formaPanel.tsbColor === 'red',
+                     'text-gray-400':   formaPanel.tsbColor === 'gray',
+                   }">TSB</div>
+              <div class="text-base font-bold mt-1 tabular-nums"
+                   :class="{
+                     'text-green-700':  formaPanel.tsbColor === 'green',
+                     'text-blue-700':   formaPanel.tsbColor === 'blue',
+                     'text-yellow-700': formaPanel.tsbColor === 'yellow',
+                     'text-red-600':    formaPanel.tsbColor === 'red',
+                     'text-gray-600':   formaPanel.tsbColor === 'gray',
+                   }"
+                   x-text="formaPanel.tsb"></div>
+              <div class="text-xs mt-0.5"
+                   :class="{
+                     'text-green-400': formaPanel.tsbColor === 'green',
+                     'text-blue-400':  formaPanel.tsbColor === 'blue',
+                     'text-yellow-500':formaPanel.tsbColor === 'yellow',
+                     'text-red-400':   formaPanel.tsbColor === 'red',
+                     'text-gray-400':  formaPanel.tsbColor === 'gray',
+                   }"
+                   x-text="formaPanel.tsbColor === 'green'  ? 'fresco'
+                          : formaPanel.tsbColor === 'blue'   ? 'en forma'
+                          : formaPanel.tsbColor === 'yellow' ? 'cargado'
+                          : formaPanel.tsbColor === 'red'    ? 'fatigado'
+                          : '—'"></div>
+            </div>
+
+            <!-- ACWR zona -->
+            <div class="rounded-lg px-2 py-3 text-center"
+                 :class="formaPanel.acwrZoneBadge">
+              <div class="metric-label">ACWR</div>
+              <div class="text-base font-bold mt-1" x-text="formaPanel.acwrZoneLabel"></div>
+              <div class="text-[10px] mt-0.5" x-text="formaPanel.acwrZoneDesc"></div>
+            </div>
+
+          </div>
+
+          <!-- Aviso datos insuficientes -->
+          <template x-if="needsMoreData">
+            <p class="text-xs text-amber-600 mt-3">
+              CTL/ATL/ACWR requieren ≥4 semanas —
+              actualmente <span x-text="dataWeeksAvailable"></span> disponible(s).
+            </p>
+          </template>
+
+        </div>
+      </template>
+      <!-- fin forma compacta -->
+
+
+      <!-- ══ ÚLTIMO CHECK-IN ═══════════════════════════════════════════════ -->
+      <template x-if="checkin?.latest_checkin">
+        <div class="card px-6 py-4">
+
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <span>📋</span>
+              <span class="text-sm font-semibold text-gray-700">Último check-in</span>
+            </div>
+            <span class="text-xs text-slate-400"
+                  x-text="checkin.latest_checkin.checkin_date || ''"></span>
+          </div>
+
+          <!-- 3 chips: sensación / fatiga / dolor -->
+          <div class="grid grid-cols-3 gap-2">
+
+            <div class="bg-blue-50 rounded-lg px-2 py-2.5 text-center">
+              <div class="metric-label text-blue-400">Sensación</div>
+              <div class="text-lg font-bold text-blue-700 tabular-nums"
+                   x-text="checkin.latest_checkin.feeling_1_10 != null
+                            ? checkin.latest_checkin.feeling_1_10 + '/10' : '—'"></div>
+            </div>
+
+            <div class="bg-violet-50 rounded-lg px-2 py-2.5 text-center">
+              <div class="metric-label text-violet-400">Fatiga</div>
+              <div class="text-lg font-bold text-violet-600 tabular-nums"
+                   x-text="checkin.latest_checkin.fatigue_1_10 != null
+                            ? checkin.latest_checkin.fatigue_1_10 + '/10' : '—'"></div>
+            </div>
+
+            <div class="rounded-lg px-2 py-2.5 text-center"
+                 :class="(checkin.latest_checkin.pain_0_10 || 0) > 3 ? 'bg-red-50' : 'bg-green-50'">
+              <div class="metric-label"
+                   :class="(checkin.latest_checkin.pain_0_10 || 0) > 3 ? 'text-red-400' : 'text-green-400'">Dolor</div>
+              <div class="text-lg font-bold tabular-nums"
+                   :class="(checkin.latest_checkin.pain_0_10 || 0) > 3 ? 'text-red-600' : 'text-green-700'"
+                   x-text="checkin.latest_checkin.pain_0_10 != null
+                            ? checkin.latest_checkin.pain_0_10 + '/10' : '—'"></div>
+            </div>
+
+          </div>
+
+          <!-- Contexto compacto: sueño + estrés + sesiones completadas -->
+          <div class="flex flex-wrap gap-3 mt-3 pt-3 border-t border-slate-100 text-xs text-slate-500">
+            <template x-if="checkin.latest_checkin.sleep_text">
+              <span>😴 <span x-text="checkin.latest_checkin.sleep_text"></span></span>
+            </template>
+            <template x-if="checkin.latest_checkin.stress_text">
+              <span>🧠 <span x-text="checkin.latest_checkin.stress_text"></span></span>
+            </template>
+            <template x-if="checkin.latest_checkin.sessions_completed != null">
+              <span>✅ <span x-text="checkin.latest_checkin.sessions_completed + ' sesiones completadas'"></span></span>
+            </template>
+          </div>
+
+          <!-- Comentario libre -->
+          <template x-if="checkin.latest_checkin.comments">
+            <p class="text-xs text-slate-500 mt-2 italic"
+               x-text="'&quot;' + checkin.latest_checkin.comments + '&quot;'"></p>
+          </template>
+
+        </div>
+      </template>
+      <!-- fin último check-in -->
+
+
+      </div><!-- fin tab HOY -->
+
+
+      <!-- ════════════════ TAB: RENDIMIENTO ════════════════════════════════ -->
+      <div x-show="activeTab === 'rendimiento'" class="space-y-5">
 
       <!-- ══ 2.5 PREDICCIÓN DE RENDIMIENTO ══════════════════════════════════ -->
       <div class="card p-6">
@@ -374,6 +532,12 @@
         <!-- Predicción disponible -->
         <template x-if="prediction && !prediction.error">
           <div>
+
+            <!-- Frase conversacional -->
+            <p class="text-sm text-gray-600 mb-4">
+              Para tu próxima <span class="font-semibold text-gray-800" x-text="predTarget"></span>,
+              tu ritmo estimado es:
+            </p>
 
             <!-- Bloque principal: ritmo + metadatos -->
             <div class="flex flex-col sm:flex-row gap-4 mb-4">
@@ -451,95 +615,318 @@
       <!-- fin predicción de rendimiento -->
 
 
-      <!-- ══ 3. PLAN SEMANAL ═══════════════════════════════════════════════ -->
+      <!-- ══ ÚLTIMAS SALIDAS ═══════════════════════════════════════════════ -->
       <div class="card p-6">
 
-        <!-- Header del plan -->
-        <div class="flex items-center justify-between mb-5">
-          <div>
-            <h3 class="text-base font-semibold text-gray-800">Plan semanal</h3>
-            <template x-if="plan?.weekly_focus">
-              <p class="text-xs text-gray-500 mt-0.5" x-text="plan.weekly_focus"></p>
-            </template>
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">🏃</span>
+            <h3 class="text-base font-semibold text-gray-800">Últimas salidas</h3>
           </div>
-          <div class="flex items-center gap-2 shrink-0">
-            <span class="text-xs text-gray-500"
-                  x-text="(plan?.targets?.target_km_week || '—') + ' km objetivo'"></span>
-            <span class="text-sm font-semibold px-3 py-1 rounded-full text-white"
-                  :style="{ backgroundColor: weekTypeColor }"
-                  x-text="weekType"></span>
-          </div>
+          <template x-if="activities?.count">
+            <span class="text-xs text-gray-400"
+                  x-text="activities.count + ' actividades'"></span>
+          </template>
         </div>
 
-        <!-- Tabla de días -->
-        <div class="grid grid-cols-7 gap-2 text-center">
+        <!-- Loading -->
+        <template x-if="activitiesLoading || !activities">
+          <div class="flex items-center justify-center py-8 text-gray-400 text-sm gap-2">
+            <div class="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin"></div>
+            <span>Cargando actividades...</span>
+          </div>
+        </template>
 
-          <template x-for="d in planDays" :key="d.day">
-            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider pb-2 border-b border-gray-100"
-                 x-text="d.day.slice(0,3)"></div>
-          </template>
+        <!-- Sin datos -->
+        <template x-if="!activitiesLoading && activities && recentRuns.length === 0">
+          <p class="text-sm text-slate-400 text-center py-6">
+            Sin actividades de running registradas.
+            <br>
+            <span class="text-xs">Conecta Strava y ejecuta el pipeline para verlas aquí.</span>
+          </p>
+        </template>
 
-          <template x-for="d in planDays" :key="'sess-' + d.day">
-            <div class="space-y-1.5 min-h-[80px] pt-2">
+        <!-- Lista -->
+        <template x-if="!activitiesLoading && recentRuns.length > 0">
+          <div class="space-y-1.5">
+            <template x-for="act in recentRuns" :key="(act.activity_id || act.strava_id || '') + act.activity_date">
+              <div class="flex items-center gap-3 px-3 py-3 rounded-xl bg-slate-50 hover:bg-orange-50 transition-colors">
 
-              <template x-if="d.sessions.length === 0">
-                <div class="text-xs text-gray-300 pt-4">Descanso</div>
-              </template>
-
-              <template x-for="s in d.sessions" :key="s.session + s.type">
-                <div class="rounded-lg px-2 py-2 text-left"
-                     :style="{ backgroundColor: sessionBg(s.type) }">
-                  <div class="text-xs font-semibold leading-tight"
-                       :style="{ color: sessionColor(s.type) }"
-                       x-text="s.session"></div>
-                  <template x-if="s.km">
-                    <div class="text-xs text-gray-600 mt-0.5 font-medium" x-text="s.km + ' km'"></div>
-                  </template>
-                  <template x-if="s.pace">
-                    <div class="text-xs text-gray-400 leading-tight" x-text="s.pace"></div>
-                  </template>
-                  <template x-if="s.details">
-                    <div class="text-xs text-gray-500 mt-0.5"
-                         x-text="s.details.length + ' ejerc.'"></div>
-                  </template>
+                <!-- Distancia -->
+                <div class="w-14 shrink-0 text-center">
+                  <div class="text-xl font-bold text-orange-600 tabular-nums leading-none"
+                       x-text="act.distance_km ? Number(act.distance_km).toFixed(1) : '—'"></div>
+                  <div class="text-[10px] text-orange-400 font-medium">km</div>
                 </div>
-              </template>
 
-            </div>
-          </template>
-        </div>
+                <!-- Nombre + fecha -->
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-medium text-slate-800 truncate"
+                       x-text="act.name || act.sport_type || 'Carrera'"></div>
+                  <div class="text-xs text-slate-400 mt-0.5"
+                       x-text="(act.activity_date || '').slice(0, 10)"></div>
+                </div>
 
-        <!-- Targets -->
-        <div class="mt-5 pt-4 border-t border-gray-100 flex flex-wrap gap-4 text-sm text-gray-600">
-          <span>🎯 Objetivo:
-            <strong x-text="(plan?.targets?.target_km_week || '—') + ' km'"></strong>
-          </span>
-          <span>🏃 Días running:
-            <strong x-text="plan?.targets?.days_running || '—'"></strong>
-          </span>
-          <span>💪 Días fuerza:
-            <strong x-text="plan?.targets?.days_strength || '—'"></strong>
-          </span>
-        </div>
+                <!-- Ritmo + FC o duración -->
+                <div class="text-right shrink-0">
+                  <div class="text-sm font-mono text-slate-700"
+                       x-text="act.pace_sec_per_km ? paceStr(act.pace_sec_per_km) : '—'"></div>
+                  <div class="text-xs text-slate-400"
+                       x-text="act.average_heartrate
+                                ? Math.round(act.average_heartrate) + ' bpm'
+                                : fmtDuration(act.duration_sec)"></div>
+                </div>
 
-        <!-- Notas del plan -->
-        <template x-if="planNotes.length">
-          <div class="mt-3 space-y-1.5">
-            <template x-for="note in planNotes" :key="note">
-              <p class="text-xs text-gray-500 flex items-start gap-2">
-                <span class="text-blue-400 mt-0.5 shrink-0">ℹ</span>
-                <span x-text="note"></span>
-              </p>
+              </div>
             </template>
           </div>
         </template>
 
       </div>
-      <!-- fin plan semanal -->
+      <!-- fin últimas salidas -->
 
 
-      <!-- ══ 4. GRÁFICOS DE EVOLUCIÓN ══════════════════════════════════════ -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      </div><!-- fin tab RENDIMIENTO -->
+
+
+      <!-- ════════════════ TAB: PLAN ═══════════════════════════════════════ -->
+      <div x-show="activeTab === 'plan'" class="space-y-4">
+
+      <!-- ══ HEADER DEL PLAN ═══════════════════════════════════════════════ -->
+      <div class="card p-6">
+
+        <!-- Título + badge tipo de semana -->
+        <div class="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 class="text-base font-semibold text-slate-800">Plan semanal</h3>
+            <template x-if="effectiveWeeklyFocus">
+              <p class="text-sm text-slate-500 mt-0.5 flex items-center gap-1.5">
+                <span x-text="effectiveWeeklyFocus"></span>
+                <template x-if="hasPublishedCoach && coachContent.weekly_focus">
+                  <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600">Coach</span>
+                </template>
+              </p>
+            </template>
+          </div>
+          <span class="text-xs font-semibold px-3 py-1.5 rounded-full text-white shrink-0"
+                :style="{ backgroundColor: weekTypeColor }"
+                x-text="weekType"></span>
+        </div>
+
+        <!-- Distribución de km — barras en el header -->
+        <template x-if="distributionBars.length > 0">
+          <div class="mb-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="metric-label text-slate-400">Distribución de km</span>
+              <span class="text-sm font-bold text-slate-700"
+                    x-text="(plan && plan.targets ? plan.targets.target_km_week : '—') + ' km esta semana'"></span>
+            </div>
+            <div class="space-y-2">
+              <template x-for="bar in distributionBars" :key="bar.label">
+                <div class="flex items-center gap-3">
+                  <div class="w-14 metric-label shrink-0 text-right" :style="{ color: bar.text }"
+                       x-text="bar.label"></div>
+                  <div class="flex-1 dist-bar-track">
+                    <div class="dist-bar-fill" :style="{ width: bar.pct + '%', backgroundColor: bar.color }"></div>
+                  </div>
+                  <div class="text-xs text-slate-600 w-20 shrink-0 tabular-nums">
+                    <span class="font-semibold" :style="{ color: bar.text }" x-text="bar.km.toFixed(1) + ' km'"></span>
+                    <span class="text-slate-400 ml-1" x-text="'(' + bar.pct + '%)'"></span>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <!-- Targets compactos -->
+        <div class="flex flex-wrap gap-3 pt-3 border-t border-slate-100">
+          <span class="flex items-center gap-1.5 text-xs text-slate-500">
+            <span class="w-2 h-2 rounded-full bg-orange-500 inline-block"></span>
+            <strong class="text-slate-700" x-text="plan && plan.targets ? plan.targets.days_running : '—'"></strong>
+            días running
+          </span>
+          <span class="flex items-center gap-1.5 text-xs text-slate-500">
+            <span class="w-2 h-2 rounded-full bg-indigo-500 inline-block"></span>
+            <strong class="text-slate-700" x-text="plan && plan.targets ? plan.targets.days_strength : '—'"></strong>
+            días fuerza
+          </span>
+          <span class="flex items-center gap-1.5 text-xs text-slate-500">
+            <span class="w-2 h-2 rounded-full bg-slate-300 inline-block"></span>
+            descanso el resto
+          </span>
+        </div>
+
+      </div>
+      <!-- fin header del plan -->
+
+
+      <!-- ══ CARDS POR DÍA ══════════════════════════════════════════════════ -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+        <template x-for="d in planDays" :key="d.day">
+
+          <!-- DESCANSO — card compacta -->
+          <template x-if="d.sessions.length === 0">
+            <div class="flex items-center gap-3 px-4 py-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 opacity-60">
+              <span class="text-lg">💤</span>
+              <div class="flex-1 min-w-0">
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider"
+                      x-text="d.day.slice(0,3)"></span>
+                <span class="text-xs text-slate-400 ml-2">Descanso</span>
+              </div>
+            </div>
+          </template>
+
+          <!-- CON SESIÓN — card completa -->
+          <template x-if="d.sessions.length > 0">
+            <div class="card overflow-hidden"
+                 :class="d.day === keyDay ? 'card-elevated' : ''">
+
+              <!-- Borde de color según tipo principal del día -->
+              <div class="h-1 w-full"
+                   :style="{ backgroundColor: d.sessions.some(s => s.type === 'Running') ? '#ea580c' : '#4f46e5' }">
+              </div>
+
+              <div class="p-4">
+
+                <!-- Header de la card de día -->
+                <div class="flex items-center justify-between gap-2 mb-3">
+                  <div class="flex items-center gap-2">
+                    <!-- Nombre del día -->
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-widest"
+                          x-text="d.day.slice(0,3)"></span>
+                    <!-- Badge sesión clave -->
+                    <template x-if="d.day === keyDay">
+                      <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                        ⭐ Sesión clave
+                      </span>
+                    </template>
+                  </div>
+                  <!-- Tipos de sesión del día -->
+                  <div class="flex gap-1">
+                    <template x-for="s in d.sessions" :key="s.type + s.session">
+                      <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                            :class="s.type === 'Running'
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-indigo-100 text-indigo-700'"
+                            x-text="s.type === 'Running' ? '🏃 Run' : '💪 Fuerza'"></span>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Sesiones del día -->
+                <div class="space-y-2">
+                  <template x-for="s in d.sessions" :key="s.session + s.type">
+                    <div class="rounded-xl px-3 py-2.5"
+                         :class="s.type === 'Running' ? 'bg-orange-50' : 'bg-indigo-50'">
+
+                      <!-- Nombre de la sesión -->
+                      <div class="text-sm font-semibold leading-tight"
+                           :class="s.type === 'Running' ? 'text-orange-800' : 'text-indigo-800'"
+                           x-text="s.session"></div>
+
+                      <!-- Km + ritmo en una línea -->
+                      <div class="flex items-center gap-3 mt-1 flex-wrap">
+                        <template x-if="s.km">
+                          <span class="text-base font-bold tabular-nums"
+                                :class="s.type === 'Running' ? 'text-orange-700' : 'text-indigo-700'"
+                                x-text="s.km + ' km'"></span>
+                        </template>
+                        <template x-if="s.pace">
+                          <span class="text-xs font-mono text-slate-500" x-text="s.pace"></span>
+                        </template>
+                      </div>
+
+                      <!-- Detalles (ejercicios de fuerza u observaciones) -->
+                      <template x-if="s.details && s.details.length > 0">
+                        <div class="mt-1.5 space-y-0.5">
+                          <template x-for="(det, idx) in s.details.slice(0, 3)" :key="idx">
+                            <div class="text-xs text-slate-500" x-text="det"></div>
+                          </template>
+                          <template x-if="s.details.length > 3">
+                            <div class="text-[10px] text-slate-400"
+                                 x-text="'+ ' + (s.details.length - 3) + ' más'"></div>
+                          </template>
+                        </div>
+                      </template>
+
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Override del coach + nota del día: bloque unificado cuando coexisten -->
+                <template x-if="planOverrideFor(d.day) || sessionNoteFor(d.day)">
+                  <div class="mt-3 pt-3 border-t border-violet-100">
+                    <div class="bg-violet-50 border border-violet-100 rounded-lg px-3 py-2.5 space-y-2">
+
+                      <!-- Override -->
+                      <template x-if="planOverrideFor(d.day)">
+                        <div class="flex items-start gap-2">
+                          <span class="text-[10px] font-bold text-violet-500 uppercase tracking-wide shrink-0 mt-0.5">✏ Coach ajustó</span>
+                          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-violet-700 font-medium">
+                            <template x-if="planOverrideFor(d.day).km">
+                              <span class="font-bold tabular-nums" x-text="planOverrideFor(d.day).km + ' km'"></span>
+                            </template>
+                            <template x-if="planOverrideFor(d.day).pace">
+                              <span class="font-mono" x-text="planOverrideFor(d.day).pace"></span>
+                            </template>
+                            <template x-if="planOverrideFor(d.day).note">
+                              <span class="text-violet-500 font-normal" x-text="planOverrideFor(d.day).note"></span>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+
+                      <!-- Separador entre override y nota (solo cuando ambos existen) -->
+                      <template x-if="planOverrideFor(d.day) && sessionNoteFor(d.day)">
+                        <div class="border-t border-violet-200"></div>
+                      </template>
+
+                      <!-- Nota del coach -->
+                      <template x-if="sessionNoteFor(d.day)">
+                        <div class="flex items-start gap-2">
+                          <span class="text-[10px] font-bold text-violet-400 uppercase tracking-wide shrink-0 mt-0.5">Nota</span>
+                          <p class="text-xs text-slate-600 leading-relaxed" x-text="sessionNoteFor(d.day)"></p>
+                        </div>
+                      </template>
+
+                    </div>
+                  </div>
+                </template>
+
+              </div>
+            </div>
+          </template>
+
+        </template>
+      </div>
+      <!-- fin cards por día -->
+
+
+      <!-- ══ NOTAS DEL PLAN ═════════════════════════════════════════════════ -->
+      <template x-if="planNotes.length">
+        <div class="card px-5 py-4">
+          <div class="metric-label text-slate-400 mb-3">Notas del plan</div>
+          <div class="space-y-2">
+            <template x-for="note in planNotes" :key="note">
+              <p class="text-xs text-slate-600 flex items-start gap-2">
+                <span class="text-orange-400 mt-0.5 shrink-0 font-bold">·</span>
+                <span x-text="note"></span>
+              </p>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      </div><!-- fin tab PLAN -->
+
+
+      <!-- ════════════════ TAB: ANALÍTICA ══════════════════════════════════ -->
+      <div x-show="activeTab === 'analitica'" class="space-y-5">
+
+      <!-- ══ GRÁFICOS DE EVOLUCIÓN ═════════════════════════════════════════ -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
         <div class="card p-6">
           <div class="flex items-center justify-between mb-4">
@@ -554,28 +941,40 @@
 
         <div class="card p-6">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="section-title mb-0">ACWR — Riesgo de carga</h3>
+            <h3 class="section-title mb-0">CTL / ATL — Fitness y fatiga</h3>
+            <span class="text-xs text-gray-400">EWMA semanal (km)</span>
+          </div>
+          <div class="h-48">
+            <canvas id="chartCtl"></canvas>
+          </div>
+          <p class="text-xs text-gray-400 mt-2">
+            CTL (azul) = forma crónica (6 semanas). ATL (violeta) = carga aguda (1 semana). Cruce = cambio de tendencia.
+          </p>
+        </div>
+
+        <div class="card p-6 lg:col-span-2">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="section-title mb-0">ACWR — Ratio agudo/crónico (EWMA)</h3>
             <span class="flex items-center gap-1 text-xs text-gray-400">
               <span class="inline-block w-3 h-0.5 bg-green-400"></span> Zona segura 0.8–1.3
             </span>
           </div>
-          <div class="h-48">
+          <div class="h-40">
             <canvas id="chartAcwr"></canvas>
           </div>
           <template x-if="needsMoreData">
             <p class="text-xs text-amber-600 mt-2">
-              ACWR requiere 4 semanas — actualmente
-              <span x-text="dataWeeksAvailable"></span>
-              semana(s).
+              ACWR requiere mínimo 4 semanas — actualmente
+              <span x-text="dataWeeksAvailable"></span> semana(s).
             </p>
           </template>
         </div>
+
       </div>
 
-
-      <!-- ══ 5. HISTORIAL DE FEATURES ═══════════════════════════════════════ -->
+      <!-- ══ HISTORIAL DE FEATURES SEMANALES ══════════════════════════════ -->
       <div class="card p-6">
-        <h3 class="section-title">Historial de features semanales</h3>
+        <h3 class="section-title">Historial semanal</h3>
 
         <div class="overflow-x-auto">
           <table class="w-full text-sm text-left">
@@ -583,11 +982,13 @@
               <tr class="border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wider">
                 <th class="pb-3 pr-4">Semana</th>
                 <th class="pb-3 pr-4 text-right">Km</th>
-                <th class="pb-3 pr-4 text-right">Sesiones</th>
-                <th class="pb-3 pr-4 text-right">Fondo km</th>
-                <th class="pb-3 pr-4 text-right">Ritmo prom</th>
+                <th class="pb-3 pr-4 text-right">Ses.</th>
+                <th class="pb-3 pr-4 text-right">Fondo</th>
+                <th class="pb-3 pr-4 text-right">Ritmo</th>
+                <th class="pb-3 pr-4 text-right">CTL</th>
+                <th class="pb-3 pr-4 text-right">TSB</th>
                 <th class="pb-3 pr-4 text-right">ACWR</th>
-                <th class="pb-3 text-right">Monotonía</th>
+                <th class="pb-3 text-right">Racha</th>
               </tr>
             </thead>
             <tbody>
@@ -595,24 +996,37 @@
                 <template x-for="(row, i) in [...features.data].reverse()" :key="row.week_start">
                   <tr class="border-b border-gray-50 hover:bg-gray-50 transition-colors"
                       :class="i === 0 ? 'font-semibold bg-blue-50' : ''">
-                    <td class="py-2.5 pr-4 text-gray-700" x-text="row.week_start"></td>
+                    <td class="py-2.5 pr-4 text-gray-700 whitespace-nowrap font-mono text-xs"
+                        x-text="weekLabel(row.week_start)"></td>
                     <td class="py-2.5 pr-4 text-right text-gray-800" x-text="fmt(row.km_week) + ' km'"></td>
                     <td class="py-2.5 pr-4 text-right text-gray-600" x-text="fmt(row.sessions_week, 0)"></td>
                     <td class="py-2.5 pr-4 text-right text-gray-600" x-text="fmt(row.long_run_km) + ' km'"></td>
                     <td class="py-2.5 pr-4 text-right font-mono text-gray-600"
                         x-text="paceStr(row.pace_sec_per_km_week)"></td>
+                    <td class="py-2.5 pr-4 text-right font-mono text-blue-700"
+                        x-text="row.ctl != null ? fmt(row.ctl, 1) : '—'"></td>
+                    <td class="py-2.5 pr-4 text-right font-mono"
+                        :class="{
+                          'text-green-700':  row.tsb > 10,
+                          'text-blue-700':   row.tsb > 0 && row.tsb <= 10,
+                          'text-yellow-600': row.tsb <= 0 && row.tsb > -15,
+                          'text-red-600':    row.tsb <= -15,
+                          'text-gray-400':   row.tsb == null
+                        }"
+                        x-text="row.tsb != null ? fmt(row.tsb, 1) : '—'"></td>
                     <td class="py-2.5 pr-4 text-right">
                       <span class="px-2 py-0.5 rounded-full text-xs font-medium"
                             :class="{
-                              'bg-green-100 text-green-700': row.acwr >= 0.8 && row.acwr <= 1.3,
+                              'bg-green-100 text-green-700':  row.acwr >= 0.8 && row.acwr <= 1.3,
                               'bg-yellow-100 text-yellow-700': row.acwr > 1.3 && row.acwr <= 1.5,
-                              'bg-red-100 text-red-700': row.acwr > 1.5 || row.acwr < 0.8,
-                              'bg-gray-100 text-gray-500': !row.acwr
+                              'bg-red-100 text-red-700':      row.acwr > 1.5 || (row.acwr > 0 && row.acwr < 0.8),
+                              'bg-gray-100 text-gray-500':    !row.acwr
                             }"
-                            x-text="fmt(row.acwr, 2)">
+                            x-text="row.acwr ? fmt(row.acwr, 2) : '—'">
                       </span>
                     </td>
-                    <td class="py-2.5 text-right text-gray-600" x-text="fmt(row.monotony, 2)"></td>
+                    <td class="py-2.5 text-right text-gray-600"
+                        x-text="row.racha_semanas != null ? row.racha_semanas + ' sem' : '—'"></td>
                   </tr>
                 </template>
               </template>
@@ -621,46 +1035,201 @@
         </div>
       </div>
 
+      </div><!-- fin tab ANALÍTICA -->
 
-      <!-- ══ 6. ÚLTIMO CHECK-IN ══════════════════════════════════════════════ -->
-      <div class="card p-6">
-        <h3 class="section-title">Última semana registrada</h3>
+      <!-- ════════════════ TAB: GLOSARIO ══════════════════════════════════ -->
+      <div x-show="activeTab === 'glosario'" class="space-y-5">
 
-        <template x-if="snapshot?.latest_week">
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <!-- ══ INTRO ══════════════════════════════════════════════════════ -->
+        <div class="card p-6">
+          <h3 class="text-base font-semibold text-slate-800 mb-1">Glosario</h3>
+          <p class="text-sm text-slate-500">Definiciones de los términos que aparecen en el dashboard. Sin jerga innecesaria.</p>
+        </div>
 
-            <div class="col-span-2 sm:col-span-4 rounded-lg px-4 py-3 flex items-center gap-3"
-                 :style="{ backgroundColor: semConfig.badge }">
-              <div class="text-2xl font-black" :style="{ color: semConfig.bg }"
-                   x-text="semLabel"></div>
-              <div class="text-sm" :class="semConfig.text">
-                <span x-text="semConfig.label"></span>
-                <template x-if="snapshot.data_weeks_available">
-                  <span class="ml-2 text-gray-500 text-xs"
-                        x-text="'(' + snapshot.data_weeks_available + ' semanas de datos)'"></span>
-                </template>
-              </div>
+        <!-- ══ ENTRENAMIENTO Y CARGA ═══════════════════════════════════════ -->
+        <div class="card p-6 space-y-5">
+          <div class="metric-label text-slate-400 mb-1">Entrenamiento y carga</div>
+
+          <div class="space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-blue-700">CTL</span>
+              <span class="text-xs text-slate-400 font-medium">Carga crónica · Fitness</span>
             </div>
-
-            <template x-for="kpi in [
-              { label: 'Sesiones completadas', value: snapshot.latest_week?.sessions_week, unit: '' },
-              { label: 'Km totales', value: fmt(snapshot.latest_week?.km_week), unit: ' km' },
-              { label: 'Run largo', value: fmt(snapshot.latest_week?.long_run_km), unit: ' km' },
-              { label: 'Ritmo promedio', value: paceStr(snapshot.latest_week?.pace_sec_per_km_week), unit: '' },
-            ]">
-              <div class="bg-gray-50 rounded-lg p-4">
-                <div class="text-xl font-bold text-gray-900"
-                     x-text="(kpi.value || '—') + kpi.unit"></div>
-                <div class="text-xs text-gray-500 mt-1" x-text="kpi.label"></div>
-              </div>
-            </template>
-
+            <p class="text-sm text-slate-600 leading-relaxed">Promedio ponderado de los últimos 42 días de entrenamiento (EWMA). Representa tu base de fitness acumulada.</p>
+            <p class="text-xs text-slate-400">En la práctica: CTL alto = llevas tiempo entrenando consistentemente. Un CTL en ascenso sostenido indica buena respuesta al entrenamiento — el valor absoluto varía según cada atleta.</p>
           </div>
-        </template>
-      </div>
 
-    </div>
-    <!-- fin dashboard -->
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-violet-600">ATL</span>
+              <span class="text-xs text-slate-400 font-medium">Carga aguda · Fatiga reciente</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">Promedio ponderado de los últimos 7 días. Refleja la fatiga acumulada en la semana actual.</p>
+            <p class="text-xs text-slate-400">En la práctica: ATL alto después de una semana fuerte es normal. ATL persistentemente por encima de CTL → riesgo de sobreentrenamiento.</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">TSB</span>
+              <span class="text-xs text-slate-400 font-medium">Balance Training Stress · Forma del día</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">TSB = CTL − ATL. Indica si estás fresco o fatigado en este momento.</p>
+            <p class="text-xs text-slate-400"><strong>TSB &gt; +10</strong> → fresco (bueno para una carrera). <strong>TSB 0–10</strong> → en forma. <strong>TSB negativo</strong> → cargado. <strong>TSB muy negativo</strong> → señal de fatiga acumulada. Estos rangos son orientativos — interprétalos junto con cómo te sientes.</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">ACWR</span>
+              <span class="text-xs text-slate-400 font-medium">Acute:Chronic Workload Ratio · Ratio de carga</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">ACWR = ATL ÷ CTL. Compara lo que hiciste esta semana con lo que tu cuerpo está habituado a hacer.</p>
+            <p class="text-xs text-slate-400"><strong>0.8–1.3 → zona óptima</strong> (carga productiva). <strong>&gt; 1.3 → zona de precaución</strong>. <strong>&gt; 1.5 → precaución alta</strong> — la evidencia en corredores individuales es mixta, úsalo como señal, no como diagnóstico. <strong>&lt; 0.8 → subentrenamiento</strong>.</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">Readiness</span>
+              <span class="text-xs text-slate-400 font-medium">Puntaje de disposición · /100</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">Score compuesto: TSB (40%) + ACWR (35%) + check-in subjetivo (25%). Resume en un número qué tan listo estás para entrenar hoy.</p>
+            <p class="text-xs text-slate-400">Es una <strong>métrica heurística</strong> — útil como referencia, no como diagnóstico médico. Valores: ≥75 óptimo, 55–74 bueno, 40–54 precaución, &lt;40 recuperar.</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">Sesión clave</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">La sesión de running con mayor distancia de la semana. Es la más importante para el desarrollo de la base aeróbica — el resto de las sesiones giran alrededor de su recuperación.</p>
+          </div>
+        </div>
+
+        <!-- ══ PREDICCIÓN DE RENDIMIENTO ═══════════════════════════════════ -->
+        <div class="card p-6 space-y-5">
+          <div class="metric-label text-slate-400 mb-1">Predicción de rendimiento</div>
+
+          <div class="space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">PR fuente</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">El mejor tiempo personal (Personal Record) que se usó como base para calcular la predicción. Si tienes PR de 21K y pides predicción para 42K, el PR fuente es 21K.</p>
+            <p class="text-xs text-slate-400">El sistema elige automáticamente el PR más cercano a la distancia objetivo.</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">Segmento</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">Clasificación del rendimiento del atleta: <strong>elite</strong> (&lt;2:45h en 42K), <strong>sub3h</strong>, <strong>3to4h</strong>, <strong>4hplus</strong>. El modelo usa exponentes y márgenes de error calibrados por segmento.</p>
+            <p class="text-xs text-slate-400">Se calcula desde el PR declarado, no desde la meta. Afecta el margen de error del rango de ritmo.</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">Confianza</span>
+              <span class="text-xs text-slate-400 font-medium">ALTA / MEDIA / MEDIA-BAJA / BAJA</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">Qué tan confiable es la predicción según la distancia entre el PR fuente y la distancia objetivo.</p>
+            <p class="text-xs text-slate-400"><strong>ALTA</strong> = mismo PR. <strong>MEDIA</strong> = 1 distancia adyacente (ej. 21K→42K). <strong>MEDIA-BAJA</strong> = 2 distancias. <strong>BAJA</strong> = 3 distancias (ej. 5K→42K).</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">Corrección demográfica</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">Ajuste basado en edad y género aplicado sobre la predicción base de Riegel. Usa datos de 429.000 maratonistas reales para corregir el sesgo por grupo demográfico.</p>
+            <p class="text-xs text-slate-400">Ejemplo: un atleta de 55 años puede tener una corrección de +3–5 min en 42K versus un atleta de 35 con el mismo PR de 21K.</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">Capas activas</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">El sistema de predicción tiene 4 capas. Las que aparecen en la predicción son las que pudieron aplicarse con los datos disponibles.</p>
+            <p class="text-xs text-slate-400"><strong>Capa0</strong> = Riegel base. <strong>Capa1</strong> = prior demográfico. <strong>Capa2</strong> = corrección residual por edad×género. <strong>Capa3</strong> = corrección por carga CTL (reservada).</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">Extrapolación descendente</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">Cuando predices una distancia más corta que tu PR fuente (ej. predices 5K usando PR de 21K), la predicción es menos confiable porque los atletas no siempre tienen el mismo perfil aeróbico y de velocidad.</p>
+            <p class="text-xs text-slate-400">El margen de error se amplía automáticamente para reflejar esta mayor incertidumbre.</p>
+          </div>
+        </div>
+
+        <!-- ══ PLAN Y COACH ════════════════════════════════════════════════ -->
+        <div class="card p-6 space-y-5">
+          <div class="metric-label text-slate-400 mb-1">Plan y coach</div>
+
+          <div class="space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">Semáforo</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">Estado semanal calculado desde el último check-in del atleta: dolor, fatiga, sensación general y sueño. Determina el tipo de semana del plan.</p>
+            <p class="text-xs text-slate-400"><strong class="text-emerald-600">VERDE</strong> = óptimo → semana de progreso. <strong class="text-amber-600">AMARILLO</strong> = precaución → semana conservadora. <strong class="text-red-600">ROJO</strong> = reducir carga → semana de descarga. <strong>SIN CHECK-IN</strong> = sin datos recientes.</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">Tipo de semana</span>
+              <span class="text-xs text-slate-400 font-medium">PROGRESO / CONSERVADORA / DESCARGA</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">Define el volumen de la semana. <strong>PROGRESO</strong>: ligero aumento de carga sobre la semana anterior. <strong>CONSERVADORA</strong>: volumen moderado, sin incremento. <strong>DESCARGA</strong>: semana de recuperación activa, carga reducida.</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">Weekly focus</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">El objetivo técnico o de entrenamiento principal de la semana. Puede ser automático (generado por el sistema) o editorial (definido por el coach).</p>
+            <p class="text-xs text-slate-400">Cuando aparece el badge <span class="font-semibold text-violet-600">Coach</span> significa que el coach lo definió manualmente.</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">Weekly objective</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">El objetivo concreto y medible de la semana en lenguaje simple: qué lograr, cuántos km totales, a qué ritmo. Siempre viene del coach.</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">Session notes</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">Indicaciones específicas del coach para una sesión concreta del día. Aparecen debajo de cada sesión en el Plan cuando el coach las ha agregado.</p>
+            <p class="text-xs text-slate-400">Ejemplo: "Inicia los primeros 10 min sin mirar el reloj" o "Si sientes pesadez en piernas, reduce 30 seg/km el ritmo objetivo."</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">Override del coach</span>
+              <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 ml-1">✏ Coach ajustó</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">Ajuste manual del coach sobre el plan automático: km o ritmo diferente al sugerido por el sistema. El plan base sigue visible — el override aparece como contexto adicional.</p>
+            <p class="text-xs text-slate-400">El sistema genera el plan; el coach tiene la última palabra.</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-slate-700">Alerts y restrictions</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed"><strong class="text-amber-600">Alerts ⚠</strong>: advertencias del coach que piden atención o monitoreo. <strong class="text-rose-600">Restrictions 🚫</strong>: indicaciones que el atleta no debe ignorar esta semana (lesiones, fatiga acumulada, indicaciones médicas).</p>
+          </div>
+        </div>
+
+        <!-- ══ NOTA METODOLÓGICA ════════════════════════════════════════════ -->
+        <div class="card px-5 py-4">
+          <p class="text-xs text-slate-400 leading-relaxed">
+            CTL, ATL, TSB y ACWR son métricas de carga derivadas de los datos de Strava.
+            La predicción usa el modelo de Riegel calibrado con datos de Boston Marathon 2015–2018 (~100.000 corredores).
+            Ninguna métrica de este dashboard reemplaza el criterio médico o de un entrenador calificado.
+          </p>
+        </div>
+
+      </div><!-- fin tab GLOSARIO -->
+
+      </div><!-- fin content wrapper -->
+    </div><!-- fin dashboard -->
 
     <!-- Estado inicial -->
     <div x-show="!snapshot && !loading && !error"
