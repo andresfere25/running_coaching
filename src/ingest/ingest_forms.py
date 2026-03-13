@@ -148,14 +148,58 @@ def normalize_form1_row(row: dict) -> dict:
         row.get("Darías tu consentimiento para usar Strava y mejorar de una manera grandiosa el diseño de tu plan de entrenamiento y una mayor personalización y seguimiento ?")
     )
 
+    # ── Historial de carreras pasadas (hasta 3) ───────────────────────────
+    # Campos esperados en el Google Form (sección nueva, todos opcionales):
+    #   "Carrera reciente 1 — Distancia"       → 5K / 10K / 21K / 42K
+    #   "Carrera reciente 1 — Tiempo (hh:mm:ss o mm:ss)"
+    #   "Carrera reciente 1 — Fecha (yyyy-mm-dd)"
+    # La clave distance_key normaliza el texto a uno de los 4 valores estándar.
+    # Este bloque solo almacena datos — NO activa ningún modelo todavía.
+
+    _dist_map = {
+        "5k": "5K", "5km": "5K",
+        "10k": "10K", "10km": "10K",
+        "21k": "21K", "21km": "21K", "media": "21K", "media maratón": "21K",
+        "42k": "42K", "42km": "42K", "maratón": "42K", "maraton": "42K",
+    }
+
+    race_history = []
+    for i in range(1, 4):
+        raw_dist = norm_str(row.get(f"Carrera reciente {i} — Distancia"))
+        raw_time = norm_str(row.get(f"Carrera reciente {i} — Tiempo (hh:mm:ss o mm:ss)"))
+        raw_date = norm_str(row.get(f"Carrera reciente {i} — Fecha (yyyy-mm-dd)"))
+
+        dist_key = _dist_map.get((raw_dist or "").lower().strip()) if raw_dist else None
+        time_sec = parse_duration_to_seconds(raw_time) if raw_time else None
+
+        # Solo incluir si al menos distancia y tiempo están presentes
+        if dist_key and time_sec and time_sec > 0:
+            race_history.append({
+                "distance_key": dist_key,
+                "time_sec":     time_sec,
+                "date_iso":     raw_date,   # puede ser None si no se declaró
+            })
+
+    out["race_history"] = race_history   # lista vacía si no hay carreras declaradas
+
     return out
 
 
-def main():
+def main(cedula: str | None = None):
+    """
+    Ingesta del Form 1 (perfil de atletas) desde Google Sheets.
+
+    cedula (opcional):
+      - Si se provee: procesa solo ese atleta. Error si no está en el Form.
+      - Si es None:   procesa todos los atletas del Form (modo global para CLI).
+
+    Llamado desde sync.py con cedula específico.
+    Llamado desde run_pipeline.py sin cedula (procesa todos).
+    """
     load_dotenv()
 
     sheet_id = os.getenv("SHEET_ID")
-    sa_json = os.getenv("GOOGLE_SA_JSON")
+    sa_json  = os.getenv("GOOGLE_SA_JSON")
     data_dir = Path(os.getenv("DATA_DIR", "data/athletes"))
 
     # 1) Abrir Google Sheet
@@ -179,33 +223,39 @@ def main():
     if df_norm.empty:
         raise RuntimeError("No se pudieron normalizar filas. Revisa el header de cédula y campos.")
 
-    # 4) Por ahora, seleccionamos tu fila por cédula (si existe) o la primera
-    target_cedula = "1070982737"
-    if (df_norm["cedula"] == target_cedula).any():
-        cedula = target_cedula
+    # 4) Determinar qué cédula(s) procesar
+    if cedula:
+        if not (df_norm["cedula"] == cedula).any():
+            raise RuntimeError(
+                f"Cédula '{cedula}' no encontrada en '{FORM1_TAB}'. "
+                f"Verifica que el atleta haya enviado el formulario."
+            )
+        cedulas_to_process = [cedula]
     else:
-        cedula = df_norm.iloc[0]["cedula"]
+        # Modo global: todos los atletas del Form
+        cedulas_to_process = sorted(df_norm["cedula"].unique().tolist())
 
-    # 5) Crear carpeta atleta
-    paths = ensure_dirs(data_dir, cedula)
+    # 5) Procesar cada cédula
+    for ced in cedulas_to_process:
+        paths = ensure_dirs(data_dir, ced)
 
-    # 6) Guardar RAW snapshot (solo por auditoría)
-    raw_path = paths["raw"] / "form_ingreso_raw.parquet"
-    write_parquet_duckdb(df_raw, raw_path)
+        # RAW snapshot (auditoría)
+        raw_path = paths["raw"] / "form_ingreso_raw.parquet"
+        write_parquet_duckdb(df_raw, raw_path)
 
-    # 7) Guardar SILVER (perfil normalizado del atleta)
-    silver_profile_path = paths["silver"] / "profile.parquet"
-    write_parquet_duckdb(df_norm[df_norm["cedula"] == cedula], silver_profile_path)
+        # SILVER — perfil normalizado de este atleta
+        silver_profile_path = paths["silver"] / "profile.parquet"
+        write_parquet_duckdb(df_norm[df_norm["cedula"] == ced], silver_profile_path)
 
-    # 8) Guardar JSON meta
-    profile_json_path = paths["meta"] / "profile.json"
-    profile = df_norm[df_norm["cedula"] == cedula].iloc[0].to_dict()
-    profile_json_path.write_text(json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8")
+        # META — JSON consumido por build_features / push_profile
+        profile_json_path = paths["meta"] / "profile.json"
+        profile = df_norm[df_norm["cedula"] == ced].iloc[0].to_dict()
+        profile_json_path.write_text(json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    print(f"✅ Listo. Carpeta creada/actualizada para cédula {cedula}")
-    print(f"RAW: {raw_path}")
-    print(f"SILVER: {silver_profile_path}")
-    print(f"META: {profile_json_path}")
+        print(f"✅ Forms ingest OK para cédula {ced}")
+        print(f"   RAW:    {raw_path}")
+        print(f"   SILVER: {silver_profile_path}")
+        print(f"   META:   {profile_json_path}")
 
 
 if __name__ == "__main__":

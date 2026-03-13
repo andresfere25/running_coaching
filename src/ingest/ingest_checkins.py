@@ -104,10 +104,20 @@ def is_recent_checkin(ts: datetime | None, lookback_days: int = 10) -> bool:
     return ts >= (datetime.now() - timedelta(days=lookback_days))
 
 
-def main():
+def main(cedula: str | None = None):
+    """
+    Ingesta del Form 2 (check-ins semanales) desde Google Sheets.
+
+    cedula (opcional):
+      - Si se provee: escribe solo para ese atleta. Sin error si no tiene check-ins.
+      - Si es None:   procesa todos los atletas con check-ins (modo global para CLI).
+
+    Llamado desde sync.py con cedula específico.
+    Llamado desde run_pipeline.py sin cedula (procesa todos).
+    """
     load_dotenv()
     sheet_id = os.getenv("SHEET_ID")
-    sa_json = os.getenv("GOOGLE_SA_JSON")
+    sa_json  = os.getenv("GOOGLE_SA_JSON")
     data_dir = Path(os.getenv("DATA_DIR", "data/athletes"))
 
     sheet = open_sheet(sheet_id, sa_json)
@@ -130,8 +140,16 @@ def main():
     # Convertimos timestamp a datetime real para orden y filtros
     df["_ts_dt"] = pd.to_datetime(df["timestamp"], errors="coerce")
 
-    # Tomamos todas las cédulas presentes
-    cedulas = sorted([c for c in df["cedula"].unique() if c])
+    # Cédulas a procesar
+    all_cedulas = sorted([c for c in df["cedula"].unique() if c])
+    if cedula:
+        # Modo per-atleta: solo escribir para la cédula solicitada
+        cedulas = [cedula] if cedula in all_cedulas else []
+        if not cedulas:
+            print(f"ℹ️  No hay check-ins para cédula {cedula} en '{FORM2_TAB}'. Se omite.")
+            return
+    else:
+        cedulas = all_cedulas
 
     for cedula in cedulas:
         athlete_df_raw = df_raw[df_raw["Cédula"].astype(str).str.strip() == cedula].copy() if "Cédula" in df_raw.columns else pd.DataFrame()

@@ -116,8 +116,8 @@ def _run_pipeline_and_push(
         try:
             from src.ingest.ingest_forms import main as ingest_forms
             from src.ingest.ingest_checkins import main as ingest_checkins
-            ingest_forms()
-            ingest_checkins()
+            ingest_forms(cedula)
+            ingest_checkins(cedula)
             stages["ingest"] = "ok"
             print("[sync] ✅ ingest OK")
         except Exception as exc:
