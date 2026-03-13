@@ -24,9 +24,8 @@ python-dotenv>=1.0.0
 fastapi>=0.110.0
 uvicorn[standard]>=0.29.0
 
-# ─── Storage externo (Fase A — dual write) ───────────────────────────────────
-# Descomenta cuando tengas SUPABASE_URL y SUPABASE_SERVICE_KEY configurados
-# supabase>=2.0.0       # Cliente Supabase — instalar: pip install supabase>=2.0.0
+# ─── Storage externo (Fase A/B — dual write + fuente primaria) ───────────────
+supabase>=2.0.0
 
 # ─── Dependencias futuras (Fase B+) ──────────────────────────────────────────
 # anthropic>=0.40.0     # Claude API — para observaciones personalizadas

@@ -73,6 +73,37 @@ def _normalize_activity(row: dict, source: str) -> dict:
         }
 
 
+# ─── profile ─────────────────────────────────────────────────────────────────
+
+def read_profile(cedula: str, athlete_dir: "Path | None") -> "dict | None":
+    """
+    Lee profile.json (perfil del atleta del Form 1).
+    Fuente 1: Supabase athlete_profiles.raw
+    Fuente 2: meta/profile.json
+    """
+    client = get_client()
+    if client:
+        try:
+            res = (
+                client.table("athlete_profiles")
+                .select("raw")
+                .eq("cedula", cedula)
+                .limit(1)
+                .execute()
+            )
+            if res.data:
+                return res.data[0]["raw"]
+        except Exception as exc:
+            print(f"[reader] Supabase profile error para {cedula}: {exc}")
+
+    if athlete_dir:
+        path = athlete_dir / "meta" / "profile.json"
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+
+    return None
+
+
 # ─── snapshot ────────────────────────────────────────────────────────────────
 
 def read_snapshot(cedula: str, athlete_dir: "Path | None") -> "dict | None":

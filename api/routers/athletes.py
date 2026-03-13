@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from api.deps import get_athlete_dir, get_data_dir, require_api_key, sanitize_json
-from src.storage.reader import read_snapshot, read_plan, read_features, read_checkin, read_activities
+from src.storage.reader import read_snapshot, read_plan, read_features, read_checkin, read_activities, read_profile
 
 
 def _build_activities_summary(
@@ -137,20 +137,21 @@ def list_athletes(_: None = Depends(require_api_key)):
 @router.get("/{cedula}/profile")
 def get_profile(
     cedula: str,
-    athlete_dir: Path = Depends(get_athlete_dir),
     _: None = Depends(require_api_key),
 ):
     """
     Devuelve el perfil del atleta extraído del Form de ingreso.
     Incluye datos personales, objetivos, ritmos reportados y preferencias.
+    Lee desde Supabase primero; fallback a archivo local.
     """
-    path = athlete_dir / "meta" / "profile.json"
-    if not path.exists():
+    athlete_dir = get_data_dir() / cedula
+    data = read_profile(cedula, athlete_dir if athlete_dir.exists() else None)
+    if data is None:
         raise HTTPException(
             status_code=404,
-            detail="Perfil no disponible. El paso 'ingest' del pipeline no ha corrido.",
+            detail="Perfil no disponible. Ejecuta primero: POST /athletes/{cedula}/sync",
         )
-    return json.loads(path.read_text(encoding="utf-8"))
+    return data
 
 
 # ─── Snapshot (estado actual) ────────────────────────────────────────────────
@@ -509,7 +510,6 @@ def get_dashboard(
 def get_prediction(
     cedula: str,
     target: str = Query(default="42K", description="Distancia objetivo: 5K, 10K, 21K o 42K"),
-    athlete_dir: Path = Depends(get_athlete_dir),
     _: None = Depends(require_api_key),
 ):
     """
@@ -536,14 +536,13 @@ def get_prediction(
             detail=f"Distancia '{target}' no válida. Use: 5K, 10K, 21K, 42K.",
         )
 
-    profile_path = athlete_dir / "meta" / "profile.json"
-    if not profile_path.exists():
+    athlete_dir_pred = get_data_dir() / cedula
+    profile = read_profile(cedula, athlete_dir_pred if athlete_dir_pred.exists() else None)
+    if not profile:
         raise HTTPException(
             status_code=404,
-            detail="Perfil no disponible. El paso 'ingest' del pipeline no ha corrido.",
+            detail="Perfil no disponible. Ejecuta primero: POST /athletes/{cedula}/sync",
         )
-
-    profile = json.loads(profile_path.read_text(encoding="utf-8"))
 
     from src.ml.predictor import predict_race_time_range
 
