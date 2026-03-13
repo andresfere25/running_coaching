@@ -470,6 +470,7 @@ function athleteApp() {
           details: [],
           _coachOverride: true,
           _coachReplace:  true,
+          _category: override.category || null,
         }];
       }
 
@@ -486,6 +487,7 @@ function athleteApp() {
           km:   override.km   != null ? String(override.km)   : s.km,
           pace: override.pace != null ? String(override.pace) : s.pace,
           _coachOverride: true,
+          _category: override.category || null,
         };
       });
     },
@@ -545,39 +547,54 @@ function athleteApp() {
       };
     },
 
-    // ── Clasificación de sesión de running por tipo ───────────────────────
-    // Retorna 'fondo' | 'quality' | 'easy' según el título de la sesión.
-    _classifyRunSession(s) {
-      if (!s || s.type !== 'Running') return null;
-      const title = (s.session || s.title || '').toLowerCase();
-      if (title.includes('fondo') || title.includes('largo'))                   return 'fondo';
-      if (title.includes('tempo') || title.includes('interval') ||
-          title.includes('series') || title.includes('velocidad') ||
-          title.includes('calidad'))                                             return 'quality';
+    // ── Clasificación de sesión (para base plan sin categoría explícita) ───────
+    // Solo se usa como FALLBACK cuando no hay category explícita del coach.
+    _titleBucket(session_title) {
+      const t = (session_title || '').toLowerCase();
+      if (t.includes('fondo') || t.includes('largo'))                    return 'fondo';
+      if (t.includes('tempo') || t.includes('interval') ||
+          t.includes('series') || t.includes('velocidad') ||
+          t.includes('calidad'))                                          return 'quality';
       return 'easy';
     },
 
-    // Distribución efectiva calculada desde planDays (overrides ya aplicados)
+    // Clasifica una sesión: categoria explícita del coach (primaria) > heurística de título (fallback)
+    _classifySession(s) {
+      if (!s || s.type !== 'Running') return null;
+      const cat = s._category || '';
+      if (cat && cat !== 'inherit') {
+        const MAP = { suave: 'easy', recuperacion: 'easy', fondo: 'fondo', calidad: 'quality' };
+        return MAP[cat] ?? null; // fuerza/descanso → null (no cuentan como km running)
+      }
+      return this._titleBucket(s.session || s.title || '');
+    },
+
+    // Distribución efectiva de km — fuente única y coherente
     get effectiveDistribution() {
+      // Prioridad 1: valor persistido en el published (computado server-side al publicar)
+      const persisted = this.coachContent?.effective_distribution;
+      if (persisted) {
+        const t = (persisted.easy_km || 0) + (persisted.fondo_km || 0) + (persisted.quality_km || 0);
+        if (t > 0) return persisted;
+      }
+      // Prioridad 2: calcular desde planDays (con overrides ya aplicados)
       if (!this.planDays.length) return null;
       let easy_km = 0, fondo_km = 0, quality_km = 0;
       for (const d of this.planDays) {
         for (const s of d.sessions) {
           const km = Number(s.km) || 0;
           if (!km || s.type !== 'Running') continue;
-          const cat = this._classifyRunSession(s);
+          const cat = this._classifySession(s);
           if (cat === 'fondo')        fondo_km   += km;
           else if (cat === 'quality') quality_km += km;
-          else                        easy_km    += km;
+          else if (cat === 'easy')    easy_km    += km;
         }
       }
       const total = easy_km + fondo_km + quality_km;
       return total > 0 ? { easy_km, fondo_km, quality_km } : null;
     },
 
-    // ── Distribución de km ────────────────────────────────────────────────
-    // Fuente única: effectiveDistribution (calcula desde el plan efectivo).
-    // Fallback al plan base solo si no hay sesiones con km definidos.
+    // ── Distribución de km — siempre desde fuente efectiva coherente ──────────
     get distributionBars() {
       const d = this.effectiveDistribution || this.plan?.distribution_km;
       if (!d) return [];
@@ -588,25 +605,19 @@ function athleteApp() {
           label: 'Suaves',
           km:    d.easy_km || 0,
           pct:   Math.round((d.easy_km || 0) / total * 100),
-          color: '#22c55e',
-          bg:    '#f0fdf4',
-          text:  '#15803d',
+          color: '#22c55e', bg: '#f0fdf4', text: '#15803d',
         },
         {
           label: 'Fondo',
           km:    d.fondo_km || 0,
           pct:   Math.round((d.fondo_km || 0) / total * 100),
-          color: '#3b82f6',
-          bg:    '#eff6ff',
-          text:  '#1d4ed8',
+          color: '#3b82f6', bg: '#eff6ff', text: '#1d4ed8',
         },
         {
           label: 'Calidad',
           km:    d.quality_km || 0,
           pct:   Math.round((d.quality_km || 0) / total * 100),
-          color: '#f97316',
-          bg:    '#fff7ed',
-          text:  '#c2410c',
+          color: '#f97316', bg: '#fff7ed', text: '#c2410c',
         },
       ];
     },
@@ -626,8 +637,13 @@ function athleteApp() {
       });
     },
 
-    // ── Km objetivo semanal efectivo (recalcula si hay overrides de km) ──
+    // ── Km objetivo semanal efectivo ──────────────────────────────────────────
     get effectiveTargetKm() {
+      // Prioridad 1: valor persistido en el published
+      const persistedKm = this.coachContent?.effective_totals?.km;
+      if (persistedKm != null) return persistedKm;
+
+      // Prioridad 2: recalcular desde overrides (si hay km override en algún día)
       const overrides = this.coachContent?.plan_overrides || {};
       const hasKmOverride = Object.values(overrides).some(o => o?.km != null);
       if (!hasKmOverride) return this.plan?.targets?.target_km_week ?? null;
@@ -640,10 +656,8 @@ function athleteApp() {
         const sessions = this.plan.plan_by_day[day] || [];
         const runSessions = sessions.filter(s => s.type === 'Running');
         if (runSessions.length > 0) {
-          // Primer Running: usar override.km si existe
           const baseKm = Number(runSessions[0].km) || 0;
           total += override?.km != null ? Number(override.km) : baseKm;
-          // Demás Running del mismo día: siempre base
           for (let i = 1; i < runSessions.length; i++) {
             total += Number(runSessions[i].km) || 0;
           }
@@ -666,9 +680,11 @@ function athleteApp() {
       return key;
     },
 
-    // week_type efectivo: override del coach (si existe) > plan automático
+    // week_type efectivo: persisted effective_week_type > override explícito > plan automático
     get weekType() {
-      return this.coachContent?.week_type_override || this.plan?.week_type || '—';
+      return this.coachContent?.effective_week_type
+          || this.coachContent?.week_type_override
+          || this.plan?.week_type || '—';
     },
 
     // ¿El week_type viene del coach (no del sistema)?

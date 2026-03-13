@@ -71,6 +71,117 @@ _AUTO_FALLBACK: dict = {
 }
 
 
+# ─── Cómputo del plan efectivo ────────────────────────────────────────────────
+
+def _compute_effective(plan: dict, overrides: dict, week_type_override: "str | None") -> dict:
+    """
+    Calcula distribución efectiva, totals y week_type desde plan base + overrides.
+
+    Para sesiones con override: usa el campo 'category' explícito si está presente.
+    Para sesiones sin override: clasifica por título de sesión (fallback para plan base).
+    Retorna campos que se embedden en el JSON publicado.
+    """
+    _CAT_TO_BUCKET: dict[str, "str | None"] = {
+        "suave":        "easy_km",
+        "recuperacion": "easy_km",
+        "fondo":        "fondo_km",
+        "calidad":      "quality_km",
+        "fuerza":       None,
+        "descanso":     None,
+    }
+
+    def _title_bucket(title: str) -> str:
+        t = (title or "").lower()
+        if "fondo" in t or "largo" in t:
+            return "fondo_km"
+        if ("tempo" in t or "interval" in t or "series" in t
+                or "velocidad" in t or "calidad" in t):
+            return "quality_km"
+        return "easy_km"
+
+    DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+    DAY_KEYS = {
+        "Lunes": "LUN", "Martes": "MAR", "Miércoles": "MIE",
+        "Jueves": "JUE", "Viernes": "VIE", "Sábado": "SAB", "Domingo": "DOM",
+    }
+
+    plan_by_day    = plan.get("plan_by_day", {})
+    week_type_sys  = plan.get("week_type", "CONSERVADORA")
+    dist: dict[str, float] = {"easy_km": 0.0, "fondo_km": 0.0, "quality_km": 0.0}
+    days_running = days_strength = days_rest = 0
+
+    for day in DAYS:
+        key           = DAY_KEYS[day]
+        base_sessions = plan_by_day.get(day, [])
+        override      = (overrides or {}).get(key)
+
+        if override:
+            cat = (override.get("category") or "").strip()
+
+            if cat == "descanso":
+                days_rest += 1
+                continue
+            if cat == "fuerza":
+                days_strength += 1
+                continue
+
+            override_type = (override.get("type") or "").strip()
+            base_type     = next((s.get("type", "") for s in base_sessions), "")
+            is_running    = override_type == "Running" or (not override_type and base_type == "Running")
+
+            if not is_running:
+                days_strength += 1
+                continue
+
+            days_running += 1
+            km_val = override.get("km")
+            if km_val is None:
+                km_val = next(
+                    (s.get("km", 0) for s in base_sessions if s.get("type") == "Running"), 0
+                )
+            km = float(km_val or 0)
+
+            if cat and cat not in ("", "inherit"):
+                bucket: "str | None" = _CAT_TO_BUCKET.get(cat, "easy_km")
+            else:
+                base_title = next(
+                    (s.get("session", "") for s in base_sessions if s.get("type") == "Running"),
+                    override.get("title", ""),
+                )
+                bucket = _title_bucket(base_title)
+
+            if bucket:
+                dist[bucket] += km
+
+        elif base_sessions:
+            btypes = {s.get("type", "") for s in base_sessions}
+            if "Running" in btypes:
+                days_running += 1
+                for s in base_sessions:
+                    if s.get("type") == "Running":
+                        dist[_title_bucket(s.get("session", ""))] += float(s.get("km") or 0)
+            elif "Fuerza" in btypes:
+                days_strength += 1
+            else:
+                days_rest += 1
+        else:
+            days_rest += 1
+
+    total_km = round(sum(dist.values()), 2)
+    return {
+        "effective_week_type":    week_type_override or week_type_sys,
+        "week_type_system":       week_type_sys,
+        "week_type_override":     week_type_override or None,
+        "effective_distribution": {k: round(v, 2) for k, v in dist.items()},
+        "effective_totals": {
+            "km":            total_km,
+            "days_running":  days_running,
+            "days_strength": days_strength,
+            "days_rest":     days_rest,
+        },
+    }
+
+
 @router.get("/{cedula}/coach-content")
 def get_coach_content(cedula: str) -> dict:
     """
@@ -126,16 +237,35 @@ def get_coach_draft(
 ) -> dict:
     """
     Devuelve el draft del coach para un atleta.
-    Si no existe draft previo, genera una plantilla desde el snapshot actual.
-
-    Respuesta:
-    - found: True si ya había un draft guardado
-    - editable: campos que el coach puede editar
-    - context: datos automáticos del atleta (read-only: CTL, ATL, semáforo…)
+    Prioridad editable: draft local → publicado en Supabase → template en blanco.
+    El contexto (plan_by_day, CTL/ATL, semaforo) siempre viene fresco del plan actual.
     """
-    data_dir = get_data_dir()
+    data_dir   = get_data_dir()
     draft_path = data_dir / cedula / "coach" / "weekly_draft.json"
 
+    # ── Contexto fresco del plan base (siempre) ───────────────────────────────
+    from src.storage.reader import read_snapshot, read_plan
+    athlete_dir = data_dir / cedula if (data_dir / cedula).exists() else None
+    plan     = read_plan(cedula, athlete_dir) or {}
+    snapshot = read_snapshot(cedula, athlete_dir) or {}
+    lw = snapshot.get("latest_week") or {}
+
+    base_context = {
+        "ctl":              lw.get("ctl"),
+        "atl":              lw.get("atl"),
+        "tsb":              lw.get("tsb"),
+        "acwr":             lw.get("acwr"),
+        "km_last_week":     lw.get("km_week"),
+        "semaforo":         snapshot.get("semaforo_latest_checkin"),
+        "readiness":        snapshot.get("readiness_score"),
+        "week_type":        plan.get("week_type"),
+        "week_type_system": plan.get("week_type"),
+        "target_km":        (plan.get("targets") or {}).get("target_km_week"),
+        "plan_by_day":      plan.get("plan_by_day", {}),
+        "distribution_km":  plan.get("distribution_km", {}),
+    }
+
+    # ── 1. Draft local ────────────────────────────────────────────────────────
     if draft_path.exists():
         try:
             draft = json.loads(draft_path.read_text(encoding="utf-8"))
@@ -144,13 +274,12 @@ def get_coach_draft(
                 "cedula":   cedula,
                 "editable": {k: v for k, v in draft.items()
                              if not k.startswith("_") and k not in ("status", "cedula")},
-                "context":  draft.get("_auto_context") or {},
+                "context":  base_context,
             }
         except Exception:
             pass
 
-    # ── Sin draft: intentar Supabase published como base pre-poblada ──────────
-    published_base: dict | None = None
+    # ── 2. Supabase published como base pre-poblada ───────────────────────────
     try:
         from src.storage.supabase_client import get_client
         client = get_client()
@@ -164,36 +293,28 @@ def get_coach_draft(
                 .execute()
             )
             if res.data:
-                published_base = res.data[0]
+                _SKIP = {"cedula", "status", "published_at", "id",
+                         "effective_distribution", "effective_totals",
+                         "effective_week_type", "week_type_system"}
+                editable = {k: v for k, v in res.data[0].items() if k not in _SKIP}
+                return {
+                    "found":    False,
+                    "cedula":   cedula,
+                    "editable": editable,
+                    "context":  base_context,
+                }
     except Exception as exc:
         print(f"[coach-draft] Supabase read error para {cedula}: {exc}")
 
-    if published_base:
-        editable = {
-            k: v for k, v in published_base.items()
-            if k not in ("cedula", "status", "published_at", "id")
-        }
-        return {
-            "found":    False,
-            "cedula":   cedula,
-            "editable": editable,
-            "context":  {},
-        }
-
-    # ── Fallback: plantilla desde snapshot ────────────────────────────────────
-    from src.storage.reader import read_snapshot, read_plan
+    # ── 3. Template en blanco desde plan base ─────────────────────────────────
     from src.coach.publish import make_template
-
-    snapshot = read_snapshot(cedula, data_dir / cedula if (data_dir / cedula).exists() else None) or {}
-    plan     = read_plan(cedula,     data_dir / cedula if (data_dir / cedula).exists() else None) or {}
     template = make_template(cedula, snapshot, plan)
-
     return {
         "found":    False,
         "cedula":   cedula,
         "editable": {k: v for k, v in template.items()
                      if not k.startswith("_") and k not in ("status", "cedula")},
-        "context":  template.get("_auto_context") or {},
+        "context":  base_context,
     }
 
 
@@ -298,6 +419,15 @@ def publish_coach_content_api(
     published["published_at"] = datetime.now(timezone.utc).isoformat()
     notes = published.get("session_notes") or {}
     published["session_notes"] = {k: v for k, v in notes.items() if v and v.strip()}
+
+    # Calcular y embedder el plan efectivo en el published JSON
+    from src.storage.reader import read_plan
+    _plan = read_plan(cedula, data_dir / cedula if (data_dir / cedula).exists() else None) or {}
+    published.update(_compute_effective(
+        plan=_plan,
+        overrides=published.get("plan_overrides", {}),
+        week_type_override=published.get("week_type_override"),
+    ))
 
     published_path.write_text(json.dumps(published, ensure_ascii=False, indent=2), encoding="utf-8")
 

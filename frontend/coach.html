@@ -251,47 +251,70 @@
           <p class="text-xs text-slate-400 mt-2">Las notas vacías no se publican.</p>
         </div>
 
-        <!-- ── Overrides del plan ──────────────────────────────────── -->
+        <!-- ── Ajustes al plan (overrides con categoría explícita) ───── -->
         <div class="card px-5 py-4">
-          <div class="label mb-1">Ajustes al plan (overrides)</div>
+          <div class="label mb-1">Ajustes al plan</div>
           <p class="text-xs text-slate-400 mb-3">
-            <strong>Tipo + Título</strong> → reemplaza la sesión base por completo (ej: cambiar Fuerza por Running).<br>
-            Solo <strong>km/ritmo</strong> → ajusta la carga de la sesión existente sin cambiar su tipo.
+            <strong>Categoría</strong> define cómo se clasifica la sesión en la distribución (Suave / Fondo / Calidad). Sin override, el día hereda del plan base.
           </p>
           <div class="space-y-3">
             <template x-for="day in DAYS" :key="day">
-              <div class="border rounded-lg p-3 space-y-2 transition-colors"
-                   :class="(form.plan_overrides[day].type || form.plan_overrides[day].title || form.plan_overrides[day].km || form.plan_overrides[day].pace || form.plan_overrides[day].note)
-                     ? 'border-violet-200 bg-violet-50/40'
-                     : 'border-slate-100'">
+              <div>
+                <!-- Plan base heredado (solo visible si no hay override activo) -->
+                <template x-if="!form.plan_overrides[day].category && !form.plan_overrides[day].type && !form.plan_overrides[day].title && !form.plan_overrides[day].km && !form.plan_overrides[day].pace">
+                  <div class="flex items-center gap-2 mb-1 pl-10">
+                    <span class="text-[10px] text-slate-300 font-mono">BASE</span>
+                    <span class="text-[11px] text-slate-400 italic"
+                          x-text="(draft?.context?.plan_by_day?.[
+                            {LUN:'Lunes',MAR:'Martes',MIE:'Miércoles',JUE:'Jueves',VIE:'Viernes',SAB:'Sábado',DOM:'Domingo'}[day]
+                          ] || []).map(s => (s.session || s.type) + (s.km ? ' · ' + s.km + 'km' : '')).join(', ') || '— descanso'">
+                    </span>
+                  </div>
+                </template>
 
-                <!-- Fila 1: día + tipo + título (reemplazo) -->
-                <div class="flex items-center gap-2">
-                  <span class="w-8 text-xs font-bold text-slate-500 shrink-0" x-text="day"></span>
-                  <select x-model="form.plan_overrides[day].type"
-                          class="field text-sm" style="width:140px">
-                    <option value="">Tipo: sin cambio</option>
-                    <option value="Running">🏃 Running</option>
-                    <option value="Fuerza">💪 Fuerza</option>
-                  </select>
-                  <input x-model="form.plan_overrides[day].title" type="text"
-                         placeholder="Título de sesión (si quieres reemplazarla)"
-                         class="field flex-1 text-sm" />
+                <div class="border rounded-lg p-3 space-y-2 transition-colors"
+                     :class="(form.plan_overrides[day].category || form.plan_overrides[day].type || form.plan_overrides[day].title || form.plan_overrides[day].km || form.plan_overrides[day].pace || form.plan_overrides[day].note)
+                       ? 'border-violet-200 bg-violet-50/40'
+                       : 'border-slate-100'">
+
+                  <!-- Fila 1: día + categoría explícita -->
+                  <div class="flex items-center gap-2">
+                    <span class="w-8 text-xs font-bold text-slate-500 shrink-0" x-text="day"></span>
+                    <select x-model="form.plan_overrides[day].category"
+                            class="field text-sm font-semibold" style="width:148px">
+                      <option value="">Categoría: heredar</option>
+                      <option value="suave">🟢 Suave</option>
+                      <option value="fondo">🔵 Fondo</option>
+                      <option value="calidad">🟠 Calidad</option>
+                      <option value="recuperacion">🩶 Recuperación</option>
+                      <option value="fuerza">💪 Fuerza</option>
+                      <option value="descanso">🛌 Descanso</option>
+                    </select>
+                    <select x-model="form.plan_overrides[day].type"
+                            class="field text-sm" style="width:120px">
+                      <option value="">Tipo: sin cambio</option>
+                      <option value="Running">🏃 Running</option>
+                      <option value="Fuerza">💪 Fuerza</option>
+                    </select>
+                    <input x-model="form.plan_overrides[day].title" type="text"
+                           placeholder="Título (opcional)"
+                           class="field flex-1 text-sm" />
+                  </div>
+
+                  <!-- Fila 2: km + ritmo + nota -->
+                  <div class="flex items-center gap-2 pl-10">
+                    <input x-model="form.plan_overrides[day].km" type="number" step="0.5" min="0"
+                           placeholder="km"
+                           class="field text-sm text-center" style="width:72px" />
+                    <input x-model="form.plan_overrides[day].pace" type="text"
+                           placeholder="ritmo (ej: 5:30–6:00)"
+                           class="field text-sm font-mono" style="width:148px" />
+                    <input x-model="form.plan_overrides[day].note" type="text"
+                           placeholder="nota opcional"
+                           class="field flex-1 text-sm" />
+                  </div>
+
                 </div>
-
-                <!-- Fila 2: km + ritmo + nota -->
-                <div class="flex items-center gap-2 pl-10">
-                  <input x-model="form.plan_overrides[day].km" type="number" step="0.5" min="0"
-                         placeholder="km"
-                         class="field text-sm text-center" style="width:72px" />
-                  <input x-model="form.plan_overrides[day].pace" type="text"
-                         placeholder="ritmo (ej: 5:30–6:00)"
-                         class="field text-sm font-mono" style="width:148px" />
-                  <input x-model="form.plan_overrides[day].note" type="text"
-                         placeholder="nota opcional"
-                         class="field flex-1 text-sm" />
-                </div>
-
               </div>
             </template>
           </div>
@@ -399,6 +422,77 @@
           </div>
         </div>
 
+        <!-- ── Vista previa: semana efectiva ──────────────────────── -->
+        <div class="card px-5 py-4" x-show="draft !== null">
+          <div class="label mb-3">Vista previa — semana efectiva</div>
+
+          <!-- Tabla de días -->
+          <div class="space-y-1 mb-4">
+            <template x-for="row in effectivePreview.rows" :key="row.key">
+              <div class="flex items-center gap-2 text-xs"
+                   :class="row.inherited ? 'text-slate-400' : 'text-slate-700'">
+                <span class="w-7 font-bold font-mono shrink-0" x-text="row.key"></span>
+                <span class="flex-1 truncate" x-text="row.label"></span>
+                <template x-if="!row.inherited">
+                  <span class="text-[10px] font-bold text-violet-500 shrink-0">Coach</span>
+                </template>
+              </div>
+            </template>
+          </div>
+
+          <!-- Distribución -->
+          <div class="border-t border-slate-100 pt-3 space-y-1.5 text-xs">
+            <div class="flex justify-between font-semibold text-slate-700">
+              <span>Total km</span>
+              <span class="font-mono" x-text="effectivePreview.total + ' km'"></span>
+            </div>
+            <div class="flex justify-between text-green-700">
+              <span>🟢 Suave</span>
+              <span class="font-mono" x-text="effectivePreview.easy.toFixed(1) + ' km'"></span>
+            </div>
+            <div class="flex justify-between text-blue-700">
+              <span>🔵 Fondo</span>
+              <span class="font-mono" x-text="effectivePreview.fondo.toFixed(1) + ' km'"></span>
+            </div>
+            <div class="flex justify-between text-orange-700">
+              <span>🟠 Calidad</span>
+              <span class="font-mono" x-text="effectivePreview.calidad.toFixed(1) + ' km'"></span>
+            </div>
+          </div>
+
+          <!-- Targets -->
+          <div class="border-t border-slate-100 pt-3 mt-3 flex gap-3 text-xs text-slate-500 flex-wrap">
+            <span><strong class="text-slate-700" x-text="effectivePreview.days_running"></strong> running</span>
+            <span><strong class="text-slate-700" x-text="effectivePreview.days_strength"></strong> fuerza</span>
+            <span><strong class="text-slate-700" x-text="effectivePreview.days_rest"></strong> descanso</span>
+          </div>
+
+          <!-- Week type efectivo -->
+          <div class="border-t border-slate-100 pt-3 mt-3">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-500">Tipo semana</span>
+              <div class="flex items-center gap-1.5">
+                <template x-if="effectivePreview.week_type_override">
+                  <span class="text-[10px] font-bold text-violet-500">Coach</span>
+                </template>
+                <span class="font-semibold"
+                      :class="{
+                        'text-emerald-600': effectivePreview.effective_week_type === 'PROGRESO',
+                        'text-amber-600':   effectivePreview.effective_week_type === 'CONSERVADORA',
+                        'text-red-600':     effectivePreview.effective_week_type === 'DESCARGA',
+                        'text-slate-600':   !['PROGRESO','CONSERVADORA','DESCARGA'].includes(effectivePreview.effective_week_type),
+                      }"
+                      x-text="effectivePreview.effective_week_type || '—'"></span>
+              </div>
+            </div>
+            <template x-if="effectivePreview.week_type_override">
+              <p class="text-[10px] text-slate-400 mt-0.5">
+                Sistema: <span x-text="effectivePreview.week_type_system"></span>
+              </p>
+            </template>
+          </div>
+        </div>
+
         <!-- ── Contenido publicado activo ─────────────────────────── -->
         <div class="card px-5 py-4">
           <div class="label mb-3">Contenido publicado activo</div>
@@ -464,7 +558,9 @@
 const DAYS = ['LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB', 'DOM'];
 
 function emptyOverrides() {
-  return Object.fromEntries(DAYS.map(d => [d, { type: '', title: '', km: '', pace: '', note: '' }]));
+  return Object.fromEntries(DAYS.map(d => [d, {
+    category: '', type: '', title: '', km: '', pace: '', note: '',
+  }]));
 }
 
 function emptyNotes() {
@@ -561,11 +657,12 @@ function coachApp() {
       DAYS.forEach(d => {
         const o = overrides[d] || {};
         this.form.plan_overrides[d] = {
-          type:  o.type  || '',
-          title: o.title || '',
-          km:    o.km   != null ? String(o.km) : '',
-          pace:  o.pace || '',
-          note:  o.note || '',
+          category: o.category || '',
+          type:     o.type     || '',
+          title:    o.title    || '',
+          km:       o.km   != null ? String(o.km) : '',
+          pace:     o.pace     || '',
+          note:     o.note     || '',
         };
       });
     },
@@ -576,8 +673,9 @@ function coachApp() {
       DAYS.forEach(d => {
         const o = this.form.plan_overrides[d];
         const entry = {};
-        if (o.type  && o.type.trim())  entry.type  = o.type.trim();
-        if (o.title && o.title.trim()) entry.title = o.title.trim();
+        if (o.category && o.category.trim()) entry.category = o.category.trim();
+        if (o.type     && o.type.trim())     entry.type     = o.type.trim();
+        if (o.title    && o.title.trim())    entry.title    = o.title.trim();
         if (o.km && !isNaN(Number(o.km)) && Number(o.km) > 0) entry.km = Number(o.km);
         if (o.pace && o.pace.trim()) entry.pace = o.pace.trim();
         if (o.note && o.note.trim()) entry.note = o.note.trim();
@@ -599,6 +697,116 @@ function coachApp() {
         payload.week_type_override = this.form.week_type_override;
       }
       return payload;
+    },
+
+    // ── Vista previa reactiva del plan efectivo ─────────────────────────
+    get effectivePreview() {
+      const ctx      = this.draft?.context || {};
+      const byDay    = ctx.plan_by_day || {};
+      const DAY_NAMES = { LUN:'Lunes', MAR:'Martes', MIE:'Miércoles', JUE:'Jueves', VIE:'Viernes', SAB:'Sábado', DOM:'Domingo' };
+      const CAT_BUCKET = { suave:'easy', recuperacion:'easy', fondo:'fondo', calidad:'calidad' };
+
+      function titleBucket(title) {
+        const t = (title || '').toLowerCase();
+        if (t.includes('fondo') || t.includes('largo'))                                    return 'fondo';
+        if (t.includes('tempo') || t.includes('interval') || t.includes('series') ||
+            t.includes('velocidad') || t.includes('calidad'))                              return 'calidad';
+        return 'suave';
+      }
+
+      let easy = 0, fondo = 0, calidad = 0;
+      let days_running = 0, days_strength = 0, days_rest = 0;
+      const rows = [];
+
+      for (const key of DAYS) {
+        const dayName      = DAY_NAMES[key];
+        const baseSessions = byDay[dayName] || [];
+        const ovr          = this.form.plan_overrides[key] || {};
+        const hasOverride  = !!(ovr.category || ovr.type || ovr.title || ovr.km || ovr.pace || ovr.note);
+        const cat          = (ovr.category || '').trim();
+
+        if (hasOverride) {
+          if (cat === 'descanso') {
+            days_rest++;
+            rows.push({ key, dayName, inherited: false, type: 'Descanso', category: 'descanso', km: null, label: '🛌 Descanso' });
+            continue;
+          }
+          if (cat === 'fuerza') {
+            days_strength++;
+            rows.push({ key, dayName, inherited: false, type: 'Fuerza', category: 'fuerza', km: null, label: '💪 Fuerza' });
+            continue;
+          }
+
+          const ovType   = (ovr.type || '').trim();
+          const baseType = baseSessions[0]?.type || '';
+          const isRun    = ovType === 'Running' || (!ovType && baseType === 'Running');
+
+          if (!isRun) {
+            days_strength++;
+            rows.push({ key, dayName, inherited: false, type: ovType || baseType || 'Fuerza', category: 'fuerza', km: null, label: '💪 ' + (ovType || baseType || 'Fuerza') });
+            continue;
+          }
+
+          days_running++;
+          const kmRaw = ovr.km;
+          const baseKm = baseSessions.find(s => s.type === 'Running')?.km || 0;
+          const km = (kmRaw != null && Number(kmRaw) > 0) ? Number(kmRaw) : Number(baseKm || 0);
+
+          let bucket;
+          if (cat && cat !== 'inherit') {
+            bucket = CAT_BUCKET[cat] || 'suave';
+          } else {
+            const baseTitle = baseSessions.find(s => s.type === 'Running')?.session || ovr.title || '';
+            bucket = titleBucket(baseTitle);
+          }
+
+          if (bucket === 'fondo') fondo += km;
+          else if (bucket === 'calidad') calidad += km;
+          else easy += km;
+
+          const bucketLabel = { suave: '🟢', fondo: '🔵', calidad: '🟠' }[bucket] || '';
+          const catLabel = cat ? cat : (bucket + ' ← heredado');
+          rows.push({ key, dayName, inherited: false, type: 'Running', category: cat || bucket, km, label: bucketLabel + ' ' + catLabel + (km ? ' · ' + km + 'km' : '') });
+        } else if (baseSessions.length > 0) {
+          const btypes = baseSessions.map(s => s.type);
+          if (btypes.includes('Running')) {
+            days_running++;
+            const s = baseSessions.find(s => s.type === 'Running');
+            const km = Number(s.km || 0);
+            const bucket = titleBucket(s.session || '');
+            if (bucket === 'fondo') fondo += km;
+            else if (bucket === 'calidad') calidad += km;
+            else easy += km;
+            const bl = { suave: '🟢', fondo: '🔵', calidad: '🟠' }[bucket] || '';
+            rows.push({ key, dayName, inherited: true, type: 'Running', category: bucket, km, label: bl + ' ' + (s.session || 'Running') + ' · ' + km + 'km (base)' });
+          } else if (btypes.includes('Fuerza')) {
+            days_strength++;
+            rows.push({ key, dayName, inherited: true, type: 'Fuerza', category: 'fuerza', km: null, label: '💪 ' + (baseSessions[0]?.session || 'Fuerza') + ' (base)' });
+          } else {
+            days_rest++;
+            rows.push({ key, dayName, inherited: true, type: 'Descanso', category: 'descanso', km: null, label: '🛌 Descanso (base)' });
+          }
+        } else {
+          days_rest++;
+          rows.push({ key, dayName, inherited: true, type: 'Descanso', category: 'descanso', km: null, label: '🛌 Descanso (base)' });
+        }
+      }
+
+      const total = Math.round((easy + fondo + calidad) * 10) / 10;
+      const weekTypeSys = ctx.week_type_system || ctx.week_type || 'CONSERVADORA';
+      const weekTypeOvr = this.form.week_type_override || '';
+
+      return {
+        rows,
+        easy:   Math.round(easy * 10) / 10,
+        fondo:  Math.round(fondo * 10) / 10,
+        calidad: Math.round(calidad * 10) / 10,
+        total,
+        days_running, days_strength, days_rest,
+        week_type_system:   weekTypeSys,
+        week_type_override: weekTypeOvr,
+        effective_week_type: weekTypeOvr || weekTypeSys,
+      };
     },
 
     // ── Guardar borrador ────────────────────────────────────────────────
