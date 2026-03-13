@@ -480,6 +480,14 @@ function coachApp() {
 
     // ── Inicialización ──────────────────────────────────────────────────
     async init() {
+      // Si llega ?cedula= en la URL, cargar directo sin selector
+      const urlCedula = new URLSearchParams(window.location.search).get('cedula');
+      if (urlCedula) {
+        this.cedula   = urlCedula;
+        this.athletes = [urlCedula];
+        await this.loadDraft();
+        return;
+      }
       try {
         const res  = await fetch('/athletes');
         const data = await res.json();

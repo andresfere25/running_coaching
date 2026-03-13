@@ -118,9 +118,22 @@ router = APIRouter()
 @router.get("")
 def list_athletes(_: None = Depends(require_api_key)):
     """
-    Devuelve los atletas con datos locales en data/athletes/.
-    Solo muestra cédulas (carpetas numéricas existentes).
+    Devuelve los atletas registrados.
+    Prioridad: Supabase tabla athletes → fallback data/athletes/ local.
     """
+    # ── 1. Supabase first (funciona en Railway sin disco local) ───────────────
+    try:
+        from src.storage.supabase_client import get_client
+        client = get_client()
+        if client:
+            res = client.table("athletes").select("cedula").order("cedula").execute()
+            if res.data:
+                cedulas = [r["cedula"] for r in res.data if r.get("cedula")]
+                return {"athletes": cedulas, "count": len(cedulas)}
+    except Exception as exc:
+        print(f"[athletes] Supabase list error: {exc}")
+
+    # ── 2. Fallback local ─────────────────────────────────────────────────────
     data_dir = get_data_dir()
     if not data_dir.exists():
         return {"athletes": [], "count": 0}

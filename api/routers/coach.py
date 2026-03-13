@@ -149,7 +149,38 @@ def get_coach_draft(
         except Exception:
             pass
 
-    # Sin draft: generar plantilla desde snapshot (Supabase-first, local fallback)
+    # ── Sin draft: intentar Supabase published como base pre-poblada ──────────
+    published_base: dict | None = None
+    try:
+        from src.storage.supabase_client import get_client
+        client = get_client()
+        if client:
+            res = (
+                client.table("coach_content")
+                .select("*")
+                .eq("cedula", cedula)
+                .order("published_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if res.data:
+                published_base = res.data[0]
+    except Exception as exc:
+        print(f"[coach-draft] Supabase read error para {cedula}: {exc}")
+
+    if published_base:
+        editable = {
+            k: v for k, v in published_base.items()
+            if k not in ("cedula", "status", "published_at", "id")
+        }
+        return {
+            "found":    False,
+            "cedula":   cedula,
+            "editable": editable,
+            "context":  {},
+        }
+
+    # ── Fallback: plantilla desde snapshot ────────────────────────────────────
     from src.storage.reader import read_snapshot, read_plan
     from src.coach.publish import make_template
 
