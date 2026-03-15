@@ -78,6 +78,25 @@ def push_athlete(cedula: str, name: str | None = None) -> dict:
         return _err(f"athletes: {exc}")
 
 
+def push_athlete_strava_id(cedula: str, strava_athlete_id: str) -> dict:
+    """
+    Persiste el strava_athlete_id en la tabla athletes.
+    Necesario para que el webhook de deauthorize pueda mapear
+    Strava owner_id → cedula al limpiar datos del atleta.
+    Requiere migration 004_strava_athlete_id.sql en Supabase.
+    """
+    client = get_client()
+    if not client:
+        return _skipped()
+    try:
+        client.table("athletes").update(
+            {"strava_athlete_id": str(strava_athlete_id)}
+        ).eq("cedula", cedula).execute()
+        return _ok(f"athletes.strava_athlete_id={strava_athlete_id}")
+    except Exception as exc:
+        return _err(f"athletes.strava_athlete_id: {exc}")
+
+
 def push_profile(cedula: str, athlete_dir: Path) -> dict:
     """Upsert athlete_profiles desde meta/profile.json."""
     client = get_client()
@@ -399,6 +418,11 @@ def push_all(cedula: str, athlete_dir: Path) -> dict:
     Retorna un resumen de los resultados por tabla.
     Si Supabase no está configurado, todas las operaciones retornan 'skipped'.
 
+    NOTA: push_activities NO se incluye intencionalmente.
+    Las actividades raw de Strava se sirven desde el parquet local para reducir
+    la exposición de Strava Data en almacenamiento de terceros (§2.9 / §7 Strava API Agreement).
+    Para push explícito de actividades, llamar push_activities() directamente.
+
     Uso típico (después de que el pipeline haya corrido):
         from src.storage.writer import push_all
         from pathlib import Path
@@ -415,7 +439,6 @@ def push_all(cedula: str, athlete_dir: Path) -> dict:
         "weekly_features": push_weekly_features(cedula, athlete_dir),
         "plan":            push_plan(cedula, athlete_dir),
         "checkin":         push_checkin(cedula, athlete_dir),
-        "activities":      push_activities(cedula, athlete_dir),
     }
 
     all_ok = all(v["ok"] for v in results.values())

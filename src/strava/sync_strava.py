@@ -219,6 +219,18 @@ def main():
         acts = fetch_activities(access_token, after_dt, before_dt)
         print(f"   📥 Actividades recibidas: {len(acts)}")
 
+        # 2b) Persistir strava_athlete_id → para que el webhook de deauthorize
+        #     pueda mapear Strava owner_id → cedula y limpiar los datos correctos.
+        if acts:
+            strava_athlete_id = str(acts[0].get("athlete", {}).get("id", ""))
+            if strava_athlete_id:
+                try:
+                    from src.storage.writer import push_athlete_strava_id
+                    push_athlete_strava_id(cedula, strava_athlete_id)
+                    print(f"   ✅ strava_athlete_id={strava_athlete_id} guardado en Supabase")
+                except Exception as _exc:
+                    print(f"   ⚠️  No se pudo guardar strava_athlete_id: {_exc}")
+
         # 3) Guardar RAW (tal cual, en parquet)
         paths = ensure_dirs(data_dir, cedula)
         raw_path = paths["raw"] / "strava_activities_raw.parquet"

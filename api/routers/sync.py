@@ -142,9 +142,8 @@ def _run_pipeline_and_push(
             # No abortar — features/plan pueden correr con datos previos de Supabase
             print(f"[sync] ⚠️ strava FALLÓ: {exc} — continuando con features/plan")
 
-        if do_push and stages.get("strava") == "ok":
-            from src.storage.writer import push_activities
-            _try_push(pushes, "activities", push_activities, cedula, athlete_dir)
+        # push_activities omitted: raw Strava activity data is served from local parquet
+        # to minimize third-party storage of Strava Data (§2.9/§7 Strava API Agreement).
 
     # ── 3. FEATURES ──────────────────────────────────────────────────────────
     if "features" in steps:
