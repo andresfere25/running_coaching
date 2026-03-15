@@ -171,21 +171,18 @@ def upsert_by_activity_id(existing: pd.DataFrame, new: pd.DataFrame) -> pd.DataF
 
 def _sync_athlete_core(
     cedula: str,
+    access_token: str,
     refresh_token_in: str,
     last_sync_dt: "datetime | None",
     data_dir: Path,
     now: datetime,
 ) -> dict:
     """
-    Ejecuta el sync completo para un atleta dado su refresh_token.
-    Retorna dict con new_refresh y new_expires_at para que el llamador
-    actualice el token rotado donde corresponda (Supabase o Sheets).
+    Ejecuta el sync completo para un atleta dado un access_token ya válido.
+    El llamador es responsable de obtener/refrescar el token ANTES de llamar
+    esta función y de persistir el nuevo token si hubo rotación.
     """
-    # 1) Refresh access token
-    token_json    = refresh_access_token(refresh_token_in)
-    access_token  = token_json.get("access_token")
-    new_refresh   = token_json.get("refresh_token") or refresh_token_in
-    new_expires   = token_json.get("expires_at")
+    new_refresh = refresh_token_in  # se retorna para que el llamador actualice si rotó
 
     # 2) Ventana incremental
     if last_sync_dt is None:
@@ -232,7 +229,7 @@ def _sync_athlete_core(
     print(f"   ✅ RAW: {raw_path}")
     print(f"   ✅ SILVER: {silver_path}")
 
-    return {"access_token": access_token, "new_refresh": new_refresh, "new_expires": new_expires}
+    return {"access_token": access_token, "new_refresh": new_refresh}
 
 
 # ─── Path A: Supabase (cedula-específico) ────────────────────────────────────
@@ -271,23 +268,38 @@ def _sync_via_supabase(cedula: str, data_dir: Path) -> None:
             f"Llama primero a POST /athletes/{cedula}/strava/token con las credenciales del portal."
         )
 
-    refresh_token_in = token_row["strava_refresh_token"]
-    last_sync_raw    = token_row.get("strava_last_sync_at")
-    last_sync_dt     = parse_last_sync_date(str(last_sync_raw)) if last_sync_raw else None
+    refresh_token = token_row["strava_refresh_token"]
+    last_sync_raw = token_row.get("strava_last_sync_at")
+    last_sync_dt  = parse_last_sync_date(str(last_sync_raw)) if last_sync_raw else None
 
-    now    = datetime.now(tz=BOGOTA_TZ)
-    result = _sync_athlete_core(cedula, refresh_token_in, last_sync_dt, data_dir, now)
+    now      = datetime.now(tz=BOGOTA_TZ)
+    now_unix = int(now.timestamp())
 
-    # Actualizar tokens rotados y last_sync en Supabase
+    # Reusar access_token si aún es válido (margen 5 min); solo refrescar si expiró
+    cached_access  = token_row.get("strava_access_token")
+    cached_expires = int(token_row.get("strava_token_expires_at") or 0)
+
     from src.storage.writer import push_strava_tokens, push_strava_last_sync
-    push_strava_tokens(
-        cedula,
-        access_token=result["access_token"],
-        refresh_token=result["new_refresh"],
-        expires_at=result["new_expires"] or 0,
-    )
+
+    if cached_access and now_unix < cached_expires - 300:
+        print(f"[sync_strava] ♻️  Reutilizando access_token (expira en {cached_expires - now_unix}s)")
+        access_token  = cached_access
+        new_expires   = cached_expires
+    else:
+        print(f"[sync_strava] 🔄 Refrescando access_token (expirado o ausente)")
+        tok = refresh_access_token(refresh_token)
+        access_token  = tok["access_token"]
+        refresh_token = tok["refresh_token"]   # Strava rota el refresh_token
+        new_expires   = tok["expires_at"]
+        # Persistir INMEDIATAMENTE para no perder el token rotado si algo falla después
+        push_strava_tokens(cedula, access_token=access_token,
+                           refresh_token=refresh_token, expires_at=new_expires)
+        print(f"[sync_strava] ✅ Nuevo token persistido en Supabase (expires_at={new_expires})")
+
+    _sync_athlete_core(cedula, access_token, refresh_token, last_sync_dt, data_dir, now)
+
     push_strava_last_sync(cedula)
-    print(f"   ✅ Token rotado y last_sync_at actualizados en Supabase para cedula={cedula}")
+    print(f"   ✅ last_sync_at actualizado en Supabase para cedula={cedula}")
 
 
 # ─── Path B: Google Sheets (sync global — pipeline semanal) ──────────────────
@@ -332,14 +344,21 @@ def _sync_via_sheets(data_dir: Path) -> None:
             continue
 
         last_sync_dt = parse_last_sync_date(last_sync_raw)
-        result       = _sync_athlete_core(cedula, refresh_token, last_sync_dt, data_dir, now)
+
+        # Refrescar token fuera del core (Sheets siempre refresca — no hay caché)
+        tok          = refresh_access_token(refresh_token)
+        access_token = tok["access_token"]
+        new_refresh  = tok["refresh_token"]
+        new_expires  = tok["expires_at"]
+
+        _sync_athlete_core(cedula, access_token, new_refresh, last_sync_dt, data_dir, now)
 
         # 5) Actualizar Sheets con token rotado + last_sync_date
-        df_tokens.loc[idx, "refresh_token"] = result["new_refresh"]
+        df_tokens.loc[idx, "refresh_token"] = new_refresh
         df_tokens.loc[idx, "last_sync_date"] = now.isoformat(timespec="seconds")
         updated_any = True
-        if "expires_at" in df_tokens.columns and result["new_expires"]:
-            df_tokens.loc[idx, "expires_at"] = str(result["new_expires"])
+        if "expires_at" in df_tokens.columns and new_expires:
+            df_tokens.loc[idx, "expires_at"] = str(new_expires)
         print(f"   ✅ last_sync_date actualizado en Sheets: {now.isoformat(timespec='seconds')}")
 
     if updated_any:
