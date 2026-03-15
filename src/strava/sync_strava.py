@@ -258,6 +258,21 @@ def _get_token_from_supabase(cedula: str) -> "dict | None":
     return None
 
 
+def _refresh_and_persist(cedula: str, refresh_token: str, push_fn) -> tuple[str, str, int]:
+    """
+    Llama a Strava para rotar el token, persiste inmediatamente en Supabase y
+    retorna (access_token, refresh_token, expires_at).
+    Llama a push_fn(access_token, refresh_token, expires_at) para persistir.
+    """
+    tok = refresh_access_token(refresh_token)
+    new_access   = tok["access_token"]
+    new_refresh  = tok["refresh_token"]
+    new_expires  = int(tok["expires_at"])
+    push_fn(access_token=new_access, refresh_token=new_refresh, expires_at=new_expires)
+    print(f"[sync_strava] ✅ Tokens rotados y persistidos en Supabase (expires_at={new_expires})")
+    return new_access, new_refresh, new_expires
+
+
 def _sync_via_supabase(cedula: str, data_dir: Path) -> None:
     """Sync Strava para un atleta específico leyendo tokens de Supabase."""
     print(f"[sync_strava] 🗄️  Leyendo token desde Supabase para cedula={cedula}")
@@ -275,28 +290,44 @@ def _sync_via_supabase(cedula: str, data_dir: Path) -> None:
     now      = datetime.now(tz=BOGOTA_TZ)
     now_unix = int(now.timestamp())
 
-    # Reusar access_token si aún es válido (margen 5 min); solo refrescar si expiró
     cached_access  = token_row.get("strava_access_token")
     cached_expires = int(token_row.get("strava_token_expires_at") or 0)
 
     from src.storage.writer import push_strava_tokens, push_strava_last_sync
 
+    def _persist(access_token, refresh_token, expires_at):
+        push_strava_tokens(cedula, access_token=access_token,
+                           refresh_token=refresh_token, expires_at=expires_at)
+
+    print(
+        f"[sync_strava] 📋 Token Supabase: "
+        f"expires_at={cached_expires} | now_unix={now_unix} | "
+        f"margen={cached_expires - now_unix}s | access_token={'presente' if cached_access else 'AUSENTE'}"
+    )
+
     if cached_access and now_unix < cached_expires - 300:
         print(f"[sync_strava] ♻️  Reutilizando access_token (expira en {cached_expires - now_unix}s)")
-        access_token  = cached_access
-        new_expires   = cached_expires
+        access_token = cached_access
     else:
-        print(f"[sync_strava] 🔄 Refrescando access_token (expirado o ausente)")
-        tok = refresh_access_token(refresh_token)
-        access_token  = tok["access_token"]
-        refresh_token = tok["refresh_token"]   # Strava rota el refresh_token
-        new_expires   = tok["expires_at"]
-        # Persistir INMEDIATAMENTE para no perder el token rotado si algo falla después
-        push_strava_tokens(cedula, access_token=access_token,
-                           refresh_token=refresh_token, expires_at=new_expires)
-        print(f"[sync_strava] ✅ Nuevo token persistido en Supabase (expires_at={new_expires})")
+        print(f"[sync_strava] 🔄 Token expirado o ausente — refrescando")
+        access_token, refresh_token, _ = _refresh_and_persist(cedula, refresh_token, _persist)
 
-    _sync_athlete_core(cedula, access_token, refresh_token, last_sync_dt, data_dir, now)
+    # Intentar sync; si Strava rechaza con 401 (token stale a pesar de expires_at),
+    # forzar refresh y reintentar UNA sola vez.
+    try:
+        _sync_athlete_core(cedula, access_token, refresh_token, last_sync_dt, data_dir, now)
+    except RuntimeError as exc:
+        if "401" in str(exc):
+            print(
+                f"[sync_strava] ⚠️  access_token rechazado por Strava (401) — "
+                f"el token en Supabase está stale aunque expires_at parezca válido. "
+                f"Forzando refresh y reintentando..."
+            )
+            access_token, refresh_token, _ = _refresh_and_persist(cedula, refresh_token, _persist)
+            print(f"[sync_strava] 🔁 Reintentando sync con token fresco")
+            _sync_athlete_core(cedula, access_token, refresh_token, last_sync_dt, data_dir, now)
+        else:
+            raise
 
     push_strava_last_sync(cedula)
     print(f"   ✅ last_sync_at actualizado en Supabase para cedula={cedula}")
