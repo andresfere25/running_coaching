@@ -130,11 +130,15 @@ def _run_pipeline_and_push(
             _try_push(pushes, "profile", push_profile, cedula, athlete_dir)
             _try_push(pushes, "checkin", push_checkin, cedula, athlete_dir)
 
-    # ── 2. STRAVA (global — una sola vez por ejecución) ──────────────────────
+    # ── 2. STRAVA ─────────────────────────────────────────────────────────────
+    # Si el paso "strava" es el único solicitado, usar path Supabase-first
+    # (lee tokens desde athletes.strava_refresh_token, sin depender de Sheets).
+    # Si se llama desde el pipeline global (ingest+features+plan), comportamiento previo.
     if "strava" in steps and not skip_strava:
         try:
             from src.strava.sync_strava import main as sync_strava
-            sync_strava()
+            # Pasar cedula para activar el path Supabase cuando es un sync específico
+            sync_strava(cedula=cedula)
             stages["strava"] = "ok"
             print("[sync] ✅ strava OK")
         except Exception as exc:

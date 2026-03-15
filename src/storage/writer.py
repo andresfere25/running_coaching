@@ -78,6 +78,50 @@ def push_athlete(cedula: str, name: str | None = None) -> dict:
         return _err(f"athletes: {exc}")
 
 
+def push_strava_tokens(
+    cedula: str,
+    access_token: str,
+    refresh_token: str,
+    expires_at: int,
+) -> dict:
+    """
+    Persiste los tokens de Strava para un atleta en Supabase.
+    Llamado por el portal (ar-athletes-portal) tras completar OAuth,
+    y por sync_strava tras rotar el refresh_token.
+    Requiere migration 005_strava_tokens.sql en Supabase.
+    """
+    client = get_client()
+    if not client:
+        return _skipped()
+    try:
+        client.table("athletes").upsert(
+            {
+                "cedula":                  cedula,
+                "strava_access_token":     access_token,
+                "strava_refresh_token":    refresh_token,
+                "strava_token_expires_at": expires_at,
+            },
+            on_conflict="cedula",
+        ).execute()
+        return _ok(f"athletes.strava_tokens updated for cedula={cedula}")
+    except Exception as exc:
+        return _err(f"athletes.strava_tokens: {exc}")
+
+
+def push_strava_last_sync(cedula: str) -> dict:
+    """Actualiza strava_last_sync_at a NOW() en Supabase."""
+    client = get_client()
+    if not client:
+        return _skipped()
+    try:
+        client.table("athletes").update(
+            {"strava_last_sync_at": datetime.utcnow().isoformat()},
+        ).eq("cedula", cedula).execute()
+        return _ok(f"athletes.strava_last_sync_at updated for cedula={cedula}")
+    except Exception as exc:
+        return _err(f"athletes.strava_last_sync_at: {exc}")
+
+
 def push_athlete_strava_id(cedula: str, strava_athlete_id: str) -> dict:
     """
     Persiste el strava_athlete_id en la tabla athletes.

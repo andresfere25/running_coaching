@@ -20,6 +20,7 @@ import duckdb
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from api.deps import get_athlete_dir, get_data_dir, require_api_key, sanitize_json
 from src.storage.reader import read_snapshot, read_plan, read_features, read_checkin, read_activities, read_profile
@@ -608,3 +609,32 @@ def get_report_pdf(
         media_type="application/pdf",
         filename=f"coaching_report_{cedula}_{latest_pdf.stem}.pdf",
     )
+
+
+# ─── Strava token ingestion (called by ar-athletes-portal after OAuth) ────────
+
+class StravaTokenBody(BaseModel):
+    access_token:  str
+    refresh_token: str
+    expires_at:    int  # unix timestamp
+
+
+@router.post("/{cedula}/strava/token")
+def store_strava_token(
+    cedula: str,
+    body:   StravaTokenBody,
+    _:      None = Depends(require_api_key),
+):
+    """
+    Recibe y persiste los tokens de Strava en Supabase para un atleta.
+    Llamado por ar-athletes-portal tras completar el flujo OAuth.
+    Requiere migration 005_strava_tokens.sql aplicada en Supabase.
+
+    Después de llamar este endpoint, el step strava del sync leerá
+    los tokens desde Supabase en lugar de Google Sheets.
+    """
+    from src.storage.writer import push_strava_tokens
+    result = push_strava_tokens(cedula, body.access_token, body.refresh_token, body.expires_at)
+    if not result.get("ok"):
+        raise HTTPException(status_code=500, detail=result.get("detail", "Error writing tokens"))
+    return {"ok": True, "cedula": cedula, "detail": result.get("detail")}

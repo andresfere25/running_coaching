@@ -167,12 +167,138 @@ def upsert_by_activity_id(existing: pd.DataFrame, new: pd.DataFrame) -> pd.DataF
     return out
 
 
-def main():
+# ─── Núcleo compartido: sincronizar un atleta ────────────────────────────────
+
+def _sync_athlete_core(
+    cedula: str,
+    refresh_token_in: str,
+    last_sync_dt: "datetime | None",
+    data_dir: Path,
+    now: datetime,
+) -> dict:
+    """
+    Ejecuta el sync completo para un atleta dado su refresh_token.
+    Retorna dict con new_refresh y new_expires_at para que el llamador
+    actualice el token rotado donde corresponda (Supabase o Sheets).
+    """
+    # 1) Refresh access token
+    token_json    = refresh_access_token(refresh_token_in)
+    access_token  = token_json.get("access_token")
+    new_refresh   = token_json.get("refresh_token") or refresh_token_in
+    new_expires   = token_json.get("expires_at")
+
+    # 2) Ventana incremental
+    if last_sync_dt is None:
+        after_dt = now - timedelta(days=365)
+    else:
+        after_dt = last_sync_dt - timedelta(days=2)
+    before_dt = now + timedelta(days=1)
+
+    print(f"\n🔄 Sync Strava cedula={cedula} after={after_dt.date()} before={before_dt.date()}")
+
+    # 2b) Persistir strava_athlete_id en Supabase
+    try:
+        strava_athlete_id = fetch_athlete_id(access_token)
+        if strava_athlete_id:
+            from src.storage.writer import push_athlete_strava_id
+            r = push_athlete_strava_id(cedula, strava_athlete_id)
+            print(f"   ✅ strava_athlete_id={strava_athlete_id} guardado en Supabase ({r})")
+        else:
+            print(f"   ⚠️  GET /athlete no devolvió id para cedula={cedula}")
+    except Exception as _exc:
+        print(f"   ⚠️  No se pudo obtener/guardar strava_athlete_id: {_exc}")
+
+    acts = fetch_activities(access_token, after_dt, before_dt)
+    print(f"   📥 Actividades recibidas: {len(acts)}")
+
+    # 3) Guardar RAW
+    paths    = ensure_dirs(data_dir, cedula)
+    raw_path = paths["raw"] / "strava_activities_raw.parquet"
+    df_raw_new = pd.DataFrame(acts)
+    df_raw_old = read_parquet_duckdb(raw_path)
+    if not df_raw_old.empty and "id" in df_raw_old.columns and "id" in df_raw_new.columns:
+        df_raw_all = pd.concat([df_raw_old, df_raw_new], ignore_index=True).drop_duplicates(subset=["id"], keep="last")
+    else:
+        df_raw_all = df_raw_new if df_raw_old.empty else pd.concat([df_raw_old, df_raw_new], ignore_index=True)
+    write_parquet_duckdb(df_raw_all, raw_path)
+
+    # 4) Guardar SILVER
+    silver_path = paths["silver"] / "activities.parquet"
+    df_new  = normalize_activities(acts, cedula)
+    df_old  = read_parquet_duckdb(silver_path)
+    df_all  = upsert_by_activity_id(df_old, df_new)
+    write_parquet_duckdb(df_all, silver_path)
+
+    print(f"   ✅ RAW: {raw_path}")
+    print(f"   ✅ SILVER: {silver_path}")
+
+    return {"access_token": access_token, "new_refresh": new_refresh, "new_expires": new_expires}
+
+
+# ─── Path A: Supabase (cedula-específico) ────────────────────────────────────
+
+def _get_token_from_supabase(cedula: str) -> "dict | None":
+    """Lee strava_refresh_token y strava_last_sync_at desde Supabase athletes."""
+    try:
+        from src.storage.supabase_client import get_client
+        client = get_client()
+        if not client:
+            return None
+        resp = (
+            client.table("athletes")
+            .select("strava_refresh_token,strava_access_token,strava_token_expires_at,strava_last_sync_at")
+            .eq("cedula", cedula)
+            .limit(1)
+            .execute()
+        )
+        if resp.data:
+            row = resp.data[0]
+            print(f"[sync_strava] Token Supabase: refresh={'***' if row.get('strava_refresh_token') else 'NULL'} last_sync={row.get('strava_last_sync_at')}")
+            if row.get("strava_refresh_token"):
+                return row
+    except Exception as exc:
+        print(f"[sync_strava] ⚠️  No se pudo leer token desde Supabase: {exc}")
+    return None
+
+
+def _sync_via_supabase(cedula: str, data_dir: Path) -> None:
+    """Sync Strava para un atleta específico leyendo tokens de Supabase."""
+    print(f"[sync_strava] 🗄️  Leyendo token desde Supabase para cedula={cedula}")
+    token_row = _get_token_from_supabase(cedula)
+    if not token_row:
+        raise RuntimeError(
+            f"No hay strava_refresh_token en Supabase para cedula={cedula}. "
+            f"Llama primero a POST /athletes/{cedula}/strava/token con las credenciales del portal."
+        )
+
+    refresh_token_in = token_row["strava_refresh_token"]
+    last_sync_raw    = token_row.get("strava_last_sync_at")
+    last_sync_dt     = parse_last_sync_date(str(last_sync_raw)) if last_sync_raw else None
+
+    now    = datetime.now(tz=BOGOTA_TZ)
+    result = _sync_athlete_core(cedula, refresh_token_in, last_sync_dt, data_dir, now)
+
+    # Actualizar tokens rotados y last_sync en Supabase
+    from src.storage.writer import push_strava_tokens, push_strava_last_sync
+    push_strava_tokens(
+        cedula,
+        access_token=result["access_token"],
+        refresh_token=result["new_refresh"],
+        expires_at=result["new_expires"] or 0,
+    )
+    push_strava_last_sync(cedula)
+    print(f"   ✅ Token rotado y last_sync_at actualizados en Supabase para cedula={cedula}")
+
+
+# ─── Path B: Google Sheets (sync global — pipeline semanal) ──────────────────
+
+def _sync_via_sheets(data_dir: Path) -> None:
+    """Sync Strava global leyendo tokens de Google Sheets (pipeline semanal)."""
     load_dotenv()
     sheet_id = os.getenv("SHEET_ID")
-    sa_json = os.getenv("GOOGLE_SA_JSON")
-    data_dir = Path(os.getenv("DATA_DIR", "data/athletes"))
+    sa_json  = os.getenv("GOOGLE_SA_JSON")
 
+    print(f"[sync_strava] 📊 Leyendo tokens desde Google Sheets (global sync)")
     sheet = open_sheet(sheet_id, sa_json)
 
     tokens_records = read_worksheet_as_records(sheet, TOKENS_TAB)
@@ -181,14 +307,12 @@ def main():
 
     df_tokens = pd.DataFrame(tokens_records)
 
-    # Validar headers mínimos
     required_cols = ["cedula", "refresh_token", "status (CONNECTED / REVOKED / ERROR)", "last_sync_date"]
     for c in required_cols:
         if c not in df_tokens.columns:
             raise RuntimeError(f"Falta columna '{c}' en strava_tokens.")
 
-    # Solo CONNECTED con refresh_token
-    df_tokens["_status"] = df_tokens["status (CONNECTED / REVOKED / ERROR)"].astype(str).str.strip().str.upper()
+    df_tokens["_status"]  = df_tokens["status (CONNECTED / REVOKED / ERROR)"].astype(str).str.strip().str.upper()
     df_tokens["_refresh"] = df_tokens["refresh_token"].astype(str).str.strip()
     df_connected = df_tokens[(df_tokens["_status"] == "CONNECTED") & (df_tokens["_refresh"] != "")].copy()
 
@@ -196,93 +320,53 @@ def main():
         print("ℹ️ No hay atletas CONNECTED con refresh_token.")
         return
 
-    now = datetime.now(tz=BOGOTA_TZ)
+    now         = datetime.now(tz=BOGOTA_TZ)
     updated_any = False
 
     for idx, row in df_connected.iterrows():
-        cedula = norm_str(row.get("cedula"))
+        cedula        = norm_str(row.get("cedula"))
         refresh_token = norm_str(row.get("refresh_token"))
         last_sync_raw = norm_str(row.get("last_sync_date"))
 
         if not cedula or not refresh_token:
             continue
 
-        # 1) Refresh access token (y capturar refresh token rotado)
-        token_json = refresh_access_token(refresh_token)
-        access_token = token_json.get("access_token")
-        new_refresh = token_json.get("refresh_token") or refresh_token  # si rota, actualizar
-        expires_at = token_json.get("expires_at")
-
-        # 2) Ventana incremental:
-        # si no hay last_sync_date -> bootstrap 365 días
         last_sync_dt = parse_last_sync_date(last_sync_raw)
-        if last_sync_dt is None:
-            after_dt = now - timedelta(days=365)
-        else:
-            # buffer 2 días por seguridad
-            after_dt = last_sync_dt - timedelta(days=2)
+        result       = _sync_athlete_core(cedula, refresh_token, last_sync_dt, data_dir, now)
 
-        before_dt = now + timedelta(days=1)
-
-        print(f"\n🔄 Sync Strava cedula={cedula} after={after_dt.date()} before={before_dt.date()}")
-
-        # 2b) Persistir strava_athlete_id → para que el webhook de deauthorize
-        #     pueda mapear Strava owner_id → cedula y limpiar los datos correctos.
-        #     Se obtiene via GET /athlete (no depende de que haya actividades).
-        try:
-            strava_athlete_id = fetch_athlete_id(access_token)
-            if strava_athlete_id:
-                from src.storage.writer import push_athlete_strava_id
-                result = push_athlete_strava_id(cedula, strava_athlete_id)
-                print(f"   ✅ strava_athlete_id={strava_athlete_id} guardado en Supabase ({result})")
-            else:
-                print(f"   ⚠️  GET /athlete no devolvió id para cedula={cedula}")
-        except Exception as _exc:
-            print(f"   ⚠️  No se pudo obtener/guardar strava_athlete_id: {_exc}")
-
-        acts = fetch_activities(access_token, after_dt, before_dt)
-        print(f"   📥 Actividades recibidas: {len(acts)}")
-
-        # 3) Guardar RAW (tal cual, en parquet)
-        paths = ensure_dirs(data_dir, cedula)
-        raw_path = paths["raw"] / "strava_activities_raw.parquet"
-        df_raw_new = pd.DataFrame(acts)
-        # raw upsert por 'id' si existe
-        df_raw_old = read_parquet_duckdb(raw_path)
-        if not df_raw_old.empty and "id" in df_raw_old.columns and "id" in df_raw_new.columns:
-            df_raw_all = pd.concat([df_raw_old, df_raw_new], ignore_index=True).drop_duplicates(subset=["id"], keep="last")
-        else:
-            df_raw_all = df_raw_new if df_raw_old.empty else pd.concat([df_raw_old, df_raw_new], ignore_index=True)
-        write_parquet_duckdb(df_raw_all, raw_path)
-
-        # 4) Guardar SILVER (normalizado + upsert por activity_id)
-        silver_path = paths["silver"] / "activities.parquet"
-        df_new = normalize_activities(acts, cedula)
-        df_old = read_parquet_duckdb(silver_path)
-        df_all = upsert_by_activity_id(df_old, df_new)
-        write_parquet_duckdb(df_all, silver_path)
-
-        # 5) Actualizar strava_tokens: refresh token rotado + last_sync_date
-        df_tokens.loc[idx, "refresh_token"] = new_refresh
+        # 5) Actualizar Sheets con token rotado + last_sync_date
+        df_tokens.loc[idx, "refresh_token"] = result["new_refresh"]
         df_tokens.loc[idx, "last_sync_date"] = now.isoformat(timespec="seconds")
         updated_any = True
+        if "expires_at" in df_tokens.columns and result["new_expires"]:
+            df_tokens.loc[idx, "expires_at"] = str(result["new_expires"])
+        print(f"   ✅ last_sync_date actualizado en Sheets: {now.isoformat(timespec='seconds')}")
 
-        # opcional: guardar expires_at (si agregas columna)
-        if "expires_at" in df_tokens.columns and expires_at:
-            df_tokens.loc[idx, "expires_at"] = str(expires_at)
-
-        print(f"   ✅ Guardado RAW: {raw_path}")
-        print(f"   ✅ Guardado SILVER: {silver_path}")
-        print(f"   ✅ last_sync_date actualizado: {now.isoformat(timespec='seconds')}")
-
-    # 6) Escribir strava_tokens actualizado (solo si hubo updates)
     if updated_any:
-        # limpiar columnas auxiliares
         df_tokens = df_tokens.drop(columns=["_status", "_refresh"], errors="ignore")
         write_worksheet_from_df(sheet, TOKENS_TAB, df_tokens)
-        print("\n✅ strava_tokens actualizado automáticamente (refresh_token/last_sync_date).")
+        print("\n✅ strava_tokens actualizado en Google Sheets.")
     else:
         print("\nℹ️ No hubo actualizaciones.")
+
+
+# ─── Entrada principal ────────────────────────────────────────────────────────
+
+def main(cedula: "str | None" = None) -> None:
+    """
+    Sincroniza actividades de Strava.
+
+    Si cedula es provisto: lee tokens desde Supabase (portal OAuth path).
+    Si cedula es None:     lee tokens desde Google Sheets (pipeline semanal global).
+    """
+    load_dotenv()
+    data_dir = Path(os.getenv("DATA_DIR", "data/athletes"))
+
+    if cedula:
+        _sync_via_supabase(cedula, data_dir)
+    else:
+        _sync_via_sheets(data_dir)
+
 
 if __name__ == "__main__":
     main()
