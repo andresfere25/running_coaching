@@ -197,7 +197,7 @@ def sync_athlete(
         list[str],
         Query(description="Pasos del pipeline. Default: ingest, features, plan.")
     ] = ["ingest", "features", "plan"],
-    skip_strava: bool = Query(default=True,  description="Omitir sync de Strava (default: True)"),
+    skip_strava: bool = Query(default=False, description="Omitir sync de Strava (default: False)"),
     push:        bool = Query(default=True,  description="Hacer push a Supabase después de cada paso"),
     _: None = Depends(require_api_key),
 ):

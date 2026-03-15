@@ -89,9 +89,10 @@ def push_athlete_strava_id(cedula: str, strava_athlete_id: str) -> dict:
     if not client:
         return _skipped()
     try:
-        client.table("athletes").update(
-            {"strava_athlete_id": str(strava_athlete_id)}
-        ).eq("cedula", cedula).execute()
+        client.table("athletes").upsert(
+            {"cedula": cedula, "strava_athlete_id": str(strava_athlete_id)},
+            on_conflict="cedula",
+        ).execute()
         return _ok(f"athletes.strava_athlete_id={strava_athlete_id}")
     except Exception as exc:
         return _err(f"athletes.strava_athlete_id: {exc}")

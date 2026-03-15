@@ -16,6 +16,16 @@ from src.strava.strava_client import refresh_access_token
 TOKENS_TAB = "strava_tokens"
 
 STRAVA_ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities"
+STRAVA_ATHLETE_URL    = "https://www.strava.com/api/v3/athlete"
+
+
+def fetch_athlete_id(access_token: str) -> str:
+    """Obtiene el athlete.id de Strava via GET /athlete."""
+    headers = {"Authorization": f"Bearer {access_token}"}
+    r = requests.get(STRAVA_ATHLETE_URL, headers=headers, timeout=30)
+    if r.status_code != 200:
+        raise RuntimeError(f"Strava GET /athlete failed ({r.status_code}): {r.text}")
+    return str(r.json().get("id", ""))
 
 
 def write_parquet_duckdb(df: pd.DataFrame, path: Path) -> None:
@@ -216,20 +226,22 @@ def main():
 
         print(f"\n🔄 Sync Strava cedula={cedula} after={after_dt.date()} before={before_dt.date()}")
 
-        acts = fetch_activities(access_token, after_dt, before_dt)
-        print(f"   📥 Actividades recibidas: {len(acts)}")
-
         # 2b) Persistir strava_athlete_id → para que el webhook de deauthorize
         #     pueda mapear Strava owner_id → cedula y limpiar los datos correctos.
-        if acts:
-            strava_athlete_id = str(acts[0].get("athlete", {}).get("id", ""))
+        #     Se obtiene via GET /athlete (no depende de que haya actividades).
+        try:
+            strava_athlete_id = fetch_athlete_id(access_token)
             if strava_athlete_id:
-                try:
-                    from src.storage.writer import push_athlete_strava_id
-                    push_athlete_strava_id(cedula, strava_athlete_id)
-                    print(f"   ✅ strava_athlete_id={strava_athlete_id} guardado en Supabase")
-                except Exception as _exc:
-                    print(f"   ⚠️  No se pudo guardar strava_athlete_id: {_exc}")
+                from src.storage.writer import push_athlete_strava_id
+                result = push_athlete_strava_id(cedula, strava_athlete_id)
+                print(f"   ✅ strava_athlete_id={strava_athlete_id} guardado en Supabase ({result})")
+            else:
+                print(f"   ⚠️  GET /athlete no devolvió id para cedula={cedula}")
+        except Exception as _exc:
+            print(f"   ⚠️  No se pudo obtener/guardar strava_athlete_id: {_exc}")
+
+        acts = fetch_activities(access_token, after_dt, before_dt)
+        print(f"   📥 Actividades recibidas: {len(acts)}")
 
         # 3) Guardar RAW (tal cual, en parquet)
         paths = ensure_dirs(data_dir, cedula)
