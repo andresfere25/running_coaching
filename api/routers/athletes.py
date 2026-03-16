@@ -633,8 +633,15 @@ def store_strava_token(
     Después de llamar este endpoint, el step strava del sync leerá
     los tokens desde Supabase en lugar de Google Sheets.
     """
+    import time
+    print(
+        f"[/strava/token] Recibido para cedula={cedula}: "
+        f"expires_at={body.expires_at} (margen={(body.expires_at - int(time.time()))}s) | "
+        f"access_token=…{body.access_token[-6:]} | refresh_token=…{body.refresh_token[-6:]}"
+    )
     from src.storage.writer import push_strava_tokens
     result = push_strava_tokens(cedula, body.access_token, body.refresh_token, body.expires_at)
+    print(f"[/strava/token] push_strava_tokens result: {result}")
     if not result.get("ok"):
         raise HTTPException(status_code=500, detail=result.get("detail", "Error writing tokens"))
     return {"ok": True, "cedula": cedula, "detail": result.get("detail")}
