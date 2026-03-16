@@ -611,6 +611,45 @@ def get_report_pdf(
     )
 
 
+# ─── Strava token status (read-only — para validar que Supabase tiene tokens) ──
+
+@router.get("/{cedula}/strava/token-status")
+def strava_token_status(cedula: str, _: None = Depends(require_api_key)):
+    """
+    Lee el estado de los tokens de Strava desde Supabase.
+    Solo muestra sufijos (últimos 6 chars) — nunca expone tokens completos.
+    Usado para validar que POST /strava/token realmente escribió en Supabase.
+    """
+    from src.storage.supabase_client import get_client
+    client = get_client()
+    if not client:
+        return {"ok": False, "detail": "Supabase not configured"}
+    try:
+        resp = (
+            client.table("athletes")
+            .select("cedula,strava_access_token,strava_refresh_token,strava_token_expires_at,strava_last_sync_at")
+            .eq("cedula", cedula)
+            .limit(1)
+            .execute()
+        )
+        if not resp.data:
+            return {"ok": False, "detail": f"Athlete {cedula} not found in Supabase"}
+        row = resp.data[0]
+        at  = row.get("strava_access_token")  or ""
+        rt  = row.get("strava_refresh_token") or ""
+        return {
+            "ok":      True,
+            "cedula":  cedula,
+            "access_token_suffix":   f"…{at[-6:]}"  if at  else None,
+            "refresh_token_suffix":  f"…{rt[-6:]}"  if rt  else None,
+            "expires_at":            row.get("strava_token_expires_at"),
+            "last_sync_at":          row.get("strava_last_sync_at"),
+            "is_test_token":         at.startswith("BRIDGE_TEST_") if at else False,
+        }
+    except Exception as exc:
+        return {"ok": False, "detail": str(exc)}
+
+
 # ─── Strava token ingestion (called by ar-athletes-portal after OAuth) ────────
 
 class StravaTokenBody(BaseModel):
