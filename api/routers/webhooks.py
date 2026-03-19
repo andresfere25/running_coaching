@@ -114,7 +114,16 @@ async def strava_webhook_event(request: Request, background: BackgroundTasks):
         background.add_task(_handle_activity_delete, int(owner_id), int(object_id))
         return {"ok": True}
 
-    # Other events (create/update) — next scheduled sync will pick them up.
+    # ── Activity create → trigger pipeline en background ─────────────────────
+    if (
+        object_type == "activity"
+        and aspect_type == "create"
+        and owner_id is not None
+    ):
+        background.add_task(_handle_activity_create, int(owner_id))
+        return {"ok": True}
+
+    # Other events (update) — next scheduled sync will pick them up.
     return {"ok": True}
 
 
@@ -350,6 +359,32 @@ def _remove_activity_from_parquet(cedula: str, activity_id: int) -> None:
             )
     except Exception as exc:
         logger.warning("[webhook/delete] Failed to update parquet: %s", exc)
+
+
+def _handle_activity_create(strava_athlete_id: int) -> None:
+    """
+    Dispara el pipeline completo cuando Strava notifica una actividad nueva.
+    Busca la cédula del atleta y corre strava → features → plan con push a Supabase.
+    """
+    logger.info("[webhook/create] nueva actividad strava_id=%s", strava_athlete_id)
+
+    cedula = _find_cedula(strava_athlete_id)
+    if not cedula:
+        logger.warning("[webhook/create] strava_id=%s no encontrado — ignorando", strava_athlete_id)
+        return
+
+    logger.info("[webhook/create] disparando pipeline para cedula=%s", cedula)
+    try:
+        from api.routers.sync import _run_pipeline_and_push
+        result = _run_pipeline_and_push(
+            cedula,
+            steps=["strava", "features", "plan"],
+            skip_strava=False,
+            push_to_supabase=True,
+        )
+        logger.info("[webhook/create] pipeline cedula=%s ok=%s", cedula, result.get("ok"))
+    except Exception as exc:
+        logger.error("[webhook/create] pipeline cedula=%s falló: %s", cedula, exc)
 
 
 def _remove_activity_from_supabase(activity_id: int) -> None:
