@@ -146,8 +146,13 @@ def _run_pipeline_and_push(
             # No abortar — features/plan pueden correr con datos previos de Supabase
             print(f"[sync] ⚠️ strava FALLÓ: {exc} — continuando con features/plan")
 
-        # push_activities omitted: raw Strava activity data is served from local parquet
-        # to minimize third-party storage of Strava Data (§2.9/§7 Strava API Agreement).
+        if do_push and stages.get("strava") == "ok":
+            from src.storage.writer import push_activities as _push_acts
+            silver_path = athlete_dir / "silver" / "activities.parquet"
+            if silver_path.exists():
+                import duckdb, pandas as _pd
+                df_acts = duckdb.query(f"SELECT * FROM '{silver_path.as_posix()}'").df()
+                _try_push(pushes, "activities", lambda c, _: _push_acts(c, df_acts), cedula, athlete_dir)
 
     # ── 3. FEATURES ──────────────────────────────────────────────────────────
     # Si el parquet de actividades no existe (redeploy borró el disco),
