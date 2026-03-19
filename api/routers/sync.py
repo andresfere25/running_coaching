@@ -158,7 +158,8 @@ def _run_pipeline_and_push(
                     r = _push_acts(cedula, df_acts)
                     pushes["activities"] = r.get("detail", "ok")
                 except Exception as _exc:
-                    pushes["activities"] = f"error: {_exc}"
+                    import traceback
+                    pushes["activities"] = f"error: {_exc} | {traceback.format_exc()}"
 
     # ── 3. FEATURES ──────────────────────────────────────────────────────────
     # Si el parquet de actividades no existe (redeploy borró el disco),
