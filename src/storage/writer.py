@@ -269,6 +269,132 @@ def push_weekly_features(cedula: str, athlete_dir: Path) -> dict:
         return _err(f"weekly_features upsert: {exc}")
 
 
+def push_activities(cedula: str, df: "pd.DataFrame") -> dict:
+    """
+    Upsert activities (tabla Supabase) desde el silver DataFrame.
+    Schema alineado con reader.py: strava_id, activity_date, duration_sec, etc.
+    Llamado justo después de escribir el parquet local para que Supabase
+    sirva de respaldo cuando Railway redeploya y borra el disco.
+    """
+    client = get_client()
+    if not client:
+        return _skipped()
+
+    if df is None or df.empty:
+        return _ok("activities: 0 rows (empty)")
+
+    rows = []
+    for _, r in df.iterrows():
+        act_id = r.get("activity_id")
+        try:
+            act_id = int(act_id) if act_id is not None and str(act_id) != "<NA>" else None
+        except (ValueError, TypeError):
+            act_id = None
+        if not act_id:
+            continue
+        rows.append(_clean({
+            "strava_id":       act_id,
+            "cedula":          cedula,
+            "name":            r.get("name"),
+            "sport_type":      r.get("sport_type"),
+            "activity_date":   r.get("start_date_local"),
+            "distance_m":      r.get("distance_m"),
+            "duration_sec":    r.get("moving_time_s"),
+            "elevation_m":     r.get("total_elevation_gain_m"),
+            "avg_pace_sec_km": r.get("pace_sec_per_km"),
+            "raw": {
+                "average_heartrate": r.get("average_heartrate"),
+                "max_heartrate":     r.get("max_heartrate"),
+                "average_cadence":   r.get("average_cadence"),
+                "distance_km":       r.get("distance_km"),
+                "moving_time_min":   r.get("moving_time_min"),
+                "elapsed_time_s":    r.get("elapsed_time_s"),
+                "average_speed_m_s": r.get("average_speed_m_s"),
+            },
+        }))
+
+    if not rows:
+        return _ok("activities: 0 valid rows")
+
+    try:
+        batch_size = 500
+        for i in range(0, len(rows), batch_size):
+            client.table("activities").upsert(
+                rows[i:i + batch_size],
+                on_conflict="strava_id,cedula",
+            ).execute()
+        return _ok(f"activities: {len(rows)} rows upserted")
+    except Exception as exc:
+        return _err(f"activities upsert: {exc}")
+
+
+def restore_activities_to_parquet(cedula: str, athlete_dir: Path) -> bool:
+    """
+    Restaura el parquet silver de actividades desde Supabase tabla 'activities'.
+    Llamado al inicio del pipeline si el archivo local no existe (redeploy).
+    Mapea de vuelta al schema del silver parquet (activity_id, start_date_local, etc.).
+    Retorna True si se restauró algo.
+    """
+    client = get_client()
+    if not client:
+        return False
+
+    try:
+        result = (
+            client.table("activities")
+            .select("*")
+            .eq("cedula", cedula)
+            .order("activity_date", desc=False)
+            .execute()
+        )
+        rows = result.data
+        if not rows:
+            return False
+
+        import pandas as pd
+        import duckdb
+
+        # Mapear de vuelta al schema del silver parquet
+        mapped = []
+        for r in rows:
+            raw = r.get("raw") or {}
+            mapped.append({
+                "cedula":                 r.get("cedula"),
+                "activity_id":            r.get("strava_id"),
+                "name":                   r.get("name"),
+                "sport_type":             r.get("sport_type"),
+                "start_date":             r.get("activity_date"),
+                "start_date_local":       r.get("activity_date"),
+                "distance_m":             r.get("distance_m"),
+                "distance_km":            raw.get("distance_km"),
+                "moving_time_s":          r.get("duration_sec"),
+                "moving_time_min":        raw.get("moving_time_min"),
+                "elapsed_time_s":         raw.get("elapsed_time_s"),
+                "total_elevation_gain_m": r.get("elevation_m"),
+                "average_speed_m_s":      raw.get("average_speed_m_s"),
+                "max_speed_m_s":          None,
+                "average_heartrate":      raw.get("average_heartrate"),
+                "max_heartrate":          raw.get("max_heartrate"),
+                "average_cadence":        raw.get("average_cadence"),
+                "pace_sec_per_km":        r.get("avg_pace_sec_km"),
+            })
+
+        df = pd.DataFrame(mapped)
+        silver_path = athlete_dir / "silver" / "activities.parquet"
+        silver_path.parent.mkdir(parents=True, exist_ok=True)
+
+        con = duckdb.connect(database=":memory:")
+        con.register("df", df)
+        con.execute(f"COPY df TO '{silver_path.as_posix()}' (FORMAT 'parquet')")
+        con.close()
+
+        print(f"[storage] ♻️  Restauradas {len(rows)} actividades desde Supabase para cedula={cedula}")
+        return True
+    except Exception as exc:
+        print(f"[storage] ⚠️  No se pudo restaurar actividades desde Supabase: {exc}")
+        return False
+
+
 def push_plan(cedula: str, athlete_dir: Path) -> dict:
     """
     Upsert weekly_plans desde features/weekly_plan.json.

@@ -233,6 +233,13 @@ def _sync_athlete_core(
     df_all  = upsert_by_activity_id(df_old, df_new)
     if not df_all.empty:
         write_parquet_duckdb(df_all, silver_path)
+        # Persistir en Supabase para sobrevivir redeployments
+        try:
+            from src.storage.writer import push_activities
+            r = push_activities(cedula, df_all)
+            print(f"   ☁️  Supabase activities: {r.get('detail', r)}")
+        except Exception as _exc:
+            print(f"   ⚠️  No se pudo persistir actividades en Supabase: {_exc}")
 
     print(f"   ✅ RAW: {raw_path}")
     print(f"   ✅ SILVER: {silver_path}")

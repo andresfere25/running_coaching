@@ -150,6 +150,18 @@ def _run_pipeline_and_push(
         # to minimize third-party storage of Strava Data (§2.9/§7 Strava API Agreement).
 
     # ── 3. FEATURES ──────────────────────────────────────────────────────────
+    # Si el parquet de actividades no existe (redeploy borró el disco),
+    # intentar restaurarlo desde Supabase antes de calcular features.
+    if "features" in steps:
+        silver_path = athlete_dir / "silver" / "activities.parquet"
+        if not silver_path.exists() and is_configured():
+            from src.storage.writer import restore_activities_to_parquet
+            restored = restore_activities_to_parquet(cedula, athlete_dir)
+            if restored:
+                print(f"[sync] ♻️  Actividades restauradas desde Supabase para features")
+            else:
+                print(f"[sync] ⚠️  No se encontraron actividades en Supabase para restaurar")
+
     if "features" in steps:
         try:
             from src.features.build_features import main as build_features
