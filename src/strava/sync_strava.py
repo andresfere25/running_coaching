@@ -213,18 +213,22 @@ def _sync_athlete_core(
     raw_path = paths["raw"] / "strava_activities_raw.parquet"
     df_raw_new = pd.DataFrame(acts)
     df_raw_old = read_parquet_duckdb(raw_path)
-    if not df_raw_old.empty and "id" in df_raw_old.columns and "id" in df_raw_new.columns:
+    if df_raw_new.empty:
+        df_raw_all = df_raw_old  # sin actividades nuevas — conservar historial existente
+    elif not df_raw_old.empty and "id" in df_raw_old.columns and "id" in df_raw_new.columns:
         df_raw_all = pd.concat([df_raw_old, df_raw_new], ignore_index=True).drop_duplicates(subset=["id"], keep="last")
     else:
         df_raw_all = df_raw_new if df_raw_old.empty else pd.concat([df_raw_old, df_raw_new], ignore_index=True)
-    write_parquet_duckdb(df_raw_all, raw_path)
+    if not df_raw_all.empty:
+        write_parquet_duckdb(df_raw_all, raw_path)
 
     # 4) Guardar SILVER
     silver_path = paths["silver"] / "activities.parquet"
     df_new  = normalize_activities(acts, cedula)
     df_old  = read_parquet_duckdb(silver_path)
     df_all  = upsert_by_activity_id(df_old, df_new)
-    write_parquet_duckdb(df_all, silver_path)
+    if not df_all.empty:
+        write_parquet_duckdb(df_all, silver_path)
 
     print(f"   ✅ RAW: {raw_path}")
     print(f"   ✅ SILVER: {silver_path}")
