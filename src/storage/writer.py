@@ -269,63 +269,6 @@ def push_weekly_features(cedula: str, athlete_dir: Path) -> dict:
         return _err(f"weekly_features upsert: {exc}")
 
 
-def push_activities(cedula: str, df: "pd.DataFrame") -> dict:
-    """
-    Upsert activities (tabla Supabase) desde el silver DataFrame.
-    Schema alineado con reader.py: strava_id, activity_date, duration_sec, etc.
-    Llamado justo después de escribir el parquet local para que Supabase
-    sirva de respaldo cuando Railway redeploya y borra el disco.
-    """
-    client = get_client()
-    if not client:
-        return _skipped()
-
-    if df is None or df.empty:
-        return _ok("activities: 0 rows (empty)")
-
-    rows = []
-    for _, r in df.iterrows():
-        act_id = r.get("activity_id")
-        try:
-            act_id = int(act_id) if act_id is not None and str(act_id) != "<NA>" else None
-        except (ValueError, TypeError):
-            act_id = None
-        if not act_id:
-            continue
-        rows.append(_clean({
-            "strava_id":       act_id,
-            "cedula":          cedula,
-            "name":            r.get("name"),
-            "sport_type":      r.get("sport_type"),
-            "activity_date":   r.get("start_date_local"),
-            "distance_m":      r.get("distance_m"),
-            "duration_sec":    r.get("moving_time_s"),
-            "elevation_m":     r.get("total_elevation_gain_m"),
-            "avg_pace_sec_km": r.get("pace_sec_per_km"),
-            "raw": {
-                "average_heartrate": r.get("average_heartrate"),
-                "max_heartrate":     r.get("max_heartrate"),
-                "average_cadence":   r.get("average_cadence"),
-                "distance_km":       r.get("distance_km"),
-                "moving_time_min":   r.get("moving_time_min"),
-                "elapsed_time_s":    r.get("elapsed_time_s"),
-                "average_speed_m_s": r.get("average_speed_m_s"),
-            },
-        }))
-
-    if not rows:
-        return _ok("activities: 0 valid rows")
-
-    try:
-        batch_size = 500
-        for i in range(0, len(rows), batch_size):
-            client.table("activities").upsert(
-                rows[i:i + batch_size],
-                on_conflict="strava_id,cedula",
-            ).execute()
-        return _ok(f"activities: {len(rows)} rows upserted")
-    except Exception as exc:
-        return _err(f"activities upsert: {exc}")
 
 
 def restore_activities_to_parquet(cedula: str, athlete_dir: Path) -> bool:
@@ -455,7 +398,9 @@ def push_activities(cedula: str, athlete_dir: Path) -> dict:
 
     try:
         import duckdb
-        df = duckdb.query(f"SELECT * FROM '{parquet_path.as_posix()}'").to_df()
+        _con = duckdb.connect(database=":memory:")
+        df = _con.execute(f"SELECT * FROM '{parquet_path.as_posix()}'").df()
+        _con.close()
     except Exception as exc:
         return _err(f"parquet read: {exc}")
 
@@ -465,19 +410,19 @@ def push_activities(cedula: str, athlete_dir: Path) -> dict:
     rows = []
     for _, r in df.iterrows():
         # raw: fila completa sin NaN
-        raw = {
-            k: (None if hasattr(v, "__float__") and __import__("math").isnan(float(v)) else v)
-            for k, v in r.items()
-        }
-
         activity_id = r.get("activity_id")
-        activity_date = str(r.get("start_date_local", ""))[:19]  # "2025-01-15T10:30:00"
+        activity_date = str(r.get("start_date_local", ""))[:19]
 
         if not activity_id or not activity_date:
             continue
 
-        row = _clean({
-            "strava_id":       int(activity_id),
+        try:
+            strava_id = int(activity_id)
+        except (ValueError, TypeError):
+            continue
+
+        rows.append(_clean({
+            "strava_id":       strava_id,
             "cedula":          cedula,
             "name":            r.get("name"),
             "sport_type":      r.get("sport_type"),
@@ -486,9 +431,13 @@ def push_activities(cedula: str, athlete_dir: Path) -> dict:
             "duration_sec":    r.get("moving_time_s"),
             "elevation_m":     r.get("total_elevation_gain_m"),
             "avg_pace_sec_km": r.get("pace_sec_per_km"),
-            "raw":             raw,
-        })
-        rows.append(row)
+            "raw": _clean({
+                k: v for k, v in r.items()
+                if k not in ("cedula", "activity_id", "name", "sport_type",
+                             "start_date_local", "distance_m", "moving_time_s",
+                             "total_elevation_gain_m", "pace_sec_per_km")
+            }),
+        }))
 
     if not rows:
         return _ok("activities: 0 valid rows")
@@ -498,7 +447,7 @@ def push_activities(cedula: str, athlete_dir: Path) -> dict:
         for i in range(0, len(rows), batch_size):
             client.table("activities").upsert(
                 rows[i:i + batch_size],
-                on_conflict="strava_id",
+                on_conflict="strava_id,cedula",
             ).execute()
         return _ok(f"activities: {len(rows)} rows upserted")
     except Exception as exc:

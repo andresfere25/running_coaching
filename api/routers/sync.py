@@ -148,18 +148,7 @@ def _run_pipeline_and_push(
 
         if do_push and stages.get("strava") == "ok":
             from src.storage.writer import push_activities as _push_acts
-            silver_path = athlete_dir / "silver" / "activities.parquet"
-            if silver_path.exists():
-                try:
-                    import duckdb as _duckdb
-                    _con = _duckdb.connect(database=":memory:")
-                    df_acts = _con.execute(f"SELECT * FROM '{silver_path.as_posix()}'").df()
-                    _con.close()
-                    r = _push_acts(cedula, df_acts)
-                    pushes["activities"] = r.get("detail", "ok")
-                except Exception as _exc:
-                    import traceback
-                    pushes["activities"] = f"error: {_exc} | {traceback.format_exc()}"
+            _try_push(pushes, "activities", _push_acts, cedula, athlete_dir)
 
     # ── 3. FEATURES ──────────────────────────────────────────────────────────
     # Si el parquet de actividades no existe (redeploy borró el disco),
