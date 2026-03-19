@@ -185,7 +185,11 @@ def _sync_athlete_core(
     new_refresh = refresh_token_in  # se retorna para que el llamador actualice si rotó
 
     # 2) Ventana incremental
-    if last_sync_dt is None:
+    # Si el parquet local no existe (primer sync o redeploy limpió el disco),
+    # ignorar last_sync_dt y pedir los últimos 365 días completos.
+    silver_path_check = data_dir / cedula / "silver" / "activities.parquet"
+    local_data_exists = silver_path_check.exists()
+    if last_sync_dt is None or not local_data_exists:
         after_dt = now - timedelta(days=365)
     else:
         after_dt = last_sync_dt - timedelta(days=2)
