@@ -18,7 +18,7 @@ from pathlib import Path
 
 import duckdb
 import pandas as pd
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -660,9 +660,10 @@ class StravaTokenBody(BaseModel):
 
 @router.post("/{cedula}/strava/token")
 def store_strava_token(
-    cedula: str,
-    body:   StravaTokenBody,
-    _:      None = Depends(require_api_key),
+    cedula:     str,
+    body:       StravaTokenBody,
+    background: BackgroundTasks,
+    _:          None = Depends(require_api_key),
 ):
     """
     Recibe y persiste los tokens de Strava en Supabase para un atleta.
@@ -683,4 +684,16 @@ def store_strava_token(
     print(f"[/strava/token] push_strava_tokens result: {result}")
     if not result.get("ok"):
         raise HTTPException(status_code=500, detail=result.get("detail", "Error writing tokens"))
-    return {"ok": True, "cedula": cedula, "detail": result.get("detail")}
+
+    # Auto-trigger pipeline en background: strava → features → plan → push Supabase
+    from api.routers.sync import _run_pipeline_and_push
+    background.add_task(
+        _run_pipeline_and_push,
+        cedula,
+        ["strava", "features", "plan"],
+        False,   # skip_strava=False
+        True,    # push_to_supabase=True
+    )
+    print(f"[/strava/token] Pipeline auto-trigger encolado para cedula={cedula}")
+
+    return {"ok": True, "cedula": cedula, "detail": result.get("detail"), "pipeline": "enqueued"}
