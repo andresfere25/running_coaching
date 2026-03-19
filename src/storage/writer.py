@@ -41,8 +41,14 @@ def _skipped() -> dict:
 
 
 def _clean(obj: Any) -> Any:
-    """Convierte tipos no serializables por supabase-py (date → str, NaN → None)."""
+    """Convierte tipos no serializables por supabase-py (date → str, NaN/NA → None)."""
     import math
+    try:
+        import pandas as pd
+        if obj is pd.NA or obj is pd.NaT:
+            return None
+    except ImportError:
+        pass
     if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
         return None
     if isinstance(obj, (date, datetime)):
