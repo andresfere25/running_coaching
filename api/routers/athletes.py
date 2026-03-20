@@ -5,22 +5,26 @@ Todos los endpoints leen desde data/athletes/{cedula}/ (archivos ya generados
 por el pipeline). No modifican datos ni corren cómputo pesado.
 
 Endpoints:
-  GET /athletes                         → lista atletas disponibles
-  GET /athletes/{cedula}/profile        → perfil del atleta (Form 1)
-  GET /athletes/{cedula}/snapshot       → estado actual (última semana + semáforo)
-  GET /athletes/{cedula}/plan           → plan semanal (running + fuerza)
-  GET /athletes/{cedula}/features       → historial de features semanales
-  GET /athletes/{cedula}/prediction     → predicción de tiempo/ritmo por distancia
+  GET  /athletes                         → lista atletas disponibles
+  GET  /athletes/{cedula}/profile        → perfil del atleta (Form 1)
+  GET  /athletes/{cedula}/snapshot       → estado actual (última semana + semáforo)
+  GET  /athletes/{cedula}/plan           → plan semanal (running + fuerza)
+  GET  /athletes/{cedula}/features       → historial de features semanales
+  GET  /athletes/{cedula}/prediction     → predicción de tiempo/ritmo por distancia
+  GET  /athletes/{cedula}/checkin        → último check-in registrado
+  POST /athletes/{cedula}/checkin        → registrar check-in desde la app
 """
 
 import json
+from datetime import date, datetime
 from pathlib import Path
+from typing import Literal, Optional
 
 import duckdb
 import pandas as pd
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.deps import get_athlete_dir, get_data_dir, require_api_key, sanitize_json
 from src.storage.reader import read_snapshot, read_plan, read_features, read_checkin, read_activities, read_profile
@@ -279,6 +283,121 @@ def get_latest_checkin(
             detail="Check-in no disponible. El paso 'ingest' del pipeline no ha corrido.",
         )
     return data
+
+
+# ─── Registrar check-in desde la app ─────────────────────────────────────────
+
+class WeeklyCheckinIn(BaseModel):
+    type: Literal["weekly"] = "weekly"
+    sleep_1_5: int = Field(..., ge=1, le=5)
+    energy_1_5: int = Field(..., ge=1, le=5)
+    has_pain: bool = False
+    pain_location: Optional[str] = None
+    checkin_date: Optional[date] = None  # default: hoy
+
+
+class RaceCheckinIn(BaseModel):
+    type: Literal["race"] = "race"
+    race_distance_km: float = Field(..., gt=0)
+    race_time_sec: int = Field(..., gt=0)
+    sensation_1_5: int = Field(..., ge=1, le=5)
+    is_official: bool = False
+    race_date: Optional[date] = None  # default: hoy
+
+
+@router.post("/{cedula}/checkin")
+def post_checkin(
+    cedula: str,
+    body: WeeklyCheckinIn | RaceCheckinIn,
+    _: None = Depends(require_api_key),
+):
+    """
+    Registra un check-in enviado desde la app (semanal o post-carrera).
+
+    - type=weekly   : sueño, energía, dolor/lesión
+    - type=race     : resultado de carrera + sensación
+
+    Escribe en Supabase (checkins table) y en latest_checkin.json local.
+    Si Supabase no está disponible, solo escribe localmente.
+    """
+    from src.storage.supabase_client import get_client
+
+    today = date.today().isoformat()
+
+    if body.type == "weekly":
+        checkin_date = body.checkin_date.isoformat() if body.checkin_date else today
+        raw = {
+            "cedula": cedula,
+            "source": "app_weekly",
+            "checkin_date": checkin_date,
+            "checkin_week_start": checkin_date,
+            "timestamp": datetime.utcnow().isoformat(),
+            "is_recent": True,
+            # Mapeo a campos existentes para compatibilidad con el dashboard
+            "feeling_1_10": body.energy_1_5 * 2,       # 1-5 → 2-10
+            "fatigue_1_10": (6 - body.energy_1_5) * 2, # inverso
+            "sleep_1_5": body.sleep_1_5,
+            "energy_1_5": body.energy_1_5,
+            "pain_0_10": 5 if body.has_pain else 0,
+            "has_pain": body.has_pain,
+            "pain_where": body.pain_location or "",
+            "sessions_completed": None,
+            "skipped_sessions": None,
+            "comments": "",
+        }
+    else:  # race
+        race_date = body.race_date.isoformat() if body.race_date else today
+        raw = {
+            "cedula": cedula,
+            "source": "app_race",
+            "checkin_date": race_date,
+            "checkin_week_start": race_date,
+            "timestamp": datetime.utcnow().isoformat(),
+            "is_recent": True,
+            "race_distance_km": body.race_distance_km,
+            "race_time_sec": body.race_time_sec,
+            "sensation_1_5": body.sensation_1_5,
+            "is_official": body.is_official,
+            "race_date": race_date,
+            # Compatibilidad con dashboard
+            "feeling_1_10": body.sensation_1_5 * 2,
+            "fatigue_1_10": None,
+            "pain_0_10": None,
+            "sessions_completed": None,
+            "skipped_sessions": None,
+            "comments": "",
+        }
+
+    # 1. Escribir en Supabase
+    supabase_ok = False
+    client = get_client()
+    if client:
+        try:
+            client.table("checkins").upsert({
+                "cedula": cedula,
+                "checkin_date": raw["checkin_date"],
+                "raw": raw,
+            }, on_conflict="cedula,checkin_date").execute()
+            supabase_ok = True
+        except Exception:
+            pass  # fallback a local
+
+    # 2. Escribir localmente
+    athlete_dir = get_data_dir() / cedula
+    meta_dir = athlete_dir / "meta"
+    meta_dir.mkdir(parents=True, exist_ok=True)
+    local_path = meta_dir / "latest_checkin.json"
+    payload = {"cedula": cedula, "is_recent": True, "latest_checkin": raw}
+    with open(local_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2, default=str)
+
+    return {
+        "status": "ok",
+        "type": body.type,
+        "checkin_date": raw["checkin_date"],
+        "supabase": supabase_ok,
+        "local": True,
+    }
 
 
 # ─── Actividades Strava ──────────────────────────────────────────────────────
