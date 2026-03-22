@@ -543,6 +543,57 @@ def _save_training_snapshot(
         return False  # silencioso — no rompemos el check-in por esto
 
 
+# ─── Historial de check-ins ─────────────────────────────────────────────────
+
+@router.get("/{cedula}/checkin-history")
+def get_checkin_history(
+    cedula: str,
+    limit: int = Query(default=20, ge=1, le=100),
+    _: None = Depends(require_api_key),
+):
+    """
+    Retorna los últimos N check-ins del atleta (semanales + carreras),
+    ordenados por fecha descendente. Lee de Supabase.
+    """
+    from src.storage.supabase_client import get_client
+
+    sb = get_client()
+    if not sb:
+        return {"cedula": cedula, "checkins": [], "error": "Supabase no disponible"}
+
+    try:
+        resp = (
+            sb.table("checkins")
+            .select("checkin_date, raw")
+            .eq("cedula", cedula)
+            .order("checkin_date", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        rows = []
+        for r in resp.data or []:
+            raw = r.get("raw") or {}
+            rows.append({
+                "checkin_date": r["checkin_date"],
+                "type": raw.get("source", "unknown"),
+                "sleep_1_5": raw.get("sleep_1_5"),
+                "energy_1_5": raw.get("energy_1_5"),
+                "has_pain": raw.get("has_pain"),
+                "pain_location": raw.get("pain_location"),
+                "feeling_1_10": raw.get("feeling_1_10"),
+                "fatigue_1_10": raw.get("fatigue_1_10"),
+                "pain_0_10": raw.get("pain_0_10"),
+                # Race fields
+                "race_distance_km": raw.get("race_distance_km"),
+                "race_time_sec": raw.get("race_time_sec"),
+                "sensation_1_5": raw.get("sensation_1_5"),
+                "is_official": raw.get("is_official"),
+            })
+        return {"cedula": cedula, "count": len(rows), "checkins": rows}
+    except Exception as e:
+        return {"cedula": cedula, "checkins": [], "error": str(e)}
+
+
 # ─── Dataset Q2: leer filas acumuladas ────────────────────────────────────────
 
 @router.get("/{cedula}/training-data")

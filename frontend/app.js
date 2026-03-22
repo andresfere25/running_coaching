@@ -968,14 +968,14 @@ function athleteApp() {
 
     // ── Check-in inline ─────────────────────────────────────────────────────
     checkinMode: null,  // null | 'weekly' | 'race'
-    checkinForm: { sleep: 3, energy: 3, pain: false, race_distance_km: '', race_time: '', sensation: 3 },
+    checkinForm: { sleep: 3, energy: 3, pain: false, race_distance_km: '', raceH: 0, raceM: 0, raceS: 0, sensation: 3 },
     checkinSending: false,
     checkinSuccess: null,
     checkinError: null,
 
     openCheckin(mode) {
       this.checkinMode = mode;
-      this.checkinForm = { sleep: 3, energy: 3, pain: false, race_distance_km: '', race_time: '', sensation: 3 };
+      this.checkinForm = { sleep: 3, energy: 3, pain: false, race_distance_km: '', raceH: 0, raceM: 0, raceS: 0, sensation: 3 };
       this.checkinSuccess = null;
       this.checkinError = null;
     },
@@ -988,19 +988,28 @@ function athleteApp() {
       this.checkinSending = true;
       this.checkinError = null;
       try {
-        const body = this.checkinMode === 'weekly'
-          ? {
-              type: 'weekly',
-              sleep_1_5: this.checkinForm.sleep,
-              energy_1_5: this.checkinForm.energy,
-              pain_flag: this.checkinForm.pain,
-            }
-          : {
-              type: 'race',
-              race_distance_km: parseFloat(this.checkinForm.race_distance_km),
-              race_time_sec: this._parseRaceTime(this.checkinForm.race_time),
-              sensation_1_5: this.checkinForm.sensation,
-            };
+        let body;
+        if (this.checkinMode === 'weekly') {
+          body = {
+            type: 'weekly',
+            sleep_1_5: this.checkinForm.sleep,
+            energy_1_5: this.checkinForm.energy,
+            has_pain: this.checkinForm.pain,
+          };
+        } else {
+          const dist = parseFloat(this.checkinForm.race_distance_km);
+          const timeSec = (parseInt(this.checkinForm.raceH) || 0) * 3600
+                        + (parseInt(this.checkinForm.raceM) || 0) * 60
+                        + (parseInt(this.checkinForm.raceS) || 0);
+          if (!dist || dist <= 0) throw new Error('Ingresa una distancia válida');
+          if (timeSec <= 0)       throw new Error('Ingresa un tiempo válido');
+          body = {
+            type: 'race',
+            race_distance_km: dist,
+            race_time_sec: timeSec,
+            sensation_1_5: this.checkinForm.sensation,
+          };
+        }
 
         const res = await fetch(`${API_BASE}/athletes/${this.cedula}/checkin`, {
           method: 'POST',
@@ -1012,8 +1021,8 @@ function athleteApp() {
           throw new Error(err.detail || 'Error al enviar');
         }
         this.checkinSuccess = this.checkinMode === 'weekly'
-          ? 'Check-in semanal registrado'
-          : 'Carrera registrada';
+          ? '✅ Check-in semanal registrado correctamente'
+          : '✅ Carrera registrada correctamente';
         // Refrescar datos
         this.fetchCheckin();
       } catch (e) {
@@ -1021,15 +1030,6 @@ function athleteApp() {
       } finally {
         this.checkinSending = false;
       }
-    },
-
-    /** Parsea "MM:SS" o "H:MM:SS" a segundos */
-    _parseRaceTime(str) {
-      if (!str) return 0;
-      const parts = str.split(':').map(Number);
-      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-      if (parts.length === 2) return parts[0] * 60 + parts[1];
-      return Number(str) || 0;
     },
 
     // ── FC promedio por semana (para tabla historial) ──────────────────────
