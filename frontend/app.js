@@ -850,11 +850,11 @@ function athleteApp() {
 
     // ── Utilidades para la plantilla ──────────────────────────────────────
     sessionColor(type) {
-      return type === 'Running' ? '#3b82f6' : '#f97316';
+      return type === 'Running' ? '#C41E3A' : '#4f46e5';
     },
 
     sessionBg(type) {
-      return type === 'Running' ? '#eff6ff' : '#fff7ed';
+      return type === 'Running' ? '#fff1f2' : '#eef2ff';
     },
 
     kpiCardStyle(color) {
@@ -877,6 +877,79 @@ function athleteApp() {
       if (m < 1) return `×${m.toFixed(2)} (reducción)`;
       if (m > 1) return `×${m.toFixed(2)} (aumento)`;
       return `×${m.toFixed(2)}`;
+    },
+
+    // ── Etiqueta completa del día de hoy ──────────────────────────────────
+    get todayLabel() {
+      const d = new Date();
+      const days = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+      const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto',
+                      'septiembre','octubre','noviembre','diciembre'];
+      return `${days[d.getDay()]}, ${d.getDate()} de ${months[d.getMonth()]}`;
+    },
+
+    // ── Etiqueta de semana actual (sem número + fecha de hoy) ─────────────
+    get currentWeekLabel() {
+      const d = new Date();
+      const jan4 = new Date(d.getFullYear(), 0, 4);
+      const startOfW1 = new Date(jan4);
+      startOfW1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+      const weekNum = Math.floor((d - startOfW1) / (7 * 24 * 3600 * 1000)) + 1;
+      const months = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+      return `Sem. ${String(weekNum).padStart(2,'0')} · ${d.getDate()} ${months[d.getMonth()]}`;
+    },
+
+    // ── Comparativo km esta semana vs semana anterior ─────────────────────
+    get kmVsPrevWeek() {
+      const data = this.features?.data;
+      if (!data || data.length < 2) return null;
+      const cur  = data[data.length - 1]?.km_week;
+      const prev = data[data.length - 2]?.km_week;
+      if (!cur || !prev) return null;
+      const diff = Math.round((cur - prev) * 10) / 10;
+      const pct  = Math.round((diff / prev) * 100);
+      return { cur, prev, diff, pct, positive: diff >= 0 };
+    },
+
+    // ── KPIs de analítica ─────────────────────────────────────────────────
+    get analyticsKpis() {
+      const data = this.features?.data || [];
+      if (!data.length) return null;
+      const kms   = data.map(d => d.km_week || 0).filter(v => v > 0);
+      const avg   = kms.length ? kms.reduce((a, b) => a + b, 0) / kms.length : 0;
+      const max   = kms.length ? Math.max(...kms) : 0;
+      const cur   = data[data.length - 1]?.km_week || 0;
+      const racha = data[data.length - 1]?.racha_semanas || 0;
+      return {
+        thisWeek: Math.round(cur  * 10) / 10,
+        avgWeek:  Math.round(avg  * 10) / 10,
+        avgMonth: Math.round(avg * 4.3 * 10) / 10,
+        maxWeek:  Math.round(max  * 10) / 10,
+        racha,
+        weeks: kms.length,
+      };
+    },
+
+    // ── Banner recordatorio de check-in semanal (sábado/domingo) ─────────
+    get showCheckinBanner() {
+      if (!this.snapshot) return false;
+      const day = new Date().getDay();
+      if (day !== 0 && day !== 6) return false;   // solo fines de semana
+      if (this.checkin?.latest_checkin?.checkin_date) {
+        const lastDate = new Date(this.checkin.latest_checkin.checkin_date + 'T00:00:00');
+        const now = new Date();
+        const mon = new Date(now);
+        mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+        mon.setHours(0, 0, 0, 0);
+        if (lastDate >= mon) return false; // ya hay check-in esta semana
+      }
+      return true;
+    },
+
+    // ── MAE en segundos enteros ────────────────────────────────────────────
+    maeInSec(maeMin) {
+      if (!maeMin || isNaN(maeMin)) return null;
+      return Math.round(maeMin * 60);
     },
 
     // ── Navegación por pestañas ───────────────────────────────────────────

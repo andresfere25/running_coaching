@@ -46,6 +46,31 @@
     }
     .dist-bar-track { height: 6px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
     .dist-bar-fill  { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+
+    /* ── Tooltips puros CSS ─────────────────────────────────────────────── */
+    .tip { position: relative; cursor: help; }
+    .tip::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%; transform: translateX(-50%);
+      background: #1e293b; color: #f1f5f9;
+      font-size: 11px; line-height: 1.5; font-weight: 400;
+      padding: 8px 12px; border-radius: 8px;
+      white-space: normal; width: 210px;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.15s ease;
+      z-index: 200; text-align: left;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .tip:hover::after { opacity: 1; }
+
+    /* ── Mobile improvements ────────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      .tab-bar button { padding: 10px 12px; font-size: 12px; }
+      .hero-race-card { flex-direction: column; gap: 8px; }
+      .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+    }
   </style>
 </head>
 
@@ -61,24 +86,12 @@
       </svg>
       <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:20px;color:#111827;letter-spacing:-0.02em;line-height:1;">RUNA</span>
     </div>
-    <form @submit.prevent="search()" class="flex items-center gap-2">
-      <input
-        x-model="cedula"
-        type="text"
-        placeholder="Cédula del atleta..."
-        class="px-3 py-2 rounded-lg text-sm text-gray-900 bg-white border border-gray-300
-               focus:outline-none focus:ring-2 focus:ring-[#C41E3A] w-48"
-      />
-      <button
-        type="submit"
-        :disabled="loading"
-        class="px-4 py-2 bg-[#C41E3A] hover:bg-[#A31830] disabled:bg-red-300
-               text-white text-sm font-medium rounded-lg transition-colors"
-      >
-        <span x-show="!loading">Buscar</span>
-        <span x-show="loading">...</span>
-      </button>
-    </form>
+    <!-- Nombre del atleta en el header cuando ya cargó -->
+    <template x-if="snapshot && !loading">
+      <div class="flex items-center gap-2 text-sm">
+        <span class="text-slate-500" x-text="athleteName"></span>
+      </div>
+    </template>
   </header>
 
   <!-- ══ MAIN ══════════════════════════════════════════════════════════════ -->
@@ -136,6 +149,17 @@
       <!-- ════════════════ TAB: HOY ════════════════════════════════════════ -->
       <div x-show="activeTab === 'hoy'" class="space-y-4">
 
+      <!-- ══ BANNER CHECK-IN SEMANAL ════════════════════════════════════════ -->
+      <template x-if="showCheckinBanner">
+        <div class="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <span class="text-xl shrink-0">📋</span>
+          <div class="flex-1">
+            <p class="text-sm font-semibold text-amber-800">Es momento de tu check-in semanal</p>
+            <p class="text-xs text-amber-600 mt-0.5">Complétalo antes del domingo para que tu plan de la próxima semana sea preciso.</p>
+          </div>
+        </div>
+      </template>
+
       <!-- ══ HERO CARD ═════════════════════════════════════════════════════ -->
       <div class="card overflow-hidden">
 
@@ -143,42 +167,45 @@
         <div class="px-6 py-6" :style="{ backgroundColor: semConfig.bg }">
           <div class="flex items-start gap-4">
 
-            <!-- Izquierda: estado + nombre + frase corta -->
+            <!-- Izquierda: estado + nombre -->
             <div class="flex-1 min-w-0">
-              <div class="text-white/70 text-xs font-medium uppercase tracking-wider mb-1"
-                   x-text="semConfig.label"></div>
+              <!-- Check-in reminder dentro del hero (solo si es SIN_CHECKIN) -->
+              <template x-if="snapshot?.semaforo_latest_checkin === 'SIN_CHECKIN'">
+                <div class="inline-flex items-center gap-1.5 bg-white/20 rounded-full px-3 py-1 mb-2">
+                  <span class="text-white/80 text-[11px] font-medium">📋 Sin check-in reciente</span>
+                </div>
+              </template>
               <h2 class="text-white text-2xl font-bold leading-tight"
                   x-text="athleteName"></h2>
               <p class="text-white/60 text-xs mt-0.5" x-text="profile.city_country || ''"></p>
-              <template x-if="shortSummary">
-                <p class="text-white/85 text-sm mt-3 leading-relaxed max-w-sm"
-                   x-text="shortSummary"></p>
-              </template>
             </div>
 
-            <!-- Derecha: carrera + días restantes -->
-            <div class="flex flex-col gap-2 shrink-0 text-center">
-              <template x-if="goalInfo.raceDistance">
-                <div class="bg-white/15 rounded-lg px-3 py-2">
-                  <div class="text-white/60 text-xs uppercase tracking-wide">Carrera</div>
-                  <div class="text-white font-bold text-xl leading-none mt-0.5"
+            <!-- Derecha: carrera objetivo (tarjeta unificada) -->
+            <template x-if="goalInfo.raceDistance">
+              <div class="shrink-0">
+                <button
+                  @click="switchTab('rendimiento')"
+                  class="bg-white/15 hover:bg-white/25 transition-colors rounded-xl px-4 py-3 text-center block"
+                  title="Ver predicción de rendimiento">
+                  <div class="text-white/60 text-[10px] uppercase tracking-widest font-semibold mb-1">Carrera objetivo</div>
+                  <div class="text-white font-bold text-2xl leading-none"
                        x-text="goalInfo.raceDistance"></div>
-                </div>
-              </template>
-              <template x-if="goalInfo.countdownDays !== null">
-                <div class="bg-white/15 rounded-lg px-3 py-2">
-                  <div class="text-white/60 text-xs uppercase tracking-wide">Faltan</div>
-                  <div class="font-bold text-lg leading-none mt-0.5"
-                       :class="goalInfo.countdownDays < 30 ? 'text-red-200' : goalInfo.countdownDays < 90 ? 'text-yellow-200' : 'text-white'"
-                       x-text="goalInfo.countdownDays + ' d'"></div>
-                </div>
-              </template>
-            </div>
+                  <template x-if="goalInfo.countdownDays !== null">
+                    <div class="mt-1.5 flex items-center justify-center gap-1">
+                      <span class="font-bold text-sm leading-none"
+                            :class="goalInfo.countdownDays < 30 ? 'text-red-200' : goalInfo.countdownDays < 90 ? 'text-yellow-200' : 'text-white/90'"
+                            x-text="goalInfo.countdownDays + ' días'"></span>
+                    </div>
+                  </template>
+                  <div class="text-white/50 text-[10px] mt-1">Ver predicción →</div>
+                </button>
+              </div>
+            </template>
 
           </div>
         </div>
 
-        <!-- Sub-banda: tipo de semana + semana legible -->
+        <!-- Sub-banda: tipo de semana + fecha ACTUAL -->
         <div class="px-6 py-3 flex items-center justify-between"
              :style="{ backgroundColor: weekTypeBg || '#f8fafc' }">
           <span class="text-sm font-semibold"
@@ -186,7 +213,7 @@
                 x-text="weekType + (effectiveWeeklyFocus ? ' · ' + effectiveWeeklyFocus.split('—')[0].trim() : '')">
           </span>
           <span class="text-xs text-slate-400 font-mono"
-                x-text="snapshot && snapshot.latest_week ? weekLabel(snapshot.latest_week.week_start) : ''"></span>
+                x-text="currentWeekLabel"></span>
         </div>
 
       </div>
@@ -195,10 +222,12 @@
 
       <!-- ══ SESIÓN DE HOY ══════════════════════════════════════════════════ -->
       <div class="card p-6">
-        <div class="flex items-center gap-2 mb-4">
-          <span class="text-lg">🗓</span>
-          <h3 class="text-base font-semibold text-gray-800">Sesión de hoy</h3>
-          <span class="text-sm text-gray-400" x-text="'· ' + todaySession.day"></span>
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">🗓</span>
+            <h3 class="text-base font-semibold text-gray-800">Sesión de hoy</h3>
+          </div>
+          <span class="text-xs text-slate-400 font-mono" x-text="todayLabel"></span>
         </div>
 
         <!-- Con sesión -->
@@ -270,7 +299,7 @@
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-2">
               <span class="text-lg">💬</span>
-              <h3 class="text-base font-semibold text-slate-800">Del coach</h3>
+              <h3 class="text-base font-semibold text-slate-800">Comentarios del coach</h3>
               <!-- Badge cuando el contenido viene de published -->
               <template x-if="hasPublishedCoach">
                 <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 uppercase tracking-wide">
@@ -315,16 +344,6 @@
             </p>
           </template>
 
-          <!-- Frase humana del cálculo (contexto secundario) -->
-          <div class="mt-3 pt-3 border-t border-slate-100">
-            <template x-if="coachCalcHuman">
-              <p class="text-xs italic text-slate-400" x-text="coachCalcHuman"></p>
-            </template>
-            <template x-if="!coachCalcHuman">
-              <p class="text-xs italic text-slate-400">Plan basado en el formulario de ingreso — sin datos Strava aún.</p>
-            </template>
-          </div>
-
           <!-- Alerts y restrictions del coach (al pie, separadas del mensaje) -->
           <template x-if="hasPublishedCoach && ((coachContent.alerts && coachContent.alerts.length > 0) || (coachContent.restrictions && coachContent.restrictions.length > 0))">
             <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
@@ -358,7 +377,8 @@
               <span class="text-sm font-semibold text-gray-700">Forma</span>
             </div>
             <template x-if="formaPanel.readinessScore !== null">
-              <span class="text-xs font-semibold px-3 py-1 rounded-full"
+              <span class="tip text-xs font-semibold px-3 py-1 rounded-full"
+                    data-tip="Puntaje 0-100 que combina TSB (40%), ACWR (35%) y check-in (25%). ≥75 óptimo · 55-74 bueno · 40-54 precaución · <40 recuperar."
                     :class="{
                       'bg-green-100 text-green-700':  formaPanel.rsColor === 'green',
                       'bg-blue-100 text-blue-700':    formaPanel.rsColor === 'blue',
@@ -370,25 +390,28 @@
             </template>
           </div>
 
-          <!-- 4 chips -->
-          <div class="grid grid-cols-4 gap-2">
+          <!-- 4 chips con tooltips -->
+          <div class="grid grid-cols-4 gap-2 grid-4">
 
             <!-- CTL -->
-            <div class="bg-blue-50 rounded-lg px-2 py-3 text-center">
+            <div class="tip bg-blue-50 rounded-lg px-2 py-3 text-center"
+                 data-tip="Carga Crónica · fitness acumulado en los últimos 42 días (EWMA). Sube lento con entrenamiento constante.">
               <div class="metric-label text-blue-400">CTL</div>
               <div class="text-base font-bold text-blue-700 mt-1 tabular-nums" x-text="formaPanel.ctl + ' km'"></div>
               <div class="text-[10px] text-blue-300 mt-0.5">fitness</div>
             </div>
 
             <!-- ATL -->
-            <div class="bg-violet-50 rounded-lg px-2 py-3 text-center">
+            <div class="tip bg-violet-50 rounded-lg px-2 py-3 text-center"
+                 data-tip="Carga Aguda · fatiga de los últimos 7 días (EWMA). Sube rápido tras una semana fuerte.">
               <div class="metric-label text-violet-400">ATL</div>
               <div class="text-base font-bold text-violet-600 mt-1 tabular-nums" x-text="formaPanel.atl + ' km'"></div>
-              <div class="text-[10px] text-violet-300 mt-0.5">fatiga</div>
+              <div class="text-[10px] text-violet-300 mt-0.5">fatiga reciente</div>
             </div>
 
             <!-- TSB -->
-            <div class="rounded-lg px-2 py-3 text-center"
+            <div class="tip rounded-lg px-2 py-3 text-center"
+                 data-tip="Balance de carga (CTL − ATL). >10 fresco · 0-10 en forma · negativo cargado · muy negativo: señal de fatiga."
                  :class="{
                    'bg-green-50':  formaPanel.tsbColor === 'green',
                    'bg-blue-50':   formaPanel.tsbColor === 'blue',
@@ -429,7 +452,8 @@
             </div>
 
             <!-- ACWR zona -->
-            <div class="rounded-lg px-2 py-3 text-center"
+            <div class="tip rounded-lg px-2 py-3 text-center"
+                 data-tip="Ratio carga aguda/crónica (ATL÷CTL). 0.8-1.3 zona óptima · >1.3 precaución · >1.5 riesgo · <0.8 subentrenamiento."
                  :class="formaPanel.acwrZoneBadge">
               <div class="metric-label">ACWR</div>
               <div class="text-base font-bold mt-1" x-text="formaPanel.acwrZoneLabel"></div>
@@ -517,6 +541,33 @@
       <!-- fin último check-in -->
 
 
+      <!-- ══ COMPARATIVO KM ════════════════════════════════════════════════ -->
+      <template x-if="kmVsPrevWeek">
+        <div class="card px-6 py-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">📊</span>
+              <span class="text-sm font-semibold text-gray-700">Esta semana vs. anterior</span>
+            </div>
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full"
+                  :class="kmVsPrevWeek.positive ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'"
+                  x-text="(kmVsPrevWeek.positive ? '↑ +' : '↓ ') + Math.abs(kmVsPrevWeek.diff) + ' km (' + (kmVsPrevWeek.positive ? '+' : '') + kmVsPrevWeek.pct + '%)'">
+            </span>
+          </div>
+          <div class="flex items-end gap-4 mt-3">
+            <div class="flex-1 text-center">
+              <div class="text-2xl font-bold text-[#C41E3A] tabular-nums" x-text="kmVsPrevWeek.cur + ' km'"></div>
+              <div class="text-xs text-slate-400 mt-0.5">Esta semana</div>
+            </div>
+            <div class="text-slate-300 text-lg mb-1">vs</div>
+            <div class="flex-1 text-center">
+              <div class="text-2xl font-bold text-slate-400 tabular-nums" x-text="kmVsPrevWeek.prev + ' km'"></div>
+              <div class="text-xs text-slate-400 mt-0.5">Semana anterior</div>
+            </div>
+          </div>
+        </div>
+      </template>
+
       </div><!-- fin tab HOY -->
 
 
@@ -583,69 +634,45 @@
             <!-- Bloque principal: ritmo + metadatos -->
             <div class="flex flex-col sm:flex-row gap-4 mb-4">
 
-              <!-- Rango de ritmo -->
-              <div class="flex-1 bg-red-50 border border-red-100 rounded-xl p-5 text-center">
-                <div class="text-xs text-[#C41E3A]/70 font-medium uppercase tracking-wide mb-1">
+              <!-- Rango de ritmo — paleta suavizada -->
+              <div class="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-5 text-center">
+                <div class="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">
                   Ritmo estimado · <span x-text="predTarget"></span>
                 </div>
                 <div class="text-2xl font-bold font-mono text-[#C41E3A] leading-none"
                      x-text="prediction.pace_range_fmt || '—'"></div>
-                <div class="text-sm font-mono text-red-500 mt-2"
+                <div class="text-sm font-mono text-slate-600 mt-2"
                      x-text="prediction.time_range_fmt || ''"></div>
-                <div class="text-xs text-red-300 mt-1">
-                  ± <span x-text="prediction.mae_effective_min?.toFixed(1)"></span> min (MAE)
+                <div class="text-xs text-slate-400 mt-1">
+                  ± <span x-text="maeInSec(prediction.mae_effective_min)"></span> seg (margen de error)
                 </div>
               </div>
 
-              <!-- Metadatos: confianza, fuente, segmento -->
+              <!-- Metadatos simplificados: solo confianza y PR fuente -->
               <div class="flex flex-col gap-2 sm:w-52">
 
-                <div class="flex items-center justify-between bg-white border border-gray-100 rounded-lg px-3 py-2">
-                  <span class="text-xs text-gray-400">Confianza</span>
-                  <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                <div class="flex items-center justify-between bg-white border border-gray-100 rounded-lg px-3 py-2.5">
+                  <div>
+                    <div class="text-xs text-gray-400">Confianza</div>
+                    <div class="text-[10px] text-gray-300 mt-0.5">Basada en tu historial de carreras</div>
+                  </div>
+                  <span class="text-xs font-semibold px-2 py-0.5 rounded-full ml-2 shrink-0"
                         :class="confidenceBadgeClass(prediction.confidence)"
                         x-text="prediction.confidence"></span>
                 </div>
 
-                <div class="flex items-center justify-between bg-white border border-gray-100 rounded-lg px-3 py-2">
+                <div class="flex items-center justify-between bg-white border border-gray-100 rounded-lg px-3 py-2.5">
                   <span class="text-xs text-gray-400">PR fuente</span>
-                  <span class="text-xs font-medium text-gray-700"
+                  <span class="text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full"
                         x-text="prediction.source_pr || '—'"></span>
                 </div>
-
-                <div class="flex items-center justify-between bg-white border border-gray-100 rounded-lg px-3 py-2">
-                  <span class="text-xs text-gray-400">Segmento</span>
-                  <span class="text-xs font-medium text-gray-700"
-                        x-text="prediction.segment || '—'"></span>
-                </div>
-
-                <template x-if="prediction.demo_correction_min">
-                  <div class="flex items-center justify-between bg-white border border-gray-100 rounded-lg px-3 py-2">
-                    <span class="text-xs text-gray-400">Correc. demog.</span>
-                    <span class="text-xs font-medium"
-                          :class="prediction.demo_correction_min > 0 ? 'text-amber-600' : 'text-green-600'"
-                          x-text="(prediction.demo_correction_min > 0 ? '+' : '') + prediction.demo_correction_min.toFixed(1) + ' min'"></span>
-                  </div>
-                </template>
 
               </div>
             </div>
 
-            <!-- Capas activas -->
-            <div class="flex flex-wrap gap-2 items-center mb-2">
-              <span class="text-xs text-gray-400">Capas:</span>
-              <template x-for="layer in (prediction.layers_active || [])" :key="layer">
-                <span class="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full font-mono"
-                      x-text="layer"></span>
-              </template>
-            </div>
-
-            <!-- Soporte empírico -->
-            <p class="text-xs text-gray-400 italic" x-text="prediction.empirical_support || ''"></p>
-
             <!-- Nota de extrapolación descendente -->
             <template x-if="prediction.direction_note">
-              <p class="mt-2 text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2"
+              <p class="mt-1 text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2"
                  x-text="prediction.direction_note"></p>
             </template>
 
@@ -870,16 +897,9 @@
 
         <template x-for="d in planDays" :key="d.day">
 
-          <!-- DESCANSO — card compacta -->
+          <!-- DESCANSO — no mostrar (evita contradicciones con el plan del coach) -->
           <template x-if="d.sessions.length === 0">
-            <div class="flex items-center gap-3 px-4 py-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 opacity-60">
-              <span class="text-lg">💤</span>
-              <div class="flex-1 min-w-0">
-                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider"
-                      x-text="d.day.slice(0,3)"></span>
-                <span class="text-xs text-slate-400 ml-2">Descanso</span>
-              </div>
-            </div>
+            <span></span>
           </template>
 
           <!-- CON SESIÓN — card completa -->
@@ -1012,26 +1032,69 @@
       <!-- fin cards por día -->
 
 
-      <!-- ══ NOTAS DEL PLAN ═════════════════════════════════════════════════ -->
-      <template x-if="planNotes.length">
-        <div class="card px-5 py-4">
-          <div class="metric-label text-slate-400 mb-3">Notas del plan</div>
-          <div class="space-y-2">
-            <template x-for="note in planNotes" :key="note">
-              <p class="text-xs text-slate-600 flex items-start gap-2">
-                <span class="text-[#C41E3A] mt-0.5 shrink-0 font-bold">·</span>
-                <span x-text="note"></span>
-              </p>
-            </template>
-          </div>
+      <!-- ══ CONSEJOS GENERALES ════════════════════════════════════════════ -->
+      <div class="card px-5 py-4">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-base">💡</span>
+          <div class="metric-label text-slate-500">Consejos generales</div>
         </div>
-      </template>
+        <div class="space-y-2.5">
+          <p class="text-xs text-slate-600 flex items-start gap-2">
+            <span class="text-[#C41E3A] mt-0.5 shrink-0 font-bold">·</span>
+            <span>Si sientes dolor > 3/10 durante la semana, baja la intensidad o toma un día de descanso.</span>
+          </p>
+          <p class="text-xs text-slate-600 flex items-start gap-2">
+            <span class="text-[#C41E3A] mt-0.5 shrink-0 font-bold">·</span>
+            <span>El descanso es parte del entrenamiento — no te lo saltes. El cuerpo mejora mientras recupera.</span>
+          </p>
+          <p class="text-xs text-slate-600 flex items-start gap-2">
+            <span class="text-[#C41E3A] mt-0.5 shrink-0 font-bold">·</span>
+            <span>Mantén el fondo a ritmo cómodo: debes poder hablar sin esfuerzo durante toda la sesión.</span>
+          </p>
+          <p class="text-xs text-slate-600 flex items-start gap-2">
+            <span class="text-[#C41E3A] mt-0.5 shrink-0 font-bold">·</span>
+            <span>Hidratación: bebe antes de sentir sed, especialmente en sesiones de más de 45 minutos.</span>
+          </p>
+          <p class="text-xs text-slate-600 flex items-start gap-2">
+            <span class="text-[#C41E3A] mt-0.5 shrink-0 font-bold">·</span>
+            <span>Si te sientes pesado/a, reduce 10-20% el km del fondo. Llegar es más importante que cumplir el número exacto.</span>
+          </p>
+        </div>
+      </div>
 
       </div><!-- fin tab PLAN -->
 
 
       <!-- ════════════════ TAB: ANALÍTICA ══════════════════════════════════ -->
       <div x-show="activeTab === 'analitica'" class="space-y-5">
+
+      <!-- ══ KPI CARDS ══════════════════════════════════════════════════════ -->
+      <template x-if="analyticsKpis">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+
+          <div class="card px-4 py-4 text-center">
+            <div class="metric-label text-[#C41E3A]/70 mb-1">Esta semana</div>
+            <div class="text-2xl font-bold text-[#C41E3A] tabular-nums" x-text="analyticsKpis.thisWeek + ' km'"></div>
+          </div>
+
+          <div class="card px-4 py-4 text-center">
+            <div class="metric-label text-slate-400 mb-1">Prom. / semana</div>
+            <div class="text-2xl font-bold text-slate-700 tabular-nums" x-text="analyticsKpis.avgWeek + ' km'"></div>
+            <div class="text-[10px] text-slate-300 mt-0.5" x-text="'últimas ' + analyticsKpis.weeks + ' sem.'"></div>
+          </div>
+
+          <div class="card px-4 py-4 text-center">
+            <div class="metric-label text-slate-400 mb-1">Prom. / mes</div>
+            <div class="text-2xl font-bold text-slate-700 tabular-nums" x-text="analyticsKpis.avgMonth + ' km'"></div>
+          </div>
+
+          <div class="card px-4 py-4 text-center">
+            <div class="metric-label text-slate-400 mb-1">Semana máx.</div>
+            <div class="text-2xl font-bold text-slate-700 tabular-nums" x-text="analyticsKpis.maxWeek + ' km'"></div>
+          </div>
+
+        </div>
+      </template>
 
       <!-- ══ GRÁFICOS DE EVOLUCIÓN ═════════════════════════════════════════ -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -1055,9 +1118,22 @@
           <div class="h-48">
             <canvas id="chartCtl"></canvas>
           </div>
-          <p class="text-xs text-gray-400 mt-2">
-            CTL (azul) = forma crónica (6 semanas). ATL (violeta) = carga aguda (1 semana). Cruce = cambio de tendencia.
-          </p>
+          <div class="flex items-center gap-4 mt-2 flex-wrap">
+            <span class="tip flex items-center gap-1.5 text-xs text-gray-500 cursor-help"
+                  data-tip="Carga Crónica: promedio EWMA de los últimos 42 días. Refleja tu base de fitness acumulada. Sube lento con constancia.">
+              <span class="inline-block w-3 h-0.5 bg-blue-500 rounded"></span>
+              CTL · fitness
+            </span>
+            <span class="tip flex items-center gap-1.5 text-xs text-gray-500 cursor-help"
+                  data-tip="Carga Aguda: promedio EWMA de los últimos 7 días. Refleja la fatiga de la semana actual. Sube rápido tras semanas intensas.">
+              <span class="inline-block w-3 h-0.5 bg-violet-500 rounded"></span>
+              ATL · fatiga reciente
+            </span>
+            <span class="tip text-xs text-gray-400 cursor-help"
+                  data-tip="EWMA = Media Móvil Exponencialmente Ponderada. Da más peso a los datos recientes que a los antiguos.">
+              ⓘ EWMA
+            </span>
+          </div>
         </div>
 
         <div class="card p-6 lg:col-span-2">
@@ -1343,26 +1419,31 @@
     <div x-show="!snapshot && !loading && !error"
          class="text-center py-20 text-gray-400">
       <div class="text-5xl mb-4">🏃</div>
-      <p class="text-lg font-medium text-gray-500">Ingresa una cédula para ver el dashboard</p>
-      <p class="text-sm mt-2">Backend: <code class="bg-gray-100 px-2 py-0.5 rounded">localhost:8000</code></p>
+      <p class="text-lg font-medium text-gray-500">Cargando tu dashboard...</p>
     </div>
 
   </main>
 
   <!-- ══ FOOTER ══════════════════════════════════════════════════════════════ -->
-  <footer class="border-t border-gray-200 bg-white mt-10 px-6 py-4">
-    <div class="max-w-6xl mx-auto flex items-center justify-between text-xs text-gray-400">
-      <div class="flex items-center gap-2">
-        <svg width="14" height="19" viewBox="0 0 72 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <line x1="36" y1="38" x2="33" y2="6" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
-          <line x1="36" y1="38" x2="8" y2="92" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
-          <line x1="36" y1="38" x2="62" y2="86" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
-        </svg>
-        <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;color:#374151;letter-spacing:-0.01em;">RUNA</span>
-        <span class="text-gray-300">·</span>
-        <span>AR Athletes Lab · 2026</span>
+  <footer class="border-t border-gray-200 bg-white mt-10 px-6 py-5">
+    <div class="max-w-6xl mx-auto">
+      <!-- Frase motivacional -->
+      <p class="text-center text-xs text-slate-400 italic mb-4">
+        "La constancia no es hacer algo una vez con todo tu esfuerzo — es hacer algo cada día, aunque no tengas ganas."
+      </p>
+      <div class="flex items-center justify-between text-xs text-gray-400">
+        <div class="flex items-center gap-2">
+          <svg width="14" height="19" viewBox="0 0 72 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line x1="36" y1="38" x2="33" y2="6" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
+            <line x1="36" y1="38" x2="8" y2="92" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
+            <line x1="36" y1="38" x2="62" y2="86" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
+          </svg>
+          <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;color:#374151;letter-spacing:-0.01em;">RUNA</span>
+          <span class="text-gray-300">·</span>
+          <span>AR Athletes Lab · 2026</span>
+        </div>
+        <span>Dashboard del atleta</span>
       </div>
-      <span>Dashboard del atleta</span>
     </div>
   </footer>
 
