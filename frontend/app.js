@@ -903,11 +903,13 @@ function athleteApp() {
     get kmVsPrevWeek() {
       const data = this.features?.data;
       if (!data || data.length < 2) return null;
-      const cur  = data[data.length - 1]?.km_week;
-      const prev = data[data.length - 2]?.km_week;
-      if (!cur || !prev) return null;
-      const diff = Math.round((cur - prev) * 10) / 10;
-      const pct  = Math.round((diff / prev) * 100);
+      const curRaw  = data[data.length - 1]?.km_week;
+      const prevRaw = data[data.length - 2]?.km_week;
+      if (!curRaw || !prevRaw) return null;
+      const cur  = Math.round(curRaw  * 10) / 10;
+      const prev = Math.round(prevRaw * 10) / 10;
+      const diff = Math.round((curRaw - prevRaw) * 10) / 10;
+      const pct  = Math.round((diff / prevRaw) * 100);
       return { cur, prev, diff, pct, positive: diff >= 0 };
     },
 

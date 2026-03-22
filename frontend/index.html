@@ -160,44 +160,77 @@
         </div>
       </template>
 
+      <!-- ══ FRASE MOTIVACIONAL DEL ATLETA ════════════════════════════════ -->
+      <template x-if="coachContent?.athlete_motto">
+        <div class="card px-6 py-4 flex items-start gap-3">
+          <span class="text-2xl leading-none shrink-0 mt-0.5">🔥</span>
+          <div>
+            <p class="text-sm font-semibold text-slate-700 leading-relaxed italic"
+               x-text="'\"' + coachContent.athlete_motto + '\"'"></p>
+            <p class="text-[10px] text-slate-400 mt-1 uppercase tracking-wide">Mi motivación</p>
+          </div>
+        </div>
+      </template>
+
       <!-- ══ HERO CARD ═════════════════════════════════════════════════════ -->
-      <div class="card overflow-hidden">
+      <div class="card overflow-hidden" style="border: none;">
 
-        <!-- Banda principal — color del semáforo -->
-        <div class="px-6 py-6" :style="{ backgroundColor: semConfig.bg }">
-          <div class="flex items-start gap-4">
+        <!-- Banda principal — gradiente basado en semáforo -->
+        <div class="px-6 py-7 relative"
+             :style="{
+               background: 'linear-gradient(135deg, ' + semConfig.bg + ' 0%, ' + semConfig.bg + 'dd 60%, ' + semConfig.bg + '99 100%)',
+             }">
 
-            <!-- Izquierda: estado + nombre -->
+          <!-- Patrón sutil de fondo -->
+          <div class="absolute inset-0 opacity-[0.04]"
+               style="background-image: radial-gradient(circle at 20% 50%, white 1px, transparent 1px);
+                      background-size: 24px 24px;"></div>
+
+          <div class="relative flex items-start gap-4">
+
+            <!-- Izquierda: nombre + ciudad -->
             <div class="flex-1 min-w-0">
-              <!-- Check-in reminder dentro del hero (solo si es SIN_CHECKIN) -->
+              <!-- Check-in reminder (solo si es SIN_CHECKIN) -->
               <template x-if="snapshot?.semaforo_latest_checkin === 'SIN_CHECKIN'">
-                <div class="inline-flex items-center gap-1.5 bg-white/20 rounded-full px-3 py-1 mb-2">
-                  <span class="text-white/80 text-[11px] font-medium">📋 Sin check-in reciente</span>
+                <div class="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 mb-3">
+                  <span class="text-white/90 text-[11px] font-medium">📋 Sin check-in reciente</span>
                 </div>
               </template>
-              <h2 class="text-white text-2xl font-bold leading-tight"
+              <template x-if="snapshot?.semaforo_latest_checkin && snapshot.semaforo_latest_checkin !== 'SIN_CHECKIN'">
+                <div class="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 mb-3">
+                  <span class="w-2 h-2 rounded-full"
+                        :style="{ backgroundColor: snapshot.semaforo_latest_checkin === 'VERDE' ? '#4ade80' : snapshot.semaforo_latest_checkin === 'AMARILLO' ? '#fbbf24' : '#f87171' }"></span>
+                  <span class="text-white/90 text-[11px] font-medium" x-text="semConfig.label"></span>
+                </div>
+              </template>
+              <h2 class="text-white text-2xl font-bold leading-tight font-display tracking-tight"
+                  style="font-family: 'Plus Jakarta Sans', sans-serif;"
                   x-text="athleteName"></h2>
-              <p class="text-white/60 text-xs mt-0.5" x-text="profile.city_country || ''"></p>
+              <p class="text-white/60 text-xs mt-1" x-text="profile.city_country || ''"></p>
             </div>
 
-            <!-- Derecha: carrera objetivo (tarjeta unificada) -->
+            <!-- Derecha: carrera objetivo (tarjeta glassmorphism) -->
             <template x-if="goalInfo.raceDistance">
               <div class="shrink-0">
                 <button
                   @click="switchTab('rendimiento')"
-                  class="bg-white/15 hover:bg-white/25 transition-colors rounded-xl px-4 py-3 text-center block"
+                  class="relative bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20
+                         transition-all duration-300 rounded-2xl px-5 py-4 text-center block group"
                   title="Ver predicción de rendimiento">
-                  <div class="text-white/60 text-[10px] uppercase tracking-widest font-semibold mb-1">Carrera objetivo</div>
-                  <div class="text-white font-bold text-2xl leading-none"
+                  <div class="text-white/50 text-[9px] uppercase tracking-[0.2em] font-bold mb-1.5">Carrera objetivo</div>
+                  <div class="text-white font-extrabold text-3xl leading-none tracking-tight"
+                       style="font-family: 'Plus Jakarta Sans', sans-serif;"
                        x-text="goalInfo.raceDistance"></div>
                   <template x-if="goalInfo.countdownDays !== null">
-                    <div class="mt-1.5 flex items-center justify-center gap-1">
-                      <span class="font-bold text-sm leading-none"
+                    <div class="mt-2">
+                      <span class="text-sm font-bold leading-none"
                             :class="goalInfo.countdownDays < 30 ? 'text-red-200' : goalInfo.countdownDays < 90 ? 'text-yellow-200' : 'text-white/90'"
                             x-text="goalInfo.countdownDays + ' días'"></span>
                     </div>
                   </template>
-                  <div class="text-white/50 text-[10px] mt-1">Ver predicción →</div>
+                  <div class="text-white/40 text-[10px] mt-2 group-hover:text-white/70 transition-colors">
+                    Ver predicción →
+                  </div>
                 </button>
               </div>
             </template>
@@ -206,7 +239,7 @@
         </div>
 
         <!-- Sub-banda: tipo de semana + fecha ACTUAL -->
-        <div class="px-6 py-3 flex items-center justify-between"
+        <div class="px-6 py-3 flex items-center justify-between border-t border-slate-100"
              :style="{ backgroundColor: weekTypeBg || '#f8fafc' }">
           <span class="text-sm font-semibold"
                 :style="{ color: weekTypeColor }"
@@ -221,28 +254,38 @@
 
 
       <!-- ══ SESIÓN DE HOY ══════════════════════════════════════════════════ -->
-      <div class="card p-6">
-        <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center gap-2">
-            <span class="text-lg">🗓</span>
-            <h3 class="text-base font-semibold text-gray-800">Sesión de hoy</h3>
+      <div class="card overflow-hidden">
+        <!-- Header con gradiente sutil -->
+        <div class="px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-[#C41E3A]/10 flex items-center justify-center">
+                <span class="text-base">🗓</span>
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Sesión de hoy</h3>
+              </div>
+            </div>
+            <span class="text-xs text-slate-400 font-mono bg-slate-100 px-2.5 py-1 rounded-full" x-text="todayLabel"></span>
           </div>
-          <span class="text-xs text-slate-400 font-mono" x-text="todayLabel"></span>
         </div>
 
+        <div class="p-6">
         <!-- Con sesión -->
         <template x-if="todaySession.sessions.length > 0">
           <div class="space-y-3">
             <template x-for="s in todaySession.sessions" :key="s.session + s.type">
-              <div class="rounded-xl p-4" :style="{ backgroundColor: sessionBg(s.type) }">
+              <div class="rounded-xl p-4 border"
+                   :style="{ backgroundColor: sessionBg(s.type), borderColor: sessionColor(s.type) + '20' }">
                 <div class="flex items-start justify-between gap-3">
                   <div class="flex-1">
-                    <div class="text-base font-semibold leading-tight"
+                    <div class="text-base font-bold leading-tight"
+                         style="font-family:'Plus Jakarta Sans',sans-serif;"
                          :style="{ color: sessionColor(s.type) }"
                          x-text="s.session"></div>
-                    <div class="flex items-center gap-2 mt-1 flex-wrap">
+                    <div class="flex items-center gap-2 mt-1.5 flex-wrap">
                       <template x-if="s.km">
-                        <span class="text-sm font-medium text-gray-700"
+                        <span class="text-sm font-bold text-gray-700 bg-white/60 px-2 py-0.5 rounded"
                               x-text="s.km + ' km'"></span>
                       </template>
                       <!-- Badge coach: reemplazo vs parche -->
@@ -282,12 +325,15 @@
 
         <!-- Descanso -->
         <template x-if="todaySession.sessions.length === 0">
-          <div class="py-6 text-center">
-            <div class="text-3xl mb-2">💤</div>
-            <p class="text-gray-500 text-sm font-medium">Día de descanso</p>
-            <p class="text-gray-400 text-xs mt-1">El descanso es parte del entrenamiento.</p>
+          <div class="py-8 text-center">
+            <div class="w-16 h-16 mx-auto mb-3 rounded-2xl bg-slate-100 flex items-center justify-center">
+              <span class="text-3xl">💤</span>
+            </div>
+            <p class="text-gray-600 text-sm font-semibold" style="font-family:'Plus Jakarta Sans',sans-serif;">Día de descanso</p>
+            <p class="text-gray-400 text-xs mt-1">Recuperar es tan importante como entrenar.</p>
           </div>
         </template>
+        </div>
       </div>
       <!-- fin sesión de hoy -->
 
@@ -369,12 +415,14 @@
 
       <!-- ══ FORMA COMPACTA ════════════════════════════════════════════════ -->
       <template x-if="snapshot && formaPanel.hasData">
-        <div class="card px-6 py-4">
-
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2">
-              <span>⚡</span>
-              <span class="text-sm font-semibold text-gray-700">Forma</span>
+        <div class="card overflow-hidden">
+          <div class="px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                <span class="text-base">⚡</span>
+              </div>
+              <span class="text-sm font-bold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Estado de forma</span>
             </div>
             <template x-if="formaPanel.readinessScore !== null">
               <span class="tip text-xs font-semibold px-3 py-1 rounded-full"
@@ -389,8 +437,10 @@
                     x-text="'Readiness ' + formaPanel.readinessScore + '/100'"></span>
             </template>
           </div>
+          </div>
 
           <!-- 4 chips con tooltips -->
+          <div class="px-6 py-4">
           <div class="grid grid-cols-4 gap-2 grid-4">
 
             <!-- CTL -->
@@ -470,6 +520,7 @@
             </p>
           </template>
 
+          </div>
         </div>
       </template>
       <!-- fin forma compacta -->
@@ -477,17 +528,21 @@
 
       <!-- ══ ÚLTIMO CHECK-IN ═══════════════════════════════════════════════ -->
       <template x-if="checkin?.latest_checkin">
-        <div class="card px-6 py-4">
-
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2">
-              <span>📋</span>
-              <span class="text-sm font-semibold text-gray-700">Último check-in</span>
+        <div class="card overflow-hidden">
+          <div class="px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <span class="text-base">📋</span>
+              </div>
+              <span class="text-sm font-bold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Último check-in</span>
             </div>
-            <span class="text-xs text-slate-400"
+            <span class="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full"
                   x-text="checkin.latest_checkin.checkin_date || ''"></span>
           </div>
+          </div>
 
+          <div class="px-6 py-4">
           <!-- 3 chips: sensación / fatiga / dolor -->
           <div class="grid grid-cols-3 gap-2">
 
@@ -536,6 +591,7 @@
                x-text="'&quot;' + checkin.latest_checkin.comments + '&quot;'"></p>
           </template>
 
+          </div>
         </div>
       </template>
       <!-- fin último check-in -->
@@ -543,26 +599,37 @@
 
       <!-- ══ COMPARATIVO KM ════════════════════════════════════════════════ -->
       <template x-if="kmVsPrevWeek">
-        <div class="card px-6 py-4">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="text-lg">📊</span>
-              <span class="text-sm font-semibold text-gray-700">Esta semana vs. anterior</span>
+        <div class="card overflow-hidden">
+          <div class="px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                     :class="kmVsPrevWeek.positive ? 'bg-green-100' : 'bg-amber-100'">
+                  <span class="text-base" x-text="kmVsPrevWeek.positive ? '📈' : '📉'"></span>
+                </div>
+                <span class="text-sm font-bold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">
+                  Esta semana vs. anterior
+                </span>
+              </div>
+              <span class="text-xs font-bold px-3 py-1 rounded-full"
+                    :class="kmVsPrevWeek.positive ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'"
+                    x-text="(kmVsPrevWeek.positive ? '↑ +' : '↓ ') + Math.abs(kmVsPrevWeek.diff) + ' km (' + (kmVsPrevWeek.positive ? '+' : '') + kmVsPrevWeek.pct + '%)'">
+              </span>
             </div>
-            <span class="text-xs font-semibold px-2.5 py-1 rounded-full"
-                  :class="kmVsPrevWeek.positive ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'"
-                  x-text="(kmVsPrevWeek.positive ? '↑ +' : '↓ ') + Math.abs(kmVsPrevWeek.diff) + ' km (' + (kmVsPrevWeek.positive ? '+' : '') + kmVsPrevWeek.pct + '%)'">
-            </span>
           </div>
-          <div class="flex items-end gap-4 mt-3">
-            <div class="flex-1 text-center">
-              <div class="text-2xl font-bold text-[#C41E3A] tabular-nums" x-text="kmVsPrevWeek.cur + ' km'"></div>
-              <div class="text-xs text-slate-400 mt-0.5">Esta semana</div>
-            </div>
-            <div class="text-slate-300 text-lg mb-1">vs</div>
-            <div class="flex-1 text-center">
-              <div class="text-2xl font-bold text-slate-400 tabular-nums" x-text="kmVsPrevWeek.prev + ' km'"></div>
-              <div class="text-xs text-slate-400 mt-0.5">Semana anterior</div>
+          <div class="px-6 py-5">
+            <div class="flex items-end gap-4">
+              <div class="flex-1 text-center">
+                <div class="text-3xl font-extrabold text-[#C41E3A] tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;"
+                     x-text="kmVsPrevWeek.cur"></div>
+                <div class="text-xs text-slate-400 mt-1 font-medium">km esta semana</div>
+              </div>
+              <div class="text-slate-200 text-2xl mb-2 font-light">vs</div>
+              <div class="flex-1 text-center">
+                <div class="text-3xl font-extrabold text-slate-300 tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;"
+                     x-text="kmVsPrevWeek.prev"></div>
+                <div class="text-xs text-slate-400 mt-1 font-medium">km semana anterior</div>
+              </div>
             </div>
           </div>
         </div>
@@ -1072,25 +1139,36 @@
       <template x-if="analyticsKpis">
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
 
-          <div class="card px-4 py-4 text-center">
-            <div class="metric-label text-[#C41E3A]/70 mb-1">Esta semana</div>
-            <div class="text-2xl font-bold text-[#C41E3A] tabular-nums" x-text="analyticsKpis.thisWeek + ' km'"></div>
+          <div class="card px-4 py-5 text-center overflow-hidden relative">
+            <div class="absolute top-0 left-0 right-0 h-1 bg-[#C41E3A]"></div>
+            <div class="metric-label text-[#C41E3A]/60 mb-1.5">Esta semana</div>
+            <div class="text-2xl font-extrabold text-[#C41E3A] tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;"
+                 x-text="analyticsKpis.thisWeek"></div>
+            <div class="text-[10px] text-[#C41E3A]/40 font-semibold mt-0.5">km</div>
           </div>
 
-          <div class="card px-4 py-4 text-center">
-            <div class="metric-label text-slate-400 mb-1">Prom. / semana</div>
-            <div class="text-2xl font-bold text-slate-700 tabular-nums" x-text="analyticsKpis.avgWeek + ' km'"></div>
-            <div class="text-[10px] text-slate-300 mt-0.5" x-text="'últimas ' + analyticsKpis.weeks + ' sem.'"></div>
+          <div class="card px-4 py-5 text-center overflow-hidden relative">
+            <div class="absolute top-0 left-0 right-0 h-1 bg-blue-500"></div>
+            <div class="metric-label text-blue-400 mb-1.5">Prom. / semana</div>
+            <div class="text-2xl font-extrabold text-slate-700 tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;"
+                 x-text="analyticsKpis.avgWeek"></div>
+            <div class="text-[10px] text-slate-300 font-semibold mt-0.5" x-text="'km · últimas ' + analyticsKpis.weeks + ' sem.'"></div>
           </div>
 
-          <div class="card px-4 py-4 text-center">
-            <div class="metric-label text-slate-400 mb-1">Prom. / mes</div>
-            <div class="text-2xl font-bold text-slate-700 tabular-nums" x-text="analyticsKpis.avgMonth + ' km'"></div>
+          <div class="card px-4 py-5 text-center overflow-hidden relative">
+            <div class="absolute top-0 left-0 right-0 h-1 bg-violet-500"></div>
+            <div class="metric-label text-violet-400 mb-1.5">Prom. / mes</div>
+            <div class="text-2xl font-extrabold text-slate-700 tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;"
+                 x-text="analyticsKpis.avgMonth"></div>
+            <div class="text-[10px] text-slate-300 font-semibold mt-0.5">km</div>
           </div>
 
-          <div class="card px-4 py-4 text-center">
-            <div class="metric-label text-slate-400 mb-1">Semana máx.</div>
-            <div class="text-2xl font-bold text-slate-700 tabular-nums" x-text="analyticsKpis.maxWeek + ' km'"></div>
+          <div class="card px-4 py-5 text-center overflow-hidden relative">
+            <div class="absolute top-0 left-0 right-0 h-1 bg-emerald-500"></div>
+            <div class="metric-label text-emerald-400 mb-1.5">Semana máxima</div>
+            <div class="text-2xl font-extrabold text-slate-700 tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;"
+                 x-text="analyticsKpis.maxWeek"></div>
+            <div class="text-[10px] text-slate-300 font-semibold mt-0.5">km</div>
           </div>
 
         </div>

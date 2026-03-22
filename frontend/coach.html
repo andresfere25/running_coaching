@@ -201,6 +201,15 @@
           </div>
         </div>
 
+        <!-- ── Frase motivacional del atleta ──────────────────────── -->
+        <div class="card px-5 py-4">
+          <div class="label mb-2">🔥 Frase motivacional del atleta</div>
+          <input x-model="form.athlete_motto" type="text"
+                 placeholder="Ej: Quiero correr mi primera media maratón — para demostrarme que puedo"
+                 class="field" />
+          <p class="text-xs text-slate-400 mt-1.5">Aparece destacada en el dashboard del atleta. Elegida en conjunto con el atleta.</p>
+        </div>
+
         <!-- ── Alertas y restricciones ────────────────────────────── -->
         <div class="card px-5 py-4">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -615,6 +624,7 @@ function coachApp() {
       coach_message:      '',
       weekly_focus:       '',
       weekly_objective:   '',
+      athlete_motto:      '',
       alerts:             [],
       restrictions:       [],
       session_notes:      emptyNotes(),
@@ -675,6 +685,7 @@ function coachApp() {
       this.form.coach_message      = ed.coach_message      || '';
       this.form.weekly_focus       = ed.weekly_focus       || '';
       this.form.weekly_objective   = ed.weekly_objective   || '';
+      this.form.athlete_motto      = ed.athlete_motto      || '';
       this.form.alerts           = [...(ed.alerts       || [])];
       this.form.restrictions     = [...(ed.restrictions || [])];
 
@@ -717,6 +728,7 @@ function coachApp() {
         coach_message:    this.form.coach_message,
         weekly_focus:     this.form.weekly_focus,
         weekly_objective: this.form.weekly_objective,
+        athlete_motto:    this.form.athlete_motto.trim() || undefined,
         alerts:           this.form.alerts.filter(a => a.trim()),
         restrictions:     this.form.restrictions.filter(r => r.trim()),
         session_notes:    Object.fromEntries(DAYS.map(d => [d, this.form.session_notes[d]])),
