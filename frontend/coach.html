@@ -3,16 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Panel del Coach — Running Coaching</title>
+  <title>RUNA · Panel del Coach</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
-      theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } }
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            display: ["'Plus Jakarta Sans'", 'sans-serif'],
+            mono: ["'JetBrains Mono'", 'monospace'],
+          }
+        }
+      }
     }
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
   <style>
@@ -44,19 +52,24 @@
   </style>
 </head>
 
-<body class="bg-slate-50 min-h-screen" x-data="coachApp()" x-cloak>
+<body class="bg-[#FDFBF7] min-h-screen" x-data="coachApp()" x-cloak>
 
   <!-- ══ HEADER ═══════════════════════════════════════════════════════════ -->
-  <header class="bg-gray-900 text-white px-6 py-4 flex items-center justify-between shadow-lg">
-    <div class="flex items-center gap-3">
-      <span class="text-2xl">🏋️</span>
-      <div>
-        <h1 class="text-lg font-bold leading-tight">Panel del Coach</h1>
-        <p class="text-xs text-gray-400">Editor de contenido semanal por atleta</p>
+  <header class="bg-white border-b border-gray-200 px-6 py-3.5 flex items-center justify-between sticky top-0 z-40">
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2.5">
+        <svg width="18" height="25" viewBox="0 0 72 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <line x1="36" y1="38" x2="33" y2="6" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
+          <line x1="36" y1="38" x2="8" y2="92" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
+          <line x1="36" y1="38" x2="62" y2="86" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
+        </svg>
+        <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:18px;color:#111827;letter-spacing:-0.02em;line-height:1;">RUNA</span>
       </div>
+      <span class="text-gray-300 text-lg">|</span>
+      <span class="text-sm font-medium text-gray-500">Panel del Coach</span>
     </div>
     <div class="flex items-center gap-3">
-      <a href="/app" class="text-xs text-gray-400 hover:text-white transition-colors">← Dashboard atleta</a>
+      <a href="/app" class="text-xs text-gray-500 hover:text-[#C41E3A] transition-colors">← Dashboard atleta</a>
       <!-- Selector de cédula -->
       <div class="flex items-center gap-2">
         <select x-model="cedula" @change="loadDraft()"
@@ -552,6 +565,23 @@
     <!-- fin grid -->
 
   </main>
+
+  <!-- ══ FOOTER ══════════════════════════════════════════════════════════════ -->
+  <footer class="border-t border-gray-200 bg-white mt-10 px-6 py-4">
+    <div class="max-w-6xl mx-auto flex items-center justify-between text-xs text-gray-400">
+      <div class="flex items-center gap-2">
+        <svg width="14" height="19" viewBox="0 0 72 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <line x1="36" y1="38" x2="33" y2="6" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
+          <line x1="36" y1="38" x2="8" y2="92" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
+          <line x1="36" y1="38" x2="62" y2="86" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
+        </svg>
+        <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;color:#374151;letter-spacing:-0.01em;">RUNA</span>
+        <span class="text-gray-300">·</span>
+        <span>AR Athletes Lab · 2026</span>
+      </div>
+      <span>Panel del Coach</span>
+    </div>
+  </footer>
 </body>
 
 <script>
