@@ -18,10 +18,10 @@ async function apiFetch(path) {
 
 // ─── Colores del semáforo ──────────────────────────────────────────────────
 const SEM_CONFIG = {
-  VERDE:       { bg: '#059669', badge: '#d1fae5', text: 'text-emerald-800', label: 'Estado óptimo' },
-  AMARILLO:    { bg: '#d97706', badge: '#fef3c7', text: 'text-amber-800',   label: 'Precaución' },
-  ROJO:        { bg: '#dc2626', badge: '#fee2e2', text: 'text-red-800',     label: 'Reducir carga' },
-  SIN_CHECKIN: { bg: '#334155', badge: '#f1f5f9', text: 'text-slate-700',  label: 'Sin check-in reciente' },
+  VERDE:       { bg: '#065f46', badge: '#d1fae5', text: 'text-emerald-800', label: 'Estado óptimo' },
+  AMARILLO:    { bg: '#b45309', badge: '#fef3c7', text: 'text-amber-800',   label: 'Precaución' },
+  ROJO:        { bg: '#b91c1c', badge: '#fee2e2', text: 'text-red-800',     label: 'Reducir carga' },
+  SIN_CHECKIN: { bg: '#1e293b', badge: '#f1f5f9', text: 'text-slate-700',  label: 'Sin check-in reciente' },
 };
 
 // ─── Formateo ──────────────────────────────────────────────────────────────
@@ -966,17 +966,70 @@ function athleteApp() {
       return Math.round(maeMin * 60);
     },
 
-    // ── URLs de check-in (portal de atletas) ────────────────────────────────
-    get checkinWeeklyUrl() {
-      // Link al portal — usa token si está en URL, sino fallback
-      const token = new URLSearchParams(window.location.search).get('token');
-      if (token) return `https://app.arathleteslab.com/invite/${token}/checkin?type=weekly`;
-      return `https://app.arathleteslab.com/checkin?cedula=${this.cedula}&type=weekly`;
+    // ── Check-in inline ─────────────────────────────────────────────────────
+    checkinMode: null,  // null | 'weekly' | 'race'
+    checkinForm: { sleep: 3, energy: 3, pain: false, race_distance_km: '', race_time: '', sensation: 3 },
+    checkinSending: false,
+    checkinSuccess: null,
+    checkinError: null,
+
+    openCheckin(mode) {
+      this.checkinMode = mode;
+      this.checkinForm = { sleep: 3, energy: 3, pain: false, race_distance_km: '', race_time: '', sensation: 3 };
+      this.checkinSuccess = null;
+      this.checkinError = null;
     },
-    get checkinRaceUrl() {
-      const token = new URLSearchParams(window.location.search).get('token');
-      if (token) return `https://app.arathleteslab.com/invite/${token}/checkin?type=race`;
-      return `https://app.arathleteslab.com/checkin?cedula=${this.cedula}&type=race`;
+
+    closeCheckin() {
+      this.checkinMode = null;
+    },
+
+    async submitCheckin() {
+      this.checkinSending = true;
+      this.checkinError = null;
+      try {
+        const body = this.checkinMode === 'weekly'
+          ? {
+              type: 'weekly',
+              sleep_1_5: this.checkinForm.sleep,
+              energy_1_5: this.checkinForm.energy,
+              pain_flag: this.checkinForm.pain,
+            }
+          : {
+              type: 'race',
+              race_distance_km: parseFloat(this.checkinForm.race_distance_km),
+              race_time_sec: this._parseRaceTime(this.checkinForm.race_time),
+              sensation_1_5: this.checkinForm.sensation,
+            };
+
+        const res = await fetch(`${API_BASE}/athletes/${this.cedula}/checkin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || 'Error al enviar');
+        }
+        this.checkinSuccess = this.checkinMode === 'weekly'
+          ? 'Check-in semanal registrado'
+          : 'Carrera registrada';
+        // Refrescar datos
+        this.fetchCheckin();
+      } catch (e) {
+        this.checkinError = e.message;
+      } finally {
+        this.checkinSending = false;
+      }
+    },
+
+    /** Parsea "MM:SS" o "H:MM:SS" a segundos */
+    _parseRaceTime(str) {
+      if (!str) return 0;
+      const parts = str.split(':').map(Number);
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      if (parts.length === 2) return parts[0] * 60 + parts[1];
+      return Number(str) || 0;
     },
 
     // ── FC promedio por semana (para tabla historial) ──────────────────────

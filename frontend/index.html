@@ -186,10 +186,10 @@
               </template>
             </p>
           </div>
-          <a :href="checkinRaceUrl" target="_blank"
-             class="text-[10px] font-bold bg-orange-500 text-white px-3 py-1.5 rounded-full hover:bg-orange-600 transition-colors shrink-0 no-underline">
+          <button @click="openCheckin('race')"
+             class="text-[10px] font-bold bg-orange-500 text-white px-3 py-1.5 rounded-full hover:bg-orange-600 transition-colors shrink-0">
             Registrar carrera
-          </a>
+          </button>
         </div>
       </template>
 
@@ -331,8 +331,8 @@
 
       <!-- ══ ACCIONES RÁPIDAS ═══════════════════════════════════════════════ -->
       <div class="grid grid-cols-2 gap-3">
-        <a :href="checkinWeeklyUrl" target="_blank"
-           class="card card-texture px-4 py-3.5 flex items-center gap-3 hover:shadow-md transition-all group cursor-pointer no-underline">
+        <button @click="openCheckin('weekly')"
+           class="card card-texture px-4 py-3.5 flex items-center gap-3 hover:shadow-md transition-all group cursor-pointer text-left">
           <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
             <span class="text-white text-sm">📋</span>
           </div>
@@ -340,9 +340,9 @@
             <div class="text-xs font-bold text-slate-700" style="font-family:'Plus Jakarta Sans',sans-serif;">Check-in semanal</div>
             <div class="text-[10px] text-slate-400 mt-0.5">Sueño, energía, dolor</div>
           </div>
-        </a>
-        <a :href="checkinRaceUrl" target="_blank"
-           class="card card-texture px-4 py-3.5 flex items-center gap-3 hover:shadow-md transition-all group cursor-pointer no-underline">
+        </button>
+        <button @click="openCheckin('race')"
+           class="card card-texture px-4 py-3.5 flex items-center gap-3 hover:shadow-md transition-all group cursor-pointer text-left">
           <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
             <span class="text-white text-sm">🏅</span>
           </div>
@@ -350,8 +350,141 @@
             <div class="text-xs font-bold text-slate-700" style="font-family:'Plus Jakarta Sans',sans-serif;">Registrar carrera</div>
             <div class="text-[10px] text-slate-400 mt-0.5">Tiempo oficial + sensación</div>
           </div>
-        </a>
+        </button>
       </div>
+
+      <!-- ══ MODAL CHECK-IN INLINE ═══════════════════════════════════════ -->
+      <template x-if="checkinMode">
+        <div class="card overflow-hidden card-texture" style="border: 2px solid #C41E3A20;">
+
+          <!-- Header -->
+          <div class="px-5 py-3.5 flex items-center justify-between"
+               style="background: linear-gradient(135deg, #1e293b, #0f172a);">
+            <div class="flex items-center gap-2.5">
+              <span class="text-lg" x-text="checkinMode === 'weekly' ? '📋' : '🏅'"></span>
+              <h3 class="text-sm font-bold text-white" style="font-family:'Plus Jakarta Sans',sans-serif;"
+                  x-text="checkinMode === 'weekly' ? 'Check-in semanal' : 'Registrar carrera'"></h3>
+            </div>
+            <button @click="closeCheckin()" class="text-white/50 hover:text-white text-lg transition-colors">✕</button>
+          </div>
+
+          <div class="px-5 py-4 space-y-4">
+
+            <!-- ─── Weekly form ────────────────────────────────────── -->
+            <template x-if="checkinMode === 'weekly'">
+              <div class="space-y-4">
+                <div>
+                  <label class="text-xs font-semibold text-slate-600 mb-1.5 block">😴 Sueño esta semana</label>
+                  <div class="flex gap-2">
+                    <template x-for="v in [1,2,3,4,5]" :key="v">
+                      <button @click="checkinForm.sleep = v"
+                              class="flex-1 py-2 rounded-lg text-sm font-bold transition-all"
+                              :class="checkinForm.sleep === v
+                                ? 'bg-[#C41E3A] text-white shadow-sm'
+                                : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
+                              x-text="v"></button>
+                    </template>
+                  </div>
+                  <div class="flex justify-between text-[10px] text-slate-400 mt-1 px-1">
+                    <span>Muy mal</span><span>Excelente</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="text-xs font-semibold text-slate-600 mb-1.5 block">⚡ Energía general</label>
+                  <div class="flex gap-2">
+                    <template x-for="v in [1,2,3,4,5]" :key="v">
+                      <button @click="checkinForm.energy = v"
+                              class="flex-1 py-2 rounded-lg text-sm font-bold transition-all"
+                              :class="checkinForm.energy === v
+                                ? 'bg-[#C41E3A] text-white shadow-sm'
+                                : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
+                              x-text="v"></button>
+                    </template>
+                  </div>
+                  <div class="flex justify-between text-[10px] text-slate-400 mt-1 px-1">
+                    <span>Agotado/a</span><span>Lleno/a de energía</span>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-3 bg-slate-50 rounded-lg px-4 py-3">
+                  <button @click="checkinForm.pain = !checkinForm.pain"
+                          class="w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all shrink-0"
+                          :class="checkinForm.pain
+                            ? 'bg-red-500 border-red-500 text-white'
+                            : 'border-slate-300 hover:border-slate-400'">
+                    <span x-show="checkinForm.pain" class="text-xs font-bold">✓</span>
+                  </button>
+                  <div>
+                    <span class="text-sm font-medium text-slate-700">🩹 ¿Sientes dolor o molestia?</span>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Marca si tienes alguna molestia persistente</p>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- ─── Race form ──────────────────────────────────────── -->
+            <template x-if="checkinMode === 'race'">
+              <div class="space-y-4">
+                <div>
+                  <label class="text-xs font-semibold text-slate-600 mb-1.5 block">📏 Distancia (km)</label>
+                  <input x-model="checkinForm.race_distance_km" type="number" step="0.1" placeholder="Ej: 21.1"
+                         class="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#C41E3A] focus:ring-1 focus:ring-[#C41E3A]/30 transition-all" />
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-slate-600 mb-1.5 block">⏱ Tiempo oficial</label>
+                  <input x-model="checkinForm.race_time" type="text" placeholder="H:MM:SS o MM:SS"
+                         class="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm font-mono focus:outline-none focus:border-[#C41E3A] focus:ring-1 focus:ring-[#C41E3A]/30 transition-all" />
+                  <p class="text-[10px] text-slate-400 mt-1">Ej: 1:45:30 para 1h 45min 30seg</p>
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-slate-600 mb-1.5 block">💪 ¿Cómo te sentiste?</label>
+                  <div class="flex gap-2">
+                    <template x-for="v in [1,2,3,4,5]" :key="v">
+                      <button @click="checkinForm.sensation = v"
+                              class="flex-1 py-2 rounded-lg text-sm font-bold transition-all"
+                              :class="checkinForm.sensation === v
+                                ? 'bg-[#C41E3A] text-white shadow-sm'
+                                : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
+                              x-text="v"></button>
+                    </template>
+                  </div>
+                  <div class="flex justify-between text-[10px] text-slate-400 mt-1 px-1">
+                    <span>Muy mal</span><span>Increíble</span>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Success -->
+            <template x-if="checkinSuccess">
+              <div class="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 flex items-center gap-2">
+                <span class="text-lg">✅</span>
+                <span class="text-sm font-semibold text-emerald-700" x-text="checkinSuccess"></span>
+              </div>
+            </template>
+
+            <!-- Error -->
+            <template x-if="checkinError">
+              <div class="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600" x-text="checkinError"></div>
+            </template>
+
+            <!-- Submit -->
+            <template x-if="!checkinSuccess">
+              <button @click="submitCheckin()"
+                      :disabled="checkinSending"
+                      class="w-full py-3 rounded-xl text-sm font-bold text-white transition-all"
+                      :class="checkinSending
+                        ? 'bg-slate-400 cursor-not-allowed'
+                        : 'bg-[#C41E3A] hover:bg-[#a01830] shadow-md hover:shadow-lg'">
+                <span x-show="!checkinSending" x-text="checkinMode === 'weekly' ? 'Enviar check-in' : 'Registrar carrera'"></span>
+                <span x-show="checkinSending">Enviando...</span>
+              </button>
+            </template>
+
+          </div>
+        </div>
+      </template>
 
       <!-- ══ SESIÓN DE HOY ══════════════════════════════════════════════════ -->
       <div class="card overflow-hidden card-texture">
