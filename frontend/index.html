@@ -1234,6 +1234,108 @@
 
       </div>
 
+      <!-- ══ STRAVA ANALYTICS ════════════════════════════════════════════ -->
+
+      <!-- HR Trend -->
+      <div class="card p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center">
+            <span class="text-white text-sm">❤</span>
+          </div>
+          <div>
+            <h3 class="font-semibold text-sm text-slate-800" style="font-family:'Plus Jakarta Sans',sans-serif">Tendencia de Frecuencia Cardíaca</h3>
+            <p class="text-[10px] text-slate-400">Últimas 20 actividades · FC media y máxima</p>
+          </div>
+        </div>
+        <template x-if="runsWithHR.length >= 3">
+          <div class="h-56"><canvas id="chartHrTrend"></canvas></div>
+        </template>
+        <template x-if="runsWithHR.length < 3">
+          <p class="text-xs text-slate-400 text-center py-8">Se necesitan al menos 3 actividades con datos de FC.</p>
+        </template>
+      </div>
+
+      <!-- Aerobic Efficiency -->
+      <div class="card p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+            <span class="text-white text-sm">⚡</span>
+          </div>
+          <div>
+            <h3 class="font-semibold text-sm text-slate-800" style="font-family:'Plus Jakarta Sans',sans-serif">Eficiencia Aeróbica</h3>
+            <p class="text-[10px] text-slate-400">Ratio ritmo/FC · Menor = más eficiente</p>
+          </div>
+        </div>
+        <template x-if="aerobicEffData.length >= 3">
+          <div class="h-56"><canvas id="chartEfficiency"></canvas></div>
+        </template>
+        <template x-if="aerobicEffData.length < 3">
+          <p class="text-xs text-slate-400 text-center py-8">Se necesitan al menos 3 actividades con datos de FC y ritmo.</p>
+        </template>
+      </div>
+
+      <!-- HR Zones + Cadence (side by side on desktop) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+        <!-- HR Zone Distribution -->
+        <div class="card p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+              <span class="text-white text-sm">🎯</span>
+            </div>
+            <div>
+              <h3 class="font-semibold text-sm text-slate-800" style="font-family:'Plus Jakarta Sans',sans-serif">Zonas de FC</h3>
+              <p class="text-[10px] text-slate-400">Distribución por zona · FCmax est. <span x-text="estimatedFCmax"></span> bpm</p>
+            </div>
+          </div>
+          <template x-if="hrZoneDistribution.total > 0">
+            <div class="h-56 flex items-center justify-center"><canvas id="chartHrZones"></canvas></div>
+          </template>
+          <template x-if="hrZoneDistribution.total === 0">
+            <p class="text-xs text-slate-400 text-center py-8">Sin datos de frecuencia cardíaca disponibles.</p>
+          </template>
+        </div>
+
+        <!-- Cadence -->
+        <div class="card p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+              <span class="text-white text-sm">👟</span>
+            </div>
+            <div>
+              <h3 class="font-semibold text-sm text-slate-800" style="font-family:'Plus Jakarta Sans',sans-serif">Cadencia</h3>
+              <p class="text-[10px] text-slate-400">Pasos/min · Óptimo 170-185 spm</p>
+            </div>
+          </div>
+          <template x-if="cadenceData.length >= 3">
+            <div class="h-56"><canvas id="chartCadence"></canvas></div>
+          </template>
+          <template x-if="cadenceData.length < 3">
+            <p class="text-xs text-slate-400 text-center py-8">Se necesitan al menos 3 actividades con datos de cadencia.</p>
+          </template>
+        </div>
+
+      </div>
+
+      <!-- Weekly Elevation -->
+      <div class="card p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center">
+            <span class="text-white text-sm">⛰</span>
+          </div>
+          <div>
+            <h3 class="font-semibold text-sm text-slate-800" style="font-family:'Plus Jakarta Sans',sans-serif">Elevación Semanal</h3>
+            <p class="text-[10px] text-slate-400">Desnivel acumulado por semana (metros)</p>
+          </div>
+        </div>
+        <template x-if="weeklyElevation.length >= 2">
+          <div class="h-56"><canvas id="chartElevation"></canvas></div>
+        </template>
+        <template x-if="weeklyElevation.length < 2">
+          <p class="text-xs text-slate-400 text-center py-8">Se necesitan al menos 2 semanas con datos de elevación.</p>
+        </template>
+      </div>
+
       <!-- ══ HISTORIAL DE FEATURES SEMANALES ══════════════════════════════ -->
       <div class="card p-6">
         <h3 class="section-title">Historial semanal</h3>

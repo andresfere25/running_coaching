@@ -116,6 +116,11 @@ const ACWR_ZONE_CONFIG = {
 let chartKm   = null;
 let chartAcwr = null;
 let chartCtl  = null;
+let chartHr   = null;
+let chartEff  = null;
+let chartZones = null;
+let chartCadence = null;
+let chartElev = null;
 
 // ─── Componente principal Alpine.js ───────────────────────────────────────
 function athleteApp() {
@@ -954,6 +959,262 @@ function athleteApp() {
       return Math.round(maeMin * 60);
     },
 
+    // ── FCmax estimada ──────────────────────────────────────────────────────
+    get estimatedFCmax() {
+      const age = this.profile?.age;
+      return (age && !isNaN(age)) ? 220 - Number(age) : 190;
+    },
+
+    // ── Runs con HR (para gráficos de tendencia) ────────────────────────────
+    get runsWithHR() {
+      return this.recentRuns
+        .filter(a => a.average_heartrate && a.average_heartrate > 0)
+        .slice(0, 20)
+        .reverse(); // cronológico
+    },
+
+    // ── Eficiencia aeróbica (pace / HR) — más bajo = más eficiente ─────────
+    get aerobicEffData() {
+      return this.runsWithHR.map(a => ({
+        date: (a.activity_date || '').slice(5, 10),
+        eff: a.pace_sec_per_km && a.average_heartrate
+              ? Math.round((a.pace_sec_per_km / a.average_heartrate) * 100) / 100
+              : null,
+      })).filter(d => d.eff !== null);
+    },
+
+    // ── Distribución por zona HR ────────────────────────────────────────────
+    get hrZoneDistribution() {
+      const fcmax = this.estimatedFCmax;
+      const zones = [0, 0, 0, 0, 0]; // Z1..Z5
+      const runs = this.runsWithHR;
+      if (!runs.length) return null;
+      for (const a of runs) {
+        const pct = (a.average_heartrate / fcmax) * 100;
+        if      (pct < 60) zones[0]++;
+        else if (pct < 70) zones[1]++;
+        else if (pct < 80) zones[2]++;
+        else if (pct < 90) zones[3]++;
+        else               zones[4]++;
+      }
+      return {
+        labels: ['Z1 Recuperación', 'Z2 Base aeróbica', 'Z3 Tempo', 'Z4 Umbral', 'Z5 VO₂max'],
+        data: zones,
+        total: runs.length,
+        fcmax,
+      };
+    },
+
+    // ── Cadencia por actividad ──────────────────────────────────────────────
+    get cadenceData() {
+      return this.recentRuns
+        .filter(a => a.average_cadence && a.average_cadence > 0)
+        .slice(0, 20)
+        .reverse()
+        .map(a => ({
+          date: (a.activity_date || '').slice(5, 10),
+          cadence: Math.round(a.average_cadence * 2), // Strava reports half-cadence
+        }));
+    },
+
+    // ── Desnivel acumulado semanal ──────────────────────────────────────────
+    get weeklyElevation() {
+      const data = this.features?.data || [];
+      if (!data.length) return null;
+      // Las features semanales no tienen elevation directamente,
+      // así que lo calculamos desde actividades agrupadas por semana
+      const runs = (this.activities?.data || [])
+        .filter(a => (a.sport_type || '').toLowerCase().includes('run') && a.elevation_m > 0);
+      if (!runs.length) return null;
+
+      const byWeek = {};
+      for (const a of runs) {
+        const d = new Date((a.activity_date || '').slice(0, 10) + 'T00:00:00');
+        const mon = new Date(d);
+        mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+        const key = mon.toISOString().slice(0, 10);
+        byWeek[key] = (byWeek[key] || 0) + (a.elevation_m || 0);
+      }
+      const weeks = Object.entries(byWeek).sort((a, b) => a[0].localeCompare(b[0]));
+      return weeks.map(([w, elev]) => ({
+        week: weekLabelChart(w),
+        elev: Math.round(elev),
+      }));
+    },
+
+    // ── Render gráficos de Strava analytics ──────────────────────────────────
+    _renderStravaCharts() {
+      // Destroy existing
+      [chartHr, chartEff, chartZones, chartCadence, chartElev].forEach(c => { if (c) c.destroy(); });
+      chartHr = chartEff = chartZones = chartCadence = chartElev = null;
+
+      const runs = this.runsWithHR;
+
+      // 1. HR Trend
+      const hrCtx = document.getElementById('chartHrTrend');
+      if (hrCtx && runs.length > 0) {
+        chartHr = new Chart(hrCtx, {
+          type: 'line',
+          data: {
+            labels: runs.map(a => (a.activity_date || '').slice(5, 10)),
+            datasets: [
+              {
+                label: 'FC promedio',
+                data: runs.map(a => Math.round(a.average_heartrate)),
+                borderColor: '#ef4444',
+                backgroundColor: 'rgba(239,68,68,0.08)',
+                borderWidth: 2, pointRadius: 4, tension: 0.3, fill: true,
+              },
+              {
+                label: 'FC máxima',
+                data: runs.map(a => a.max_heartrate ? Math.round(a.max_heartrate) : null),
+                borderColor: '#f97316',
+                borderWidth: 1.5, pointRadius: 3, tension: 0.3, borderDash: [4, 4],
+              },
+            ],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+              tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y} bpm` } },
+            },
+            scales: {
+              y: { grid: { color: '#f1f5f9' }, ticks: { color: '#64748b', font: { size: 11 } } },
+              x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 }, maxRotation: 45 } },
+            },
+          },
+        });
+      }
+
+      // 2. Eficiencia aeróbica
+      const effCtx = document.getElementById('chartEfficiency');
+      const effData = this.aerobicEffData;
+      if (effCtx && effData.length > 1) {
+        chartEff = new Chart(effCtx, {
+          type: 'line',
+          data: {
+            labels: effData.map(d => d.date),
+            datasets: [{
+              label: 'Pace/HR ratio',
+              data: effData.map(d => d.eff),
+              borderColor: '#8b5cf6',
+              backgroundColor: 'rgba(139,92,246,0.08)',
+              borderWidth: 2, pointRadius: 4, tension: 0.3, fill: true,
+            }],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: ctx => `Eficiencia: ${ctx.parsed.y} seg/bpm (menor = mejor)` } },
+            },
+            scales: {
+              y: { reverse: true, grid: { color: '#f1f5f9' }, ticks: { color: '#64748b', font: { size: 11 } },
+                   title: { display: true, text: '← más eficiente', color: '#a78bfa', font: { size: 10 } } },
+              x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 }, maxRotation: 45 } },
+            },
+          },
+        });
+      }
+
+      // 3. Zonas HR (doughnut)
+      const zonesCtx = document.getElementById('chartHrZones');
+      const zones = this.hrZoneDistribution;
+      if (zonesCtx && zones && zones.total > 0) {
+        chartZones = new Chart(zonesCtx, {
+          type: 'doughnut',
+          data: {
+            labels: zones.labels,
+            datasets: [{
+              data: zones.data,
+              backgroundColor: ['#93c5fd', '#86efac', '#fde047', '#fb923c', '#f87171'],
+              borderWidth: 2, borderColor: '#ffffff',
+            }],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            cutout: '55%',
+            plugins: {
+              legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 10 }, padding: 8 } },
+              tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} sesiones (${Math.round(ctx.parsed/zones.total*100)}%)` } },
+            },
+          },
+        });
+      }
+
+      // 4. Cadencia
+      const cadCtx = document.getElementById('chartCadence');
+      const cadData = this.cadenceData;
+      if (cadCtx && cadData.length > 1) {
+        chartCadence = new Chart(cadCtx, {
+          type: 'bar',
+          data: {
+            labels: cadData.map(d => d.date),
+            datasets: [{
+              label: 'Cadencia (spm)',
+              data: cadData.map(d => d.cadence),
+              backgroundColor: cadData.map(d =>
+                d.cadence >= 170 && d.cadence <= 185 ? 'rgba(34,197,94,0.7)' :
+                d.cadence >= 160 ? 'rgba(234,179,8,0.7)' : 'rgba(239,68,68,0.7)'
+              ),
+              borderRadius: 4,
+            }],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: ctx => `${ctx.parsed.y} pasos/min` } },
+            },
+            scales: {
+              y: { min: 140, grid: { color: '#f1f5f9' }, ticks: { color: '#64748b', font: { size: 11 } } },
+              x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 }, maxRotation: 45 } },
+            },
+          },
+          plugins: [{
+            beforeDraw(chart) {
+              const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+              if (!y) return;
+              const y170 = y.getPixelForValue(170);
+              const y185 = y.getPixelForValue(185);
+              ctx.save();
+              ctx.fillStyle = 'rgba(34,197,94,0.06)';
+              ctx.fillRect(left, y185, right - left, y170 - y185);
+              ctx.restore();
+            },
+          }],
+        });
+      }
+
+      // 5. Desnivel semanal
+      const elevCtx = document.getElementById('chartElevation');
+      const elevData = this.weeklyElevation;
+      if (elevCtx && elevData && elevData.length > 0) {
+        chartElev = new Chart(elevCtx, {
+          type: 'bar',
+          data: {
+            labels: elevData.map(d => d.week),
+            datasets: [{
+              label: 'Desnivel (m)',
+              data: elevData.map(d => d.elev),
+              backgroundColor: 'rgba(34,197,94,0.65)',
+              borderColor: 'rgba(34,197,94,1)',
+              borderWidth: 1, borderRadius: 4,
+            }],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { color: '#64748b', font: { size: 11 } } },
+              x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 }, maxRotation: 45 } },
+            },
+          },
+        });
+      }
+    },
+
     // ── Navegación por pestañas ───────────────────────────────────────────
     switchTab(tab) {
       this.activeTab = tab;
@@ -963,6 +1224,12 @@ function athleteApp() {
           if (chartKm)   chartKm.resize();
           if (chartCtl)  chartCtl.resize();
           if (chartAcwr) chartAcwr.resize();
+          // Render Strava charts on first visit
+          if (!chartHr && this.runsWithHR.length > 0) {
+            this._renderStravaCharts();
+          } else {
+            [chartHr, chartEff, chartZones, chartCadence, chartElev].forEach(c => { if (c) c.resize(); });
+          }
         });
       }
     },

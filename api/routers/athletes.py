@@ -13,6 +13,7 @@ Endpoints:
   GET  /athletes/{cedula}/prediction     → predicción de tiempo/ritmo por distancia
   GET  /athletes/{cedula}/checkin        → último check-in registrado
   POST /athletes/{cedula}/checkin        → registrar check-in desde la app
+  GET  /athletes/{cedula}/training-data  → filas acumuladas para modelo Q2
 """
 
 import json
@@ -391,12 +392,186 @@ def post_checkin(
     with open(local_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2, default=str)
 
-    return {
+    # 3. Si es carrera, guardar snapshot de features para dataset Q2
+    snapshot_saved = False
+    if body.type == "race":
+        snapshot_saved = _save_training_snapshot(
+            cedula=cedula,
+            race_date=raw["checkin_date"],
+            race_distance_km=body.race_distance_km,
+            race_time_sec=body.race_time_sec,
+            sensation_1_5=body.sensation_1_5,
+            is_official=body.is_official,
+        )
+
+    result = {
         "status": "ok",
         "type": body.type,
         "checkin_date": raw["checkin_date"],
         "supabase": supabase_ok,
         "local": True,
+    }
+    if body.type == "race":
+        result["training_snapshot_saved"] = snapshot_saved
+    return result
+
+
+def _save_training_snapshot(
+    cedula: str,
+    race_date: str,
+    race_distance_km: float,
+    race_time_sec: int,
+    sensation_1_5: int,
+    is_official: bool,
+) -> bool:
+    """
+    Guarda una fila de entrenamiento para el modelo Q2.
+
+    Combina:
+      - Resultado de carrera (distancia, tiempo, sensación)
+      - Features de carga de la semana previa (CTL, ATL, TSB, ACWR, km_week, etc.)
+      - Perfil del atleta (edad, género)
+      - Último check-in semanal disponible (sueño, energía)
+
+    Escribe en:
+      - Local:    data/{cedula}/training_data/q2_rows.jsonl  (una fila JSON por línea)
+      - Supabase: tabla training_snapshots (si está disponible)
+
+    Retorna True si se guardó correctamente.
+    """
+    try:
+        athlete_dir = get_data_dir() / cedula
+
+        # ── 1. Features de la semana previa a la carrera ──────────────────────
+        load_features: dict = {}
+        features_path = athlete_dir / "features" / "weekly_features.parquet"
+        if features_path.exists():
+            df = pd.read_parquet(features_path)
+            if not df.empty and "week_start" in df.columns:
+                df["week_start"] = pd.to_datetime(df["week_start"])
+                race_dt = pd.to_datetime(race_date)
+                # Tomar la semana más reciente antes o igual a la fecha de carrera
+                prev = df[df["week_start"] <= race_dt].sort_values("week_start")
+                if not prev.empty:
+                    row = prev.iloc[-1]
+                    keep_cols = [
+                        "km_week", "sessions", "long_run_km",
+                        "ctl", "atl", "tsb", "acwr",
+                        "pace_delta_4s_sec", "racha_semanas", "km_trend",
+                        "fondo_largo_4s", "semana_spike",
+                    ]
+                    for col in keep_cols:
+                        if col in row.index:
+                            val = row[col]
+                            load_features[col] = None if pd.isna(val) else float(val)
+
+        # ── 2. Perfil del atleta (edad, género, PRs) ──────────────────────────
+        profile_features: dict = {}
+        profile_path = athlete_dir / "meta" / "profile.json"
+        if profile_path.exists():
+            profile = json.loads(profile_path.read_text(encoding="utf-8"))
+            profile_features["age"] = profile.get("age")
+            profile_features["gender"] = profile.get("gender")
+            profile_features["pr_5k_sec"]  = profile.get("pr_5k_sec")
+            profile_features["pr_10k_sec"] = profile.get("pr_10k_sec")
+            profile_features["pr_21k_sec"] = profile.get("pr_21k_sec")
+            profile_features["pr_42k_sec"] = profile.get("pr_42k_sec")
+
+        # ── 3. Último check-in semanal disponible (sueño, energía) ───────────
+        subjective_features: dict = {}
+        latest_checkin_path = athlete_dir / "meta" / "latest_checkin.json"
+        if latest_checkin_path.exists():
+            lc = json.loads(latest_checkin_path.read_text(encoding="utf-8"))
+            lc_data = lc.get("latest_checkin", {})
+            if lc_data.get("source") == "app_weekly":
+                subjective_features["sleep_1_5"]  = lc_data.get("sleep_1_5")
+                subjective_features["energy_1_5"] = lc_data.get("energy_1_5")
+                subjective_features["has_pain"]   = lc_data.get("has_pain")
+
+        # ── 4. Target y metadata ──────────────────────────────────────────────
+        pace_sec_km = race_time_sec / race_distance_km if race_distance_km > 0 else None
+        dist_bucket = (
+            "5K"  if race_distance_km <= 6 else
+            "10K" if race_distance_km <= 12 else
+            "21K" if race_distance_km <= 23 else
+            "42K"
+        )
+
+        row_data = {
+            # Identificadores
+            "cedula":            cedula,
+            "race_date":         race_date,
+            "recorded_at":       datetime.utcnow().isoformat(),
+            # Target
+            "race_distance_km":  race_distance_km,
+            "race_time_sec":     race_time_sec,
+            "pace_sec_km":       round(pace_sec_km, 2) if pace_sec_km else None,
+            "dist_bucket":       dist_bucket,
+            # Sensación subjetiva post-carrera
+            "sensation_1_5":     sensation_1_5,
+            "is_official":       is_official,
+            # Features de carga (semana previa)
+            **load_features,
+            # Perfil
+            **profile_features,
+            # Subjetivo semanal
+            **subjective_features,
+        }
+
+        # ── 5. Escribir localmente en JSONL ───────────────────────────────────
+        td_dir = athlete_dir / "training_data"
+        td_dir.mkdir(parents=True, exist_ok=True)
+        jsonl_path = td_dir / "q2_rows.jsonl"
+        with open(jsonl_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(row_data, ensure_ascii=False, default=str) + "\n")
+
+        # ── 6. Escribir en Supabase ───────────────────────────────────────────
+        from src.storage.supabase_client import get_client
+        client = get_client()
+        if client:
+            try:
+                client.table("training_snapshots").upsert(
+                    {"cedula": cedula, "race_date": race_date, "data": row_data},
+                    on_conflict="cedula,race_date",
+                ).execute()
+            except Exception:
+                pass  # local ya guardado, Supabase es best-effort
+
+        return True
+
+    except Exception:
+        return False  # silencioso — no rompemos el check-in por esto
+
+
+# ─── Dataset Q2: leer filas acumuladas ────────────────────────────────────────
+
+@router.get("/{cedula}/training-data")
+def get_training_data(
+    cedula: str,
+    _: None = Depends(require_api_key),
+):
+    """
+    Retorna todas las filas del dataset Q2 acumuladas para este atleta.
+    Cada fila = una carrera reportada + features de carga de esa semana.
+    Útil para NB09 (personalización walk-forward).
+    """
+    athlete_dir = get_data_dir() / cedula
+    jsonl_path = athlete_dir / "training_data" / "q2_rows.jsonl"
+
+    if not jsonl_path.exists():
+        return {"cedula": cedula, "n_rows": 0, "rows": []}
+
+    rows = []
+    with open(jsonl_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+
+    return {
+        "cedula":  cedula,
+        "n_rows":  len(rows),
+        "rows":    rows,
     }
 
 
