@@ -65,6 +65,27 @@
     }
     .tip:hover::after { opacity: 1; }
 
+    /* ── Texturas y decoraciones ─────────────────────────────────────────── */
+    .hero-pattern {
+      background-image:
+        radial-gradient(circle at 15% 40%, rgba(255,255,255,0.12) 1px, transparent 1px),
+        radial-gradient(circle at 85% 30%, rgba(255,255,255,0.08) 2px, transparent 2px),
+        radial-gradient(circle at 50% 80%, rgba(255,255,255,0.06) 1.5px, transparent 1.5px);
+      background-size: 30px 30px, 45px 45px, 20px 20px;
+    }
+    .race-card-glow {
+      box-shadow: 0 0 20px rgba(196,30,58,0.3), 0 0 60px rgba(196,30,58,0.1),
+                  inset 0 1px 0 rgba(255,255,255,0.2);
+    }
+    .card-texture {
+      background-image:
+        linear-gradient(135deg, transparent 0%, rgba(196,30,58,0.02) 100%);
+    }
+    .section-header-accent {
+      background: linear-gradient(135deg, #fafafa 0%, #f8f0f2 50%, #fafafa 100%);
+      border-bottom: 1px solid #f1e5e7;
+    }
+
     /* ── Mobile improvements ────────────────────────────────────────────── */
     @media (max-width: 640px) {
       .tab-bar button { padding: 10px 12px; font-size: 12px; }
@@ -149,6 +170,29 @@
       <!-- ════════════════ TAB: HOY ════════════════════════════════════════ -->
       <div x-show="activeTab === 'hoy'" class="space-y-4">
 
+      <!-- ══ BANNER NUEVA ACTIVIDAD STRAVA ═════════════════════════════════ -->
+      <template x-if="latestRunToday">
+        <div class="flex items-center gap-3 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl px-4 py-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center shadow-sm shrink-0">
+            <span class="text-white text-sm">🏃</span>
+          </div>
+          <div class="flex-1">
+            <p class="text-sm font-semibold text-orange-800">Nueva actividad registrada hoy</p>
+            <p class="text-xs text-orange-600 mt-0.5">
+              <span x-text="latestRunToday.name"></span> ·
+              <span x-text="Number(latestRunToday.distance_km).toFixed(1) + ' km'"></span>
+              <template x-if="latestRunToday.pace_sec_per_km">
+                <span x-text="' · ' + paceStr(latestRunToday.pace_sec_per_km)"></span>
+              </template>
+            </p>
+          </div>
+          <a :href="checkinRaceUrl" target="_blank"
+             class="text-[10px] font-bold bg-orange-500 text-white px-3 py-1.5 rounded-full hover:bg-orange-600 transition-colors shrink-0 no-underline">
+            Registrar carrera
+          </a>
+        </div>
+      </template>
+
       <!-- ══ BANNER CHECK-IN SEMANAL ════════════════════════════════════════ -->
       <template x-if="showCheckinBanner">
         <div class="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
@@ -162,12 +206,17 @@
 
       <!-- ══ FRASE MOTIVACIONAL DEL ATLETA ════════════════════════════════ -->
       <template x-if="coachContent?.athlete_motto">
-        <div class="card px-6 py-4 flex items-start gap-3">
-          <span class="text-2xl leading-none shrink-0 mt-0.5">🔥</span>
-          <div>
-            <p class="text-sm font-semibold text-slate-700 leading-relaxed italic"
-               x-text="'\"' + coachContent.athlete_motto + '\"'"></p>
-            <p class="text-[10px] text-slate-400 mt-1 uppercase tracking-wide">Mi motivación</p>
+        <div class="card overflow-hidden" style="border: none; background: linear-gradient(135deg, #fdf2f4 0%, #fce7ea 50%, #fdf2f4 100%);">
+          <div class="px-6 py-5 flex items-start gap-3 relative">
+            <!-- Decoración lateral -->
+            <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[#C41E3A] via-[#e85d75] to-[#C41E3A]/30 rounded-r"></div>
+            <span class="text-2xl leading-none shrink-0 mt-0.5 ml-2">🔥</span>
+            <div>
+              <p class="text-sm font-bold text-slate-700 leading-relaxed italic"
+                 style="font-family:'Plus Jakarta Sans',sans-serif;"
+                 x-text="'\"' + coachContent.athlete_motto + '\"'"></p>
+              <p class="text-[10px] text-[#C41E3A]/50 mt-1.5 uppercase tracking-widest font-bold">Mi motivación</p>
+            </div>
           </div>
         </div>
       </template>
@@ -175,16 +224,17 @@
       <!-- ══ HERO CARD ═════════════════════════════════════════════════════ -->
       <div class="card overflow-hidden" style="border: none;">
 
-        <!-- Banda principal — gradiente basado en semáforo -->
-        <div class="px-6 py-7 relative"
+        <!-- Banda principal — gradiente más intenso basado en semáforo -->
+        <div class="px-6 py-7 relative hero-pattern"
              :style="{
-               background: 'linear-gradient(135deg, ' + semConfig.bg + ' 0%, ' + semConfig.bg + 'dd 60%, ' + semConfig.bg + '99 100%)',
+               background: 'linear-gradient(135deg, ' + semConfig.bg + ' 0%, ' + semConfig.bg + 'ee 35%, ' + semConfig.bg + 'cc 70%, ' + semConfig.bg + 'aa 100%)',
              }">
 
-          <!-- Patrón sutil de fondo -->
-          <div class="absolute inset-0 opacity-[0.04]"
-               style="background-image: radial-gradient(circle at 20% 50%, white 1px, transparent 1px);
-                      background-size: 24px 24px;"></div>
+          <!-- Geometría decorativa sutil -->
+          <div class="absolute top-0 right-0 w-32 h-32 opacity-[0.07]"
+               style="background: radial-gradient(circle at 100% 0%, white 0%, transparent 70%);"></div>
+          <div class="absolute bottom-0 left-0 w-24 h-24 opacity-[0.05]"
+               style="background: radial-gradient(circle at 0% 100%, white 0%, transparent 60%);"></div>
 
           <div class="relative flex items-start gap-4">
 
@@ -198,38 +248,53 @@
               </template>
               <template x-if="snapshot?.semaforo_latest_checkin && snapshot.semaforo_latest_checkin !== 'SIN_CHECKIN'">
                 <div class="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 mb-3">
-                  <span class="w-2 h-2 rounded-full"
+                  <span class="w-2 h-2 rounded-full animate-pulse"
                         :style="{ backgroundColor: snapshot.semaforo_latest_checkin === 'VERDE' ? '#4ade80' : snapshot.semaforo_latest_checkin === 'AMARILLO' ? '#fbbf24' : '#f87171' }"></span>
                   <span class="text-white/90 text-[11px] font-medium" x-text="semConfig.label"></span>
                 </div>
               </template>
-              <h2 class="text-white text-2xl font-bold leading-tight font-display tracking-tight"
-                  style="font-family: 'Plus Jakarta Sans', sans-serif;"
+              <h2 class="text-white text-2xl font-bold leading-tight font-display tracking-tight drop-shadow-sm"
+                  style="font-family: 'Plus Jakarta Sans', sans-serif; text-shadow: 0 1px 3px rgba(0,0,0,0.2);"
                   x-text="athleteName"></h2>
-              <p class="text-white/60 text-xs mt-1" x-text="profile.city_country || ''"></p>
+              <p class="text-white/70 text-xs mt-1.5 flex items-center gap-1.5">
+                <span x-text="profile.city_country || ''"></span>
+                <template x-if="profile.age">
+                  <span class="text-white/40">· <span x-text="profile.age + ' años'"></span></span>
+                </template>
+              </p>
             </div>
 
-            <!-- Derecha: carrera objetivo (tarjeta glassmorphism) -->
+            <!-- Derecha: carrera objetivo (tarjeta glassmorphism mejorada) -->
             <template x-if="goalInfo.raceDistance">
               <div class="shrink-0">
                 <button
                   @click="switchTab('rendimiento')"
-                  class="relative bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20
-                         transition-all duration-300 rounded-2xl px-5 py-4 text-center block group"
-                  title="Ver predicción de rendimiento">
-                  <div class="text-white/50 text-[9px] uppercase tracking-[0.2em] font-bold mb-1.5">Carrera objetivo</div>
-                  <div class="text-white font-extrabold text-3xl leading-none tracking-tight"
-                       style="font-family: 'Plus Jakarta Sans', sans-serif;"
-                       x-text="goalInfo.raceDistance"></div>
-                  <template x-if="goalInfo.countdownDays !== null">
-                    <div class="mt-2">
-                      <span class="text-sm font-bold leading-none"
-                            :class="goalInfo.countdownDays < 30 ? 'text-red-200' : goalInfo.countdownDays < 90 ? 'text-yellow-200' : 'text-white/90'"
-                            x-text="goalInfo.countdownDays + ' días'"></span>
+                  class="relative bg-white/15 backdrop-blur-md border border-white/25 hover:bg-white/25
+                         transition-all duration-300 rounded-2xl px-5 py-4 text-center block group race-card-glow"
+                  title="Ver predicción de rendimiento"
+                  style="min-width: 120px;">
+                  <!-- Decoración interior -->
+                  <div class="absolute inset-0 rounded-2xl opacity-20"
+                       style="background: linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 50%);"></div>
+                  <div class="relative">
+                    <div class="text-white/60 text-[9px] uppercase tracking-[0.2em] font-bold mb-1.5 flex items-center justify-center gap-1">
+                      <span>🏁</span> <span>Meta</span>
                     </div>
-                  </template>
-                  <div class="text-white/40 text-[10px] mt-2 group-hover:text-white/70 transition-colors">
-                    Ver predicción →
+                    <div class="text-white font-extrabold text-3xl leading-none tracking-tight drop-shadow-sm"
+                         style="font-family: 'Plus Jakarta Sans', sans-serif; text-shadow: 0 2px 4px rgba(0,0,0,0.15);"
+                         x-text="goalInfo.raceDistance"></div>
+                    <template x-if="goalInfo.countdownDays !== null">
+                      <div class="mt-2.5 bg-white/15 rounded-full px-3 py-1 inline-block">
+                        <span class="text-xs font-bold leading-none"
+                              :class="goalInfo.countdownDays < 30 ? 'text-red-200' : goalInfo.countdownDays < 90 ? 'text-yellow-200' : 'text-white/90'">
+                          <span>⏱</span>
+                          <span x-text="goalInfo.countdownDays + ' días'"></span>
+                        </span>
+                      </div>
+                    </template>
+                    <div class="text-white/50 text-[10px] mt-2 group-hover:text-white/80 transition-colors font-medium">
+                      Ver predicción →
+                    </div>
                   </div>
                 </button>
               </div>
@@ -253,14 +318,38 @@
       <!-- fin hero card -->
 
 
+      <!-- ══ ACCIONES RÁPIDAS ═══════════════════════════════════════════════ -->
+      <div class="grid grid-cols-2 gap-3">
+        <a :href="checkinWeeklyUrl" target="_blank"
+           class="card card-texture px-4 py-3.5 flex items-center gap-3 hover:shadow-md transition-all group cursor-pointer no-underline">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+            <span class="text-white text-sm">📋</span>
+          </div>
+          <div>
+            <div class="text-xs font-bold text-slate-700" style="font-family:'Plus Jakarta Sans',sans-serif;">Check-in semanal</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">Sueño, energía, dolor</div>
+          </div>
+        </a>
+        <a :href="checkinRaceUrl" target="_blank"
+           class="card card-texture px-4 py-3.5 flex items-center gap-3 hover:shadow-md transition-all group cursor-pointer no-underline">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+            <span class="text-white text-sm">🏅</span>
+          </div>
+          <div>
+            <div class="text-xs font-bold text-slate-700" style="font-family:'Plus Jakarta Sans',sans-serif;">Registrar carrera</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">Tiempo oficial + sensación</div>
+          </div>
+        </a>
+      </div>
+
       <!-- ══ SESIÓN DE HOY ══════════════════════════════════════════════════ -->
-      <div class="card overflow-hidden">
-        <!-- Header con gradiente sutil -->
-        <div class="px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+      <div class="card overflow-hidden card-texture">
+        <!-- Header con gradiente mejorado -->
+        <div class="px-6 py-4 section-header-accent">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-lg bg-[#C41E3A]/10 flex items-center justify-center">
-                <span class="text-base">🗓</span>
+              <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-[#C41E3A] to-[#a01830] flex items-center justify-center shadow-sm">
+                <span class="text-white text-sm">🗓</span>
               </div>
               <div>
                 <h3 class="text-sm font-bold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Sesión de hoy</h3>
@@ -340,12 +429,14 @@
 
       <!-- ══ VOZ DEL COACH ═════════════════════════════════════════════════ -->
       <template x-if="coachSummary">
-        <div class="card p-6">
+        <div class="card card-texture p-6">
 
           <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-2">
-              <span class="text-lg">💬</span>
-              <h3 class="text-base font-semibold text-slate-800">Comentarios del coach</h3>
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-sm">
+                <span class="text-white text-sm">💬</span>
+              </div>
+              <h3 class="text-base font-semibold text-slate-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Comentarios del coach</h3>
               <!-- Badge cuando el contenido viene de published -->
               <template x-if="hasPublishedCoach">
                 <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 uppercase tracking-wide">
@@ -415,12 +506,12 @@
 
       <!-- ══ FORMA COMPACTA ════════════════════════════════════════════════ -->
       <template x-if="snapshot && formaPanel.hasData">
-        <div class="card overflow-hidden">
-          <div class="px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+        <div class="card overflow-hidden card-texture">
+          <div class="px-6 py-4 section-header-accent">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                <span class="text-base">⚡</span>
+              <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-sm">
+                <span class="text-white text-sm">⚡</span>
               </div>
               <span class="text-sm font-bold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Estado de forma</span>
             </div>
@@ -528,12 +619,12 @@
 
       <!-- ══ ÚLTIMO CHECK-IN ═══════════════════════════════════════════════ -->
       <template x-if="checkin?.latest_checkin">
-        <div class="card overflow-hidden">
-          <div class="px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+        <div class="card overflow-hidden card-texture">
+          <div class="px-6 py-4 section-header-accent">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-                <span class="text-base">📋</span>
+              <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-sm">
+                <span class="text-white text-sm">📋</span>
               </div>
               <span class="text-sm font-bold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Último check-in</span>
             </div>
@@ -599,13 +690,13 @@
 
       <!-- ══ COMPARATIVO KM ════════════════════════════════════════════════ -->
       <template x-if="kmVsPrevWeek">
-        <div class="card overflow-hidden">
-          <div class="px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+        <div class="card overflow-hidden card-texture">
+          <div class="px-6 py-4 section-header-accent">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2.5">
-                <div class="w-8 h-8 rounded-lg flex items-center justify-center"
-                     :class="kmVsPrevWeek.positive ? 'bg-green-100' : 'bg-amber-100'">
-                  <span class="text-base" x-text="kmVsPrevWeek.positive ? '📈' : '📉'"></span>
+                <div class="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm"
+                     :class="kmVsPrevWeek.positive ? 'bg-gradient-to-br from-green-400 to-emerald-500' : 'bg-gradient-to-br from-amber-400 to-orange-500'">
+                  <span class="text-white text-sm" x-text="kmVsPrevWeek.positive ? '📈' : '📉'"></span>
                 </div>
                 <span class="text-sm font-bold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">
                   Esta semana vs. anterior
@@ -642,13 +733,15 @@
       <div x-show="activeTab === 'rendimiento'" class="space-y-5">
 
       <!-- ══ 2.5 PREDICCIÓN DE RENDIMIENTO ══════════════════════════════════ -->
-      <div class="card p-6">
+      <div class="card card-texture p-6">
 
         <!-- Header -->
         <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center gap-2">
-            <span class="text-lg">📈</span>
-            <h3 class="text-base font-semibold text-gray-800">Predicción de rendimiento</h3>
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-[#C41E3A] to-[#8b1225] flex items-center justify-center shadow-sm">
+              <span class="text-white text-sm">📈</span>
+            </div>
+            <h3 class="text-base font-semibold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Predicción de rendimiento</h3>
           </div>
 
           <!-- Selector de distancia -->
@@ -751,12 +844,14 @@
 
 
       <!-- ══ ÚLTIMAS SALIDAS ═══════════════════════════════════════════════ -->
-      <div class="card p-6">
+      <div class="card card-texture p-6">
 
         <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center gap-2">
-            <span class="text-lg">🏃</span>
-            <h3 class="text-base font-semibold text-gray-800">Últimas salidas</h3>
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-[#C41E3A] to-[#a01830] flex items-center justify-center shadow-sm">
+              <span class="text-white text-sm">🏃</span>
+            </div>
+            <h3 class="text-base font-semibold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Últimas salidas</h3>
           </div>
           <template x-if="activities?.count">
             <span class="text-xs text-gray-400"
@@ -825,10 +920,14 @@
       <template x-if="!activitiesLoading && recentCross.length > 0">
         <div class="card p-6">
 
-          <div class="flex items-center gap-2 mb-4">
-            <span class="text-lg">🏋️</span>
-            <h3 class="text-base font-semibold text-gray-800">Otras actividades</h3>
-            <span class="text-xs text-slate-400">Cross-training · contexto complementario</span>
+          <div class="flex items-center gap-2.5 mb-4">
+            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center shadow-sm">
+              <span class="text-white text-sm">🏋️</span>
+            </div>
+            <div>
+              <h3 class="text-base font-semibold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Otras actividades</h3>
+              <span class="text-[10px] text-slate-400">Cross-training · contexto complementario</span>
+            </div>
           </div>
 
           <div class="space-y-1.5">
@@ -1139,32 +1238,36 @@
       <template x-if="analyticsKpis">
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
 
-          <div class="card px-4 py-5 text-center overflow-hidden relative">
-            <div class="absolute top-0 left-0 right-0 h-1 bg-[#C41E3A]"></div>
+          <div class="card card-texture px-4 py-5 text-center overflow-hidden relative tip"
+               data-tip="Kilómetros acumulados en la semana actual (hasta hoy).">
+            <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#C41E3A] to-[#e85d75]"></div>
             <div class="metric-label text-[#C41E3A]/60 mb-1.5">Esta semana</div>
             <div class="text-2xl font-extrabold text-[#C41E3A] tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;"
                  x-text="analyticsKpis.thisWeek"></div>
             <div class="text-[10px] text-[#C41E3A]/40 font-semibold mt-0.5">km</div>
           </div>
 
-          <div class="card px-4 py-5 text-center overflow-hidden relative">
-            <div class="absolute top-0 left-0 right-0 h-1 bg-blue-500"></div>
+          <div class="card card-texture px-4 py-5 text-center overflow-hidden relative tip"
+               data-tip="Promedio de km por semana del historial completo. Un buen indicador de volumen base.">
+            <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-sky-400"></div>
             <div class="metric-label text-blue-400 mb-1.5">Prom. / semana</div>
             <div class="text-2xl font-extrabold text-slate-700 tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;"
                  x-text="analyticsKpis.avgWeek"></div>
             <div class="text-[10px] text-slate-300 font-semibold mt-0.5" x-text="'km · últimas ' + analyticsKpis.weeks + ' sem.'"></div>
           </div>
 
-          <div class="card px-4 py-5 text-center overflow-hidden relative">
-            <div class="absolute top-0 left-0 right-0 h-1 bg-violet-500"></div>
+          <div class="card card-texture px-4 py-5 text-center overflow-hidden relative tip"
+               data-tip="Volumen mensual estimado: promedio semanal × 4.3 semanas.">
+            <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 to-purple-400"></div>
             <div class="metric-label text-violet-400 mb-1.5">Prom. / mes</div>
             <div class="text-2xl font-extrabold text-slate-700 tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;"
                  x-text="analyticsKpis.avgMonth"></div>
             <div class="text-[10px] text-slate-300 font-semibold mt-0.5">km</div>
           </div>
 
-          <div class="card px-4 py-5 text-center overflow-hidden relative">
-            <div class="absolute top-0 left-0 right-0 h-1 bg-emerald-500"></div>
+          <div class="card card-texture px-4 py-5 text-center overflow-hidden relative tip"
+               data-tip="La semana con mayor volumen de km en todo el historial.">
+            <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400"></div>
             <div class="metric-label text-emerald-400 mb-1.5">Semana máxima</div>
             <div class="text-2xl font-extrabold text-slate-700 tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;"
                  x-text="analyticsKpis.maxWeek"></div>
@@ -1345,14 +1448,15 @@
             <thead>
               <tr class="border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wider">
                 <th class="pb-3 pr-4">Semana</th>
-                <th class="pb-3 pr-4 text-right">Km</th>
-                <th class="pb-3 pr-4 text-right">Ses.</th>
-                <th class="pb-3 pr-4 text-right">Fondo</th>
-                <th class="pb-3 pr-4 text-right">Ritmo</th>
-                <th class="pb-3 pr-4 text-right">CTL</th>
-                <th class="pb-3 pr-4 text-right">TSB</th>
-                <th class="pb-3 pr-4 text-right">ACWR</th>
-                <th class="pb-3 text-right">Racha</th>
+                <th class="pb-3 pr-4 text-right tip" data-tip="Kilómetros totales de running en la semana.">Km</th>
+                <th class="pb-3 pr-4 text-right tip" data-tip="Número de sesiones de running realizadas.">Ses.</th>
+                <th class="pb-3 pr-4 text-right tip" data-tip="Distancia de la sesión de fondo largo.">Fondo</th>
+                <th class="pb-3 pr-4 text-right tip" data-tip="Ritmo promedio ponderado de todas las sesiones.">Ritmo</th>
+                <th class="pb-3 pr-4 text-right tip" data-tip="FC promedio de las actividades de running de esa semana.">FC</th>
+                <th class="pb-3 pr-4 text-right tip" data-tip="Carga Crónica (fitness acumulado EWMA 42d).">CTL</th>
+                <th class="pb-3 pr-4 text-right tip" data-tip="Balance de carga CTL−ATL. Positivo = fresco, negativo = fatigado.">TSB</th>
+                <th class="pb-3 pr-4 text-right tip" data-tip="Ratio agudo/crónico. 0.8-1.3 = óptimo.">ACWR</th>
+                <th class="pb-3 text-right tip" data-tip="Semanas consecutivas con al menos 1 sesión de running.">Racha</th>
               </tr>
             </thead>
             <tbody>
@@ -1367,6 +1471,8 @@
                     <td class="py-2.5 pr-4 text-right text-gray-600" x-text="fmt(row.long_run_km) + ' km'"></td>
                     <td class="py-2.5 pr-4 text-right font-mono text-gray-600"
                         x-text="paceStr(row.pace_sec_per_km_week)"></td>
+                    <td class="py-2.5 pr-4 text-right font-mono text-rose-500"
+                        x-text="weeklyAvgHR[row.week_start] ? weeklyAvgHR[row.week_start] + ' bpm' : '—'"></td>
                     <td class="py-2.5 pr-4 text-right font-mono text-[#C41E3A]"
                         x-text="row.ctl != null ? fmt(row.ctl, 1) : '—'"></td>
                     <td class="py-2.5 pr-4 text-right font-mono"
@@ -1581,11 +1687,68 @@
           </div>
         </div>
 
+        <!-- ══ MÉTRICAS DE STRAVA ═══════════════════════════════════════════ -->
+        <div class="card p-6 space-y-5">
+          <div class="metric-label text-slate-400 mb-1">Métricas de Strava</div>
+
+          <div class="space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-red-600">Frecuencia Cardíaca (FC)</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">Latidos por minuto registrados por el sensor de FC durante la actividad. <strong>FC promedio</strong> = media de toda la sesión. <strong>FC máxima</strong> = pico alcanzado.</p>
+            <p class="text-xs text-slate-400">Un FC promedio que baja a un mismo ritmo indica mejor forma aeróbica. La FC máxima de la tabla del historial es el promedio de las FC promedio de esa semana.</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-emerald-600">Eficiencia Aeróbica</span>
+              <span class="text-xs text-slate-400 font-medium">Pace/HR ratio</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">Segundos por kilómetro divididos entre la frecuencia cardíaca promedio. <strong>Menor = más eficiente</strong> (corres más rápido con menos esfuerzo cardíaco).</p>
+            <p class="text-xs text-slate-400">Ejemplo: 350 seg/km ÷ 145 bpm = 2.41. Si la próxima semana es 2.35, tu eficiencia mejoró. Es una de las métricas más útiles para seguir progreso a largo plazo.</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-violet-600">Zonas de FC</span>
+              <span class="text-xs text-slate-400 font-medium">Basadas en FCmax estimada</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">Distribución de tus actividades según la intensidad relativa a tu FC máxima estimada (220 − edad).</p>
+            <p class="text-xs text-slate-400">
+              <strong>Z1 (&lt;60%)</strong> Recuperación ·
+              <strong>Z2 (60-70%)</strong> Base aeróbica ·
+              <strong>Z3 (70-80%)</strong> Tempo ·
+              <strong>Z4 (80-90%)</strong> Umbral ·
+              <strong>Z5 (&gt;90%)</strong> VO₂max.
+              Lo ideal: 80% del tiempo en Z1-Z2 (regla 80/20).
+            </p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-amber-600">Cadencia</span>
+              <span class="text-xs text-slate-400 font-medium">Pasos por minuto (spm)</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">Número de pasos por minuto. La cadencia óptima para carrera se considera entre <strong>170–185 spm</strong> dependiendo del ritmo y estatura.</p>
+            <p class="text-xs text-slate-400">Cadencia baja (&lt;160) puede indicar zancada excesivamente larga, lo que aumenta impacto y riesgo de lesión. En el gráfico: verde = óptimo, amarillo = mejorable, rojo = baja.</p>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 space-y-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-sm font-bold text-sky-600">Elevación / Desnivel</span>
+              <span class="text-xs text-slate-400 font-medium">Metros acumulados</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">Total de metros de ascenso acumulados en las actividades de la semana. Correr con desnivel desarrolla fuerza y potencia aeróbica.</p>
+            <p class="text-xs text-slate-400">Más desnivel = más carga muscular a iguales km. Ten esto en cuenta cuando compares semanas con y sin cerros.</p>
+          </div>
+        </div>
+
         <!-- ══ NOTA METODOLÓGICA ════════════════════════════════════════════ -->
         <div class="card px-5 py-4">
           <p class="text-xs text-slate-400 leading-relaxed">
             CTL, ATL, TSB y ACWR son métricas de carga derivadas de los datos de Strava.
             La predicción usa el modelo de Riegel calibrado con datos de Boston Marathon 2015–2018 (~100.000 corredores).
+            FCmax estimada = 220 − edad (fórmula de Karvonen). Para mayor precisión, se recomienda un test de campo.
             Ninguna métrica de este dashboard reemplaza el criterio médico o de un entrenador calificado.
           </p>
         </div>
@@ -1605,10 +1768,16 @@
   </main>
 
   <!-- ══ FOOTER ══════════════════════════════════════════════════════════════ -->
-  <footer class="border-t border-gray-200 bg-white mt-10 px-6 py-5">
+  <footer class="border-t border-gray-200 bg-white mt-10 px-6 py-6">
     <div class="max-w-6xl mx-auto">
+      <!-- Separador sutil -->
+      <div class="flex items-center gap-4 mb-4">
+        <div class="flex-1 h-px bg-gradient-to-r from-transparent via-[#C41E3A]/20 to-transparent"></div>
+        <span class="text-[#C41E3A]/30 text-lg">🏃</span>
+        <div class="flex-1 h-px bg-gradient-to-r from-transparent via-[#C41E3A]/20 to-transparent"></div>
+      </div>
       <!-- Frase motivacional -->
-      <p class="text-center text-xs text-slate-400 italic mb-4">
+      <p class="text-center text-xs text-slate-400 italic mb-4 leading-relaxed">
         "La constancia no es hacer algo una vez con todo tu esfuerzo — es hacer algo cada día, aunque no tengas ganas."
       </p>
       <div class="flex items-center justify-between text-xs text-gray-400">

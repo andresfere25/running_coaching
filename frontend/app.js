@@ -937,6 +937,13 @@ function athleteApp() {
       };
     },
 
+    // ── Banner nueva actividad de hoy ──────────────────────────────────────
+    get latestRunToday() {
+      const today = new Date().toISOString().slice(0, 10);
+      const runs = this.recentRuns || [];
+      return runs.find(a => (a.activity_date || '').startsWith(today)) || null;
+    },
+
     // ── Banner recordatorio de check-in semanal (sábado/domingo) ─────────
     get showCheckinBanner() {
       if (!this.snapshot) return false;
@@ -957,6 +964,40 @@ function athleteApp() {
     maeInSec(maeMin) {
       if (!maeMin || isNaN(maeMin)) return null;
       return Math.round(maeMin * 60);
+    },
+
+    // ── URLs de check-in (portal de atletas) ────────────────────────────────
+    get checkinWeeklyUrl() {
+      // Link al portal — usa token si está en URL, sino fallback
+      const token = new URLSearchParams(window.location.search).get('token');
+      if (token) return `https://app.arathleteslab.com/invite/${token}/checkin?type=weekly`;
+      return `https://app.arathleteslab.com/checkin?cedula=${this.cedula}&type=weekly`;
+    },
+    get checkinRaceUrl() {
+      const token = new URLSearchParams(window.location.search).get('token');
+      if (token) return `https://app.arathleteslab.com/invite/${token}/checkin?type=race`;
+      return `https://app.arathleteslab.com/checkin?cedula=${this.cedula}&type=race`;
+    },
+
+    // ── FC promedio por semana (para tabla historial) ──────────────────────
+    get weeklyAvgHR() {
+      const runs = (this.activities?.data || [])
+        .filter(a => (a.sport_type || '').toLowerCase().includes('run') && a.average_heartrate > 0);
+      if (!runs.length) return {};
+      const byWeek = {};
+      for (const a of runs) {
+        const d = new Date((a.activity_date || '').slice(0, 10) + 'T00:00:00');
+        const mon = new Date(d);
+        mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+        const key = mon.toISOString().slice(0, 10);
+        if (!byWeek[key]) byWeek[key] = [];
+        byWeek[key].push(a.average_heartrate);
+      }
+      const result = {};
+      for (const [k, hrs] of Object.entries(byWeek)) {
+        result[k] = Math.round(hrs.reduce((a, b) => a + b, 0) / hrs.length);
+      }
+      return result;
     },
 
     // ── FCmax estimada ──────────────────────────────────────────────────────
