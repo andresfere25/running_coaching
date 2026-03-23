@@ -968,7 +968,7 @@ function athleteApp() {
 
     // ── Check-in inline ─────────────────────────────────────────────────────
     checkinMode: null,  // null | 'weekly' | 'race'
-    checkinForm: { sleep: 3, energy: 3, pain: false, race_distance_km: '', raceH: 0, raceM: 0, raceS: 0, sensation: 3 },
+    checkinForm: { sleep: 3, energy: 3, pain: false, race_distance_km: '', raceH: 0, raceM: 0, raceS: 0, sensation: 3, is_official: false },
     checkinSending: false,
     checkinSuccess: null,
     checkinError: null,
@@ -1008,6 +1008,7 @@ function athleteApp() {
             race_distance_km: dist,
             race_time_sec: timeSec,
             sensation_1_5: this.checkinForm.sensation,
+            is_official: this.checkinForm.is_official,
           };
         }
 
