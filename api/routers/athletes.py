@@ -173,6 +173,72 @@ def get_profile(
     return data
 
 
+# ─── Actualizar perfil (carrera objetivo) ────────────────────────────────────
+
+
+class RaceGoalUpdate(BaseModel):
+    race_name: Optional[str] = None
+    race_distance: Optional[str] = None
+    race_date: Optional[str] = None  # YYYY-MM-DD
+
+
+@router.patch("/{cedula}/profile/race-goal")
+def update_race_goal(
+    cedula: str,
+    body: RaceGoalUpdate,
+    _: None = Depends(require_api_key),
+):
+    """
+    Actualiza la carrera objetivo del atleta en el perfil.
+    Modifica: race_name, race_distance, race_date_raw en profile.json y Supabase.
+    """
+    from src.storage.supabase_client import get_client
+    from src.storage.writer import push_profile
+
+    # 1. Leer perfil actual
+    athlete_dir = get_data_dir() / cedula
+    data = read_profile(cedula, athlete_dir if athlete_dir.exists() else None)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Perfil no encontrado")
+
+    # 2. Actualizar campos
+    changed = []
+    if body.race_name is not None:
+        data["race_name"] = body.race_name.strip() or None
+        changed.append("race_name")
+    if body.race_distance is not None:
+        data["race_distance"] = body.race_distance.strip() or None
+        changed.append("race_distance")
+    if body.race_date is not None:
+        data["race_date_raw"] = body.race_date.strip() or None
+        changed.append("race_date_raw")
+
+    if not changed:
+        return {"ok": True, "changed": [], "detail": "Sin cambios"}
+
+    # 3. Guardar localmente
+    meta_dir = athlete_dir / "meta"
+    meta_dir.mkdir(parents=True, exist_ok=True)
+    profile_path = meta_dir / "profile.json"
+    import json as _json
+    profile_path.write_text(
+        _json.dumps(data, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    # 4. Push a Supabase
+    push_result = push_profile(cedula, athlete_dir)
+
+    return {
+        "ok": True,
+        "changed": changed,
+        "race_name": data.get("race_name"),
+        "race_distance": data.get("race_distance"),
+        "race_date_raw": data.get("race_date_raw"),
+        "supabase": push_result.get("detail"),
+    }
+
+
 # ─── Snapshot (estado actual) ────────────────────────────────────────────────
 
 @router.get("/{cedula}/snapshot")

@@ -350,6 +350,54 @@
       <!-- ═══════════════════════════════════════════════════════════════ -->
       <div class="space-y-4">
 
+        <!-- ── Carrera objetivo ───────────────────────────────────── -->
+        <div class="card px-5 py-4">
+          <div class="flex items-center justify-between mb-3">
+            <div class="label">🏁 Carrera objetivo</div>
+            <template x-if="raceGoalSaved">
+              <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">✓ Guardado</span>
+            </template>
+          </div>
+          <div class="space-y-2.5">
+            <div>
+              <div class="text-[10px] text-slate-400 font-semibold mb-1">Nombre de la carrera</div>
+              <input x-model="raceGoal.race_name" type="text"
+                     placeholder="Ej: Media Maratón de Bogotá 2026"
+                     class="field text-sm" />
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <div class="text-[10px] text-slate-400 font-semibold mb-1">Distancia</div>
+                <select x-model="raceGoal.race_distance" class="field text-sm">
+                  <option value="">— Seleccionar —</option>
+                  <option value="5K">5K</option>
+                  <option value="10K">10K</option>
+                  <option value="15K">15K</option>
+                  <option value="21K">Media maratón (21K)</option>
+                  <option value="42K">Maratón (42K)</option>
+                </select>
+              </div>
+              <div>
+                <div class="text-[10px] text-slate-400 font-semibold mb-1">Fecha</div>
+                <input x-model="raceGoal.race_date" type="date"
+                       class="field text-sm font-mono" />
+              </div>
+            </div>
+            <!-- Countdown -->
+            <template x-if="raceGoalCountdown !== null">
+              <div class="text-xs text-center py-1 rounded-lg"
+                   :class="raceGoalCountdown > 30 ? 'bg-blue-50 text-blue-600' : raceGoalCountdown > 7 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-600'">
+                <span x-text="raceGoalCountdown > 0 ? '⏱ Faltan ' + raceGoalCountdown + ' días' : '🏁 ¡Carrera hoy o pasada!'"></span>
+              </div>
+            </template>
+            <button @click="saveRaceGoal()" :disabled="savingRaceGoal"
+                    class="btn-primary w-full text-center">
+              <span x-show="!savingRaceGoal">Guardar carrera objetivo</span>
+              <span x-show="savingRaceGoal">Guardando…</span>
+            </button>
+          </div>
+        </div>
+
         <!-- ── Estado de carga ─────────────────────────────────────── -->
         <div class="card px-5 py-4">
           <div class="label mb-3">Estado del atleta</div>
@@ -736,6 +784,38 @@ function coachApp() {
       plan_overrides:     emptyOverrides(),
     },
 
+    // ── Carrera objetivo ──────────────────────────────────────────────────
+    raceGoal: { race_name: '', race_distance: '', race_date: '' },
+    savingRaceGoal: false,
+    raceGoalSaved:  false,
+
+    get raceGoalCountdown() {
+      if (!this.raceGoal.race_date) return null;
+      const diff = Math.ceil((new Date(this.raceGoal.race_date + 'T00:00:00') - new Date()) / 86400000);
+      return isNaN(diff) ? null : diff;
+    },
+
+    async saveRaceGoal() {
+      if (!this.cedula) return;
+      this.savingRaceGoal = true;
+      this.raceGoalSaved  = false;
+      try {
+        const res = await fetch(`/athletes/${this.cedula}/profile/race-goal`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.raceGoal),
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || 'Error');
+        this.raceGoalSaved = true;
+        this.successMsg = 'Carrera objetivo actualizada';
+        setTimeout(() => { this.raceGoalSaved = false; this.successMsg = null; }, 3000);
+      } catch (e) {
+        this.error = 'Error al guardar carrera: ' + e.message;
+      } finally {
+        this.savingRaceGoal = false;
+      }
+    },
+
     DAYS,
 
     // ── Inicialización ──────────────────────────────────────────────────
@@ -769,13 +849,31 @@ function coachApp() {
       this.successMsg = null;
       this.draft      = null;
       try {
-        const [draftRes, publishedRes] = await Promise.all([
+        const [draftRes, publishedRes, profileRes] = await Promise.all([
           fetch(`/athletes/${this.cedula}/coach-draft`),
           fetch(`/athletes/${this.cedula}/coach-content`),
+          fetch(`/athletes/${this.cedula}/profile`).catch(() => null),
         ]);
         this.draft     = await draftRes.json();
         this.published = await publishedRes.json();
         this._fillForm(this.draft.editable || {});
+        // Rellenar carrera objetivo desde el perfil
+        if (profileRes?.ok) {
+          const profile = await profileRes.json();
+          this.raceGoal.race_name     = profile.race_name || '';
+          this.raceGoal.race_distance = profile.race_distance || '';
+          // Convertir race_date_raw (MM/DD/YYYY o YYYY-MM-DD) a YYYY-MM-DD para input type=date
+          const raw = profile.race_date_raw || '';
+          if (raw.includes('-') && raw.length === 10) {
+            this.raceGoal.race_date = raw;
+          } else if (raw.includes('/')) {
+            const parts = raw.split('/');
+            if (parts.length === 3) {
+              const [m, d, y] = parts;
+              this.raceGoal.race_date = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+            }
+          }
+        }
         // Cargar historial de check-ins en paralelo (no bloqueante)
         this.fetchCheckinHistory();
       } catch (e) {
