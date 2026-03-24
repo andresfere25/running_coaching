@@ -257,7 +257,9 @@ def push_weekly_features(cedula: str, athlete_dir: Path) -> dict:
         rows.append(row)
 
     try:
-        # Supabase upsert en lotes de 500
+        # Delete old rows first to clean up stale week alignments (W-MON→W-SUN migration)
+        client.table("weekly_features").delete().eq("cedula", cedula).execute()
+        # Insert fresh rows in batches of 500
         batch_size = 500
         for i in range(0, len(rows), batch_size):
             client.table("weekly_features").upsert(
