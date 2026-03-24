@@ -310,10 +310,10 @@ def build_weekly_features(df_acts: pd.DataFrame) -> pd.DataFrame:
 
     # ── Asegurar que la semana actual exista (aunque sin actividades) ──────
     # Evita que el dashboard muestre la semana pasada como "esta semana".
-    from datetime import date
+    from datetime import date, timedelta as _td
     today = date.today()
-    # Monday of the current week (ISO: Monday=1)
-    current_monday = today - pd.Timedelta(days=today.weekday())
+    # Monday of the current week (ISO: Monday=1, weekday()=0)
+    current_monday = today - _td(days=today.weekday())
     current_monday_str = str(current_monday)
     if current_monday_str not in weekly["week_start"].values:
         empty_row = {col: 0 if col != "week_start" else current_monday_str for col in weekly.columns}
