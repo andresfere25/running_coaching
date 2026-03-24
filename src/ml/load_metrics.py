@@ -131,7 +131,7 @@ def weekly_trimp_from_srpe(df_srpe: pd.DataFrame) -> pd.DataFrame:
     df["dt"] = pd.to_datetime(df["end_date_time"], utc=True, errors="coerce")
     df = df.dropna(subset=["dt"]).copy()
     df["week_start"] = (
-        df["dt"].dt.to_period("W-MON").dt.start_time.dt.tz_localize(None)
+        df["dt"].dt.to_period("W-SUN").dt.start_time.dt.tz_localize(None)
     )
     df["trimp"] = df["perceived_exertion"] * df["duration_min"]
 

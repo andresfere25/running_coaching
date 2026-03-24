@@ -910,11 +910,13 @@ function athleteApp() {
       if (!data || data.length < 2) return null;
       const curRaw  = data[data.length - 1]?.km_week;
       const prevRaw = data[data.length - 2]?.km_week;
-      if (!curRaw || !prevRaw) return null;
+      // Allow 0 km (current week with no activities yet)
+      if (curRaw == null || prevRaw == null) return null;
+      if (!prevRaw && !curRaw) return null; // both 0, nothing to show
       const cur  = Math.round(curRaw  * 10) / 10;
       const prev = Math.round(prevRaw * 10) / 10;
       const diff = Math.round((curRaw - prevRaw) * 10) / 10;
-      const pct  = Math.round((diff / prevRaw) * 100);
+      const pct  = prevRaw > 0 ? Math.round((diff / prevRaw) * 100) : 0;
       return { cur, prev, diff, pct, positive: diff >= 0 };
     },
 

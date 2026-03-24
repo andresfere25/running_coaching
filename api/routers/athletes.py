@@ -65,7 +65,7 @@ def _build_activities_summary(
     # Normalizar a UTC naive antes de asignar período (evita warning de timezone en Period)
     dt_utc = df["activity_date"].dt.tz_convert("UTC").dt.tz_localize(None)
     if period == "week":
-        df["period_start"] = dt_utc.dt.to_period("W-MON").apply(lambda p: p.start_time)
+        df["period_start"] = dt_utc.dt.to_period("W-SUN").apply(lambda p: p.start_time)
     else:
         df["period_start"] = dt_utc.dt.to_period("M").apply(lambda p: p.start_time)
 

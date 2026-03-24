@@ -104,7 +104,12 @@ def compute_semaforo(latest_checkin: dict) -> str:
 # ─── Helpers de análisis ──────────────────────────────────────────────────────
 
 def week_start_monday(dt: pd.Series) -> pd.Series:
-    return (dt.dt.to_period("W-MON").dt.start_time).dt.date
+    """Return the Monday that starts the ISO week for each datetime.
+
+    Uses W-SUN (week ending Sunday) so that start_time = Monday.
+    Previous W-MON gave Tue–Mon weeks, causing 'esta semana' to lag by 1 day.
+    """
+    return (dt.dt.to_period("W-SUN").dt.start_time).dt.date
 
 
 def _compute_racha_semanas(has_activity: pd.Series) -> pd.Series:
@@ -302,6 +307,33 @@ def build_weekly_features(df_acts: pd.DataFrame) -> pd.DataFrame:
 
     # Limpiar columna auxiliar
     weekly = weekly.drop(columns=["week_start_dt"])
+
+    # ── Asegurar que la semana actual exista (aunque sin actividades) ──────
+    # Evita que el dashboard muestre la semana pasada como "esta semana".
+    from datetime import date
+    today = date.today()
+    # Monday of the current week (ISO: Monday=1)
+    current_monday = today - pd.Timedelta(days=today.weekday())
+    current_monday_str = str(current_monday)
+    if current_monday_str not in weekly["week_start"].values:
+        empty_row = {col: 0 if col != "week_start" else current_monday_str for col in weekly.columns}
+        # Carry forward CTL from last week (fitness doesn't reset to 0)
+        if len(weekly) > 0:
+            last = weekly.iloc[-1]
+            empty_row["ctl"]  = last.get("ctl", 0)
+            empty_row["atl"]  = 0  # no load this week
+            empty_row["tsb"]  = last.get("ctl", 0)  # TSB = CTL - ATL = CTL when ATL=0
+            empty_row["acwr"] = 0  # no acute load
+        # NaN-ify fields that shouldn't be 0
+        for col in ["pace_sec_per_km_week", "monotony", "strain", "pace_delta_4s_sec",
+                     "pico_semana_ratio", "long_run_km", "fondo_largo_4s"]:
+            if col in empty_row:
+                empty_row[col] = None
+        empty_row["semana_spike"]  = False
+        empty_row["racha_semanas"] = 0
+        empty_row["km_trend"]      = None
+        weekly = pd.concat([weekly, pd.DataFrame([empty_row])], ignore_index=True)
+
     return weekly
 
 
@@ -316,7 +348,7 @@ def add_zones_from_profile(df_acts: pd.DataFrame, profile: dict) -> pd.DataFrame
     df = df_acts.copy()
     df["start_date_local"] = pd.to_datetime(df["start_date_local"], errors="coerce")
     df = df[df["start_date_local"].notna()].copy()
-    df["week_start"] = (df["start_date_local"].dt.to_period("W-MON").dt.start_time).dt.date.astype(str)
+    df["week_start"] = (df["start_date_local"].dt.to_period("W-SUN").dt.start_time).dt.date.astype(str)
     df["distance_km"]       = pd.to_numeric(df.get("distance_km"), errors="coerce")
     df["pace_sec_per_km"]   = pd.to_numeric(df.get("pace_sec_per_km"), errors="coerce")
 
