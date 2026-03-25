@@ -1096,12 +1096,13 @@ def store_strava_token(
     if not result.get("ok"):
         raise HTTPException(status_code=500, detail=result.get("detail", "Error writing tokens"))
 
-    # Auto-trigger pipeline en background: strava → features → plan → push Supabase
+    # Auto-trigger pipeline en background: ingest → strava → features → plan → push Supabase
+    # ingest es necesario para que athlete_profiles se llene desde Google Sheets
     from api.routers.sync import _run_pipeline_and_push
     background.add_task(
         _run_pipeline_and_push,
         cedula,
-        ["strava", "features", "plan"],
+        ["ingest", "strava", "features", "plan"],
         False,   # skip_strava=False
         True,    # push_to_supabase=True
     )
