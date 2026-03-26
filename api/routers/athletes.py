@@ -239,6 +239,120 @@ def update_race_goal(
     }
 
 
+# ─── Onboarding completo ─────────────────────────────────────────────────────
+
+
+class OnboardingProfile(BaseModel):
+    name: str
+    cedula: str
+    whatsapp: Optional[str] = None
+    email: Optional[str] = None
+    city_country: Optional[str] = None
+    age: Optional[int] = None
+    sex: Optional[str] = None
+    height_cm: Optional[int] = None
+    weight_kg: Optional[float] = None
+    birth_date_raw: Optional[str] = None
+    goal_main: Optional[str] = None
+    race_distance: Optional[str] = None
+    race_date_raw: Optional[str] = None
+    race_name: Optional[str] = None
+    has_time_goal: Optional[bool] = None
+    time_goal_sec: Optional[int] = None
+    days_run_per_week: Optional[int] = None
+    weekday_session_min_min: Optional[int] = None
+    weekday_session_max_min: Optional[int] = None
+    weekend_session_min_min: Optional[int] = None
+    weekend_session_max_min: Optional[int] = None
+    preferred_run_days: Optional[list[str]] = None
+    training_time_pref: Optional[str] = None
+    strength_access: Optional[str] = None
+    strength_days_per_week: Optional[int] = None
+    other_sports: Optional[str] = None
+    sleep_hours_raw: Optional[str] = None
+    has_pain: Optional[bool] = None
+    pain_location: Optional[str] = None
+    pain_level_0_10: Optional[int] = None
+    had_injuries_12m: Optional[bool] = None
+    medical_conditions: Optional[str] = None
+    running_experience: Optional[str] = None
+    km_week_min: Optional[float] = None
+    km_week_max: Optional[float] = None
+    avg_days_running_4w: Optional[int] = None
+    long_run_recent: Optional[str] = None
+    surface: Optional[str] = None
+    has_recent_prs: Optional[bool] = None
+    pr_5k_sec: Optional[float] = None
+    pr_10k_sec: Optional[float] = None
+    pr_21k_sec: Optional[float] = None
+    pr_42k_sec: Optional[float] = None
+    easy_pace_sec_per_km: Optional[float] = None
+    mod_pace_sec_per_km: Optional[float] = None
+    fast_pace_sec_per_km: Optional[float] = None
+    uses_device: Optional[bool] = None
+    main_app: Optional[str] = None
+    uses_strava: Optional[bool] = None
+    consent_plan: Optional[bool] = None
+    consent_anon: Optional[bool] = None
+    consent_strava: Optional[bool] = None
+
+
+@router.post("/{cedula}/profile/onboarding")
+def create_onboarding_profile(
+    cedula: str,
+    body: OnboardingProfile,
+    _: None = Depends(require_api_key),
+):
+    """
+    Recibe el perfil completo de onboarding y lo persiste.
+    Merge: los campos enviados como None no sobreescriben valores existentes.
+    Escribe en profile.json local y sincroniza a Supabase.
+    """
+    from src.storage.writer import push_profile
+
+    if body.cedula != cedula:
+        raise HTTPException(
+            status_code=400,
+            detail="La cédula en el body no coincide con la URL",
+        )
+
+    # 1. Leer perfil existente (si hay)
+    athlete_dir = get_data_dir() / cedula
+    existing: dict = {}
+    profile_path = athlete_dir / "meta" / "profile.json"
+    if profile_path.exists():
+        try:
+            existing = json.loads(profile_path.read_text(encoding="utf-8"))
+        except Exception:
+            existing = {}
+    else:
+        # Try Supabase
+        data_from_reader = read_profile(cedula, athlete_dir if athlete_dir.exists() else None)
+        if data_from_reader:
+            existing = data_from_reader
+
+    # 2. Merge: new values override, but None values don't overwrite existing
+    incoming = body.model_dump(exclude_none=True)
+    merged = {**existing, **incoming}
+
+    # 3. Write locally
+    meta_dir = athlete_dir / "meta"
+    meta_dir.mkdir(parents=True, exist_ok=True)
+    profile_path.write_text(
+        json.dumps(merged, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    # 4. Push to Supabase
+    push_result = push_profile(cedula, athlete_dir)
+
+    return {
+        "ok": True,
+        "cedula": cedula,
+        "supabase": push_result.get("detail"),
+    }
+
+
 # ─── Snapshot (estado actual) ────────────────────────────────────────────────
 
 @router.get("/{cedula}/snapshot")
