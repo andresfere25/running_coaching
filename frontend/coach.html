@@ -707,6 +707,74 @@
           </div>
         </template>
 
+        <!-- ── Resumen y tabla detallada de check-ins ─────────────── -->
+        <template x-if="checkinHistory && checkinHistory.checkins && checkinHistory.checkins.length > 0">
+          <div class="card px-5 py-4">
+            <div class="label mb-3">📊 Detalle de check-ins</div>
+
+            <!-- Contadores -->
+            <div class="grid grid-cols-3 gap-2 mb-3">
+              <div class="bg-slate-50 rounded-lg px-3 py-2 text-center">
+                <div class="text-lg font-bold text-slate-700" x-text="checkinHistory.checkins.length"></div>
+                <div class="text-[10px] text-slate-400">Total</div>
+              </div>
+              <div class="bg-blue-50 rounded-lg px-3 py-2 text-center">
+                <div class="text-lg font-bold text-blue-600" x-text="weeklyCheckins.length"></div>
+                <div class="text-[10px] text-blue-400">Semanales</div>
+              </div>
+              <div class="bg-emerald-50 rounded-lg px-3 py-2 text-center">
+                <div class="text-lg font-bold text-emerald-600" x-text="raceCheckins.length"></div>
+                <div class="text-[10px] text-emerald-400">Carreras</div>
+              </div>
+            </div>
+
+            <!-- Tabla detallada -->
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs">
+                <thead>
+                  <tr class="border-b border-slate-200">
+                    <th class="text-left py-1.5 text-[10px] text-slate-400 font-semibold">Fecha</th>
+                    <th class="text-left py-1.5 text-[10px] text-slate-400 font-semibold">Tipo</th>
+                    <th class="text-left py-1.5 text-[10px] text-slate-400 font-semibold">Detalle</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="c in checkinHistory.checkins" :key="c.checkin_date + c.type">
+                    <tr class="border-b border-slate-100 hover:bg-slate-50">
+                      <td class="py-1.5 text-slate-500 font-mono" x-text="c.checkin_date"></td>
+                      <td class="py-1.5">
+                        <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+                              :class="c.type === 'app_race' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'"
+                              x-text="c.type === 'app_race' ? '🏅 Carrera' : '📋 Semanal'"></span>
+                      </td>
+                      <td class="py-1.5 text-slate-600">
+                        <template x-if="c.type === 'app_race'">
+                          <span>
+                            <strong x-text="c.race_distance_km + ' km'"></strong>
+                            · <span class="font-mono" x-text="fmtRaceTime(c.race_time_sec)"></span>
+                            · Sensación: <span x-text="ratingEmoji(c.sensation_1_5)"></span>
+                            <template x-if="c.is_official"><span class="text-amber-600 font-bold ml-1">⭐ Oficial</span></template>
+                          </span>
+                        </template>
+                        <template x-if="c.type === 'app_weekly'">
+                          <span>
+                            😴 <span x-text="c.sleep_1_5 + '/5'"></span>
+                            · ⚡ <span x-text="c.energy_1_5 + '/5'"></span>
+                            <template x-if="c.has_pain"><span class="text-red-500 ml-1">· 🩹 Dolor</span></template>
+                          </span>
+                        </template>
+                        <template x-if="c.type !== 'app_race' && c.type !== 'app_weekly'">
+                          <span class="text-slate-400 italic" x-text="'Tipo: ' + c.type"></span>
+                        </template>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </template>
+
         <!-- ── Instrucciones rápidas ───────────────────────────────── -->
         <div class="card px-5 py-4 bg-slate-50">
           <div class="label mb-2">Flujo</div>

@@ -521,7 +521,8 @@ def post_checkin(
             "energy_1_5": body.energy_1_5,
             "pain_0_10": 5 if body.has_pain else 0,
             "has_pain": body.has_pain,
-            "pain_where": body.pain_location or "",
+            "pain_location": body.pain_location or "",
+            "pain_where": body.pain_location or "",  # compat legacy
             "sessions_completed": None,
             "skipped_sessions": None,
             "comments": "",
@@ -551,17 +552,22 @@ def post_checkin(
 
     # 1. Escribir en Supabase
     supabase_ok = False
+    supabase_error = None
     client = get_client()
     if client:
         try:
+            # Ensure athlete row exists (FK constraint on checkins)
+            client.table("athletes").upsert(
+                {"cedula": cedula}, on_conflict="cedula"
+            ).execute()
             client.table("checkins").upsert({
                 "cedula": cedula,
                 "checkin_date": raw["checkin_date"],
                 "raw": raw,
             }, on_conflict="cedula,checkin_date").execute()
             supabase_ok = True
-        except Exception:
-            pass  # fallback a local
+        except Exception as exc:
+            supabase_error = str(exc)
 
     # 2. Escribir localmente
     athlete_dir = get_data_dir() / cedula
@@ -591,6 +597,8 @@ def post_checkin(
         "supabase": supabase_ok,
         "local": True,
     }
+    if supabase_error:
+        result["supabase_error"] = supabase_error
     if body.type == "race":
         result["training_snapshot_saved"] = snapshot_saved
     return result
