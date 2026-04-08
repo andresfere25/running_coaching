@@ -15,8 +15,8 @@
 name: Running Coaching Pipeline
 
 on:
-  schedule:
-    - cron: "0 11 * * 1"   # lunes 6:00am Bogotá (UTC-5 = 11:00 UTC)
+  # schedule desactivado — pipeline legado (Google Sheets + PDF) reemplazado por flujo en tiempo real
+  # - cron: "0 11 * * 1"   # lunes 6:00am Bogotá (UTC-5 = 11:00 UTC)
   workflow_dispatch:
     inputs:
       cedula:
