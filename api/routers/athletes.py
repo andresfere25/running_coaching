@@ -1231,3 +1231,213 @@ def store_strava_token(
     print(f"[/strava/token] Pipeline auto-trigger encolado para cedula={cedula}")
 
     return {"ok": True, "cedula": cedula, "detail": result.get("detail"), "pipeline": "enqueued"}
+
+
+# ─── Backfill: Strava activities → check-ins ────────────────────────────────
+
+@router.get("/{cedula}/strava-runs")
+def get_strava_runs_without_checkin(
+    cedula: str,
+    days: int = Query(default=90, ge=1, le=365),
+    _: None = Depends(require_api_key),
+):
+    """
+    Lista runs de Strava que NO tienen un check-in correspondiente.
+    Útil para que el coach vea qué actividades puede importar.
+    """
+    from src.storage.supabase_client import get_client
+
+    sb = get_client()
+    if not sb:
+        raise HTTPException(status_code=503, detail="Supabase no disponible")
+
+    # Cutoff: febrero 2026 (inicio del proyecto) — no importar datos antiguos
+    project_start = "2026-02-01"
+    cutoff = max(
+        project_start,
+        (date.today() - __import__("datetime").timedelta(days=days)).isoformat(),
+    )
+
+    # 1. Traer runs de Strava desde el inicio del proyecto
+    activities = (
+        sb.table("activities")
+        .select("strava_id,activity_date,name,sport_type,distance_m,duration_sec,avg_pace_sec_km,raw")
+        .eq("cedula", cedula)
+        .in_("sport_type", ["Run", "TrailRun"])
+        .gte("activity_date", project_start)
+        .order("activity_date", desc=True)
+        .execute()
+    ).data or []
+
+    # 2. Traer check-ins existentes (solo fechas)
+    checkins = (
+        sb.table("checkins")
+        .select("checkin_date")
+        .eq("cedula", cedula)
+        .gte("checkin_date", cutoff)
+        .execute()
+    ).data or []
+    checkin_dates = {r["checkin_date"] for r in checkins}
+
+    # 3. Filtrar actividades sin check-in
+    missing = []
+    for act in activities:
+        act_date = (act.get("activity_date") or "")[:10]
+        if act_date not in checkin_dates:
+            dist_km = round((act.get("distance_m") or 0) / 1000, 2)
+            dur_sec = act.get("duration_sec") or 0
+            raw = act.get("raw") or {}
+            missing.append({
+                "strava_id": act["strava_id"],
+                "date": act_date,
+                "name": act.get("name", ""),
+                "sport_type": act.get("sport_type"),
+                "distance_km": dist_km,
+                "duration_sec": dur_sec,
+                "pace_sec_km": round(dur_sec / max(dist_km, 0.01), 1) if dist_km > 0.3 else None,
+                "avg_heartrate": raw.get("average_heartrate"),
+                "max_heartrate": raw.get("max_heartrate"),
+            })
+
+    return {
+        "cedula": cedula,
+        "days": days,
+        "total_runs": len(activities),
+        "already_have_checkin": len(activities) - len(missing),
+        "missing_checkin": len(missing),
+        "runs": missing,
+    }
+
+
+class BackfillRequest(BaseModel):
+    """
+    Importa actividades seleccionadas de Strava como check-ins.
+
+    El coach selecciona manualmente qué actividades importar desde el panel.
+    Cada check-in queda marcado con source='coach_from_strava' para
+    transparencia total sobre el origen de los datos.
+    """
+    strava_ids: list[str] = Field(..., min_length=1, description="IDs de Strava a importar (selección manual del coach)")
+    mark_as_official: list[str] = Field(default_factory=list, description="IDs que el coach marca como carrera oficial")
+    min_distance_km: float = Field(default=2.0, ge=0, description="Distancia mínima para importar")
+
+
+@router.post("/{cedula}/backfill-strava")
+def backfill_strava_to_checkins(
+    cedula: str,
+    body: BackfillRequest,
+    _: None = Depends(require_api_key),
+):
+    """
+    Importa actividades de Strava seleccionadas por el coach como check-ins.
+
+    Proceso transparente:
+      1. El coach ve las actividades en el panel y selecciona cuáles importar
+      2. El coach decide cuáles marcar como carrera oficial vs entrenamiento
+      3. Cada check-in queda marcado con source='coach_from_strava'
+      4. Se genera training_snapshot para el modelo Q2
+
+    NO consulta la API de Strava — usa datos ya almacenados con consentimiento.
+    Requiere strava_ids explícitos — no hay importación masiva automática.
+    """
+    from src.storage.supabase_client import get_client
+
+    sb = get_client()
+    if not sb:
+        raise HTTPException(status_code=503, detail="Supabase no disponible")
+
+    # Solo traer las actividades específicas seleccionadas por el coach
+    id_set = set(body.strava_ids)
+    official_set = set(body.mark_as_official)
+
+    activities = (
+        sb.table("activities")
+        .select("strava_id,activity_date,name,sport_type,distance_m,duration_sec,raw")
+        .eq("cedula", cedula)
+        .in_("sport_type", ["Run", "TrailRun"])
+        .order("activity_date", desc=True)
+        .execute()
+    ).data or []
+
+    # Filtrar solo los IDs seleccionados manualmente
+    activities = [a for a in activities if a["strava_id"] in id_set]
+
+    # Filtrar por distancia mínima
+    activities = [a for a in activities if (a.get("distance_m") or 0) / 1000 >= body.min_distance_km]
+
+    # Crear check-ins
+    imported = []
+    errors = []
+    snapshots_saved = 0
+
+    # Ensure athlete exists in Supabase (FK constraint)
+    try:
+        sb.table("athletes").upsert(
+            {"cedula": cedula}, on_conflict="cedula"
+        ).execute()
+    except Exception:
+        pass
+
+    for act in activities:
+        act_date = (act.get("activity_date") or "")[:10]
+        dist_km = round((act.get("distance_m") or 0) / 1000, 2)
+        dur_sec = act.get("duration_sec") or 0
+        raw_strava = act.get("raw") or {}
+        is_official = act["strava_id"] in official_set
+
+        # Build check-in payload — transparente sobre el origen
+        raw = {
+            "source": "coach_from_strava",
+            "checkin_date": act_date,
+            "checkin_type": "race",
+            "race_distance_km": dist_km,
+            "race_time_sec": dur_sec,
+            "sensation_1_5": 3,  # neutral — no disponible desde Strava
+            "is_official": is_official,
+            "strava_id": act["strava_id"],
+            "strava_name": act.get("name", ""),
+            "avg_heartrate": raw_strava.get("average_heartrate"),
+            "max_heartrate": raw_strava.get("max_heartrate"),
+        }
+
+        try:
+            sb.table("checkins").upsert({
+                "cedula": cedula,
+                "checkin_date": act_date,
+                "raw": raw,
+            }, on_conflict="cedula,checkin_date").execute()
+
+            imported.append({
+                "date": act_date,
+                "distance_km": dist_km,
+                "duration_sec": dur_sec,
+                "name": act.get("name", ""),
+                "is_official": is_official,
+            })
+
+            # Save training snapshot for Q2 model
+            try:
+                ok = _save_training_snapshot(
+                    cedula=cedula,
+                    race_date=act_date,
+                    race_distance_km=dist_km,
+                    race_time_sec=dur_sec,
+                    sensation_1_5=3,
+                    is_official=is_official,
+                )
+                if ok:
+                    snapshots_saved += 1
+            except Exception:
+                pass
+
+        except Exception as exc:
+            errors.append({"date": act_date, "error": str(exc)})
+
+    return {
+        "cedula": cedula,
+        "imported": len(imported),
+        "snapshots_saved": snapshots_saved,
+        "errors": len(errors),
+        "error_details": errors[:5] if errors else [],
+        "runs": imported,
+    }

@@ -775,6 +775,129 @@
           </div>
         </template>
 
+        <!-- ── Importar runs de Strava como check-ins ─────────────── -->
+        <div class="card px-5 py-4">
+          <div class="flex items-center justify-between mb-2">
+            <div class="label">🏃 Importar runs de Strava</div>
+            <button class="btn-ghost text-[11px]" @click="fetchStravaRuns()" :disabled="loadingStrava">
+              <span x-show="!loadingStrava">Cargar actividades</span>
+              <span x-show="loadingStrava">Cargando...</span>
+            </button>
+          </div>
+
+          <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">
+            Selecciona manualmente las actividades de Strava para registrar como check-ins.
+            Marca como <strong>oficial</strong> si fue una carrera organizada.
+            <span class="text-amber-500">Solo actividades desde feb 2026.</span>
+            Source: <code class="text-[10px] bg-slate-100 px-1 rounded">coach_from_strava</code>
+          </p>
+
+          <!-- Resultado de búsqueda -->
+          <template x-if="stravaRuns">
+            <div>
+              <!-- Contadores -->
+              <div class="grid grid-cols-3 gap-2 mb-3">
+                <div class="bg-slate-50 rounded-lg px-3 py-2 text-center">
+                  <div class="text-lg font-bold text-slate-700" x-text="stravaRuns.total_runs"></div>
+                  <div class="text-[10px] text-slate-400">Runs totales</div>
+                </div>
+                <div class="bg-emerald-50 rounded-lg px-3 py-2 text-center">
+                  <div class="text-lg font-bold text-emerald-600" x-text="stravaRuns.already_have_checkin"></div>
+                  <div class="text-[10px] text-emerald-400">Ya con check-in</div>
+                </div>
+                <div class="bg-amber-50 rounded-lg px-3 py-2 text-center">
+                  <div class="text-lg font-bold text-amber-600" x-text="stravaRuns.missing_checkin"></div>
+                  <div class="text-[10px] text-amber-400">Pendientes</div>
+                </div>
+              </div>
+
+              <!-- Resultado del backfill -->
+              <template x-if="backfillResult">
+                <div class="mb-3 p-3 rounded-lg text-xs"
+                     :class="backfillResult.error ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'">
+                  <template x-if="!backfillResult.error">
+                    <span>
+                      ✓ <strong x-text="backfillResult.imported"></strong> check-ins creados,
+                      <strong x-text="backfillResult.snapshots_saved"></strong> snapshots ML guardados
+                      <template x-if="backfillResult.errors > 0">
+                        <span class="text-amber-600"> · <span x-text="backfillResult.errors"></span> errores</span>
+                      </template>
+                    </span>
+                  </template>
+                  <template x-if="backfillResult.error">
+                    <span x-text="backfillResult.error"></span>
+                  </template>
+                </div>
+              </template>
+
+              <!-- Tabla con checkboxes -->
+              <template x-if="stravaRuns.runs && stravaRuns.runs.length > 0">
+                <div>
+                  <!-- Selección masiva + botón importar -->
+                  <div class="flex items-center justify-between mb-2">
+                    <label class="flex items-center gap-2 text-[11px] text-slate-500 cursor-pointer">
+                      <input type="checkbox" class="rounded" @change="toggleSelectAll()"
+                             :checked="selectedCount === stravaRuns.runs.length && stravaRuns.runs.length > 0">
+                      Seleccionar todas (<span x-text="stravaRuns.runs.length"></span>)
+                    </label>
+                    <button class="btn-primary text-[11px] px-3 py-1.5"
+                            @click="doBackfill()"
+                            :disabled="backfilling || selectedCount === 0">
+                      <span x-show="!backfilling" x-text="selectedCount > 0 ? 'Importar ' + selectedCount + ' seleccionadas' : 'Selecciona actividades'"></span>
+                      <span x-show="backfilling">Importando...</span>
+                    </button>
+                  </div>
+
+                  <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
+                    <table class="w-full text-xs">
+                      <thead class="sticky top-0 bg-white">
+                        <tr class="border-b border-slate-200">
+                          <th class="w-6 py-1"></th>
+                          <th class="text-left py-1 text-[10px] text-slate-400 font-semibold">Fecha</th>
+                          <th class="text-left py-1 text-[10px] text-slate-400 font-semibold">Actividad</th>
+                          <th class="text-right py-1 text-[10px] text-slate-400 font-semibold">Dist</th>
+                          <th class="text-right py-1 text-[10px] text-slate-400 font-semibold">Tiempo</th>
+                          <th class="text-right py-1 text-[10px] text-slate-400 font-semibold">Ritmo</th>
+                          <th class="text-center py-1 text-[10px] text-slate-400 font-semibold">FC</th>
+                          <th class="text-center py-1 text-[10px] text-slate-400 font-semibold" title="Marcar como carrera oficial">Oficial</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <template x-for="r in stravaRuns.runs" :key="r.strava_id">
+                          <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                              :class="selectedRuns[r.strava_id] ? 'bg-indigo-50' : ''">
+                            <td class="py-1.5 text-center">
+                              <input type="checkbox" class="rounded"
+                                     :checked="selectedRuns[r.strava_id]"
+                                     @change="selectedRuns[r.strava_id] = $event.target.checked">
+                            </td>
+                            <td class="py-1.5 text-slate-500 font-mono text-[11px]" x-text="r.date"></td>
+                            <td class="py-1.5 text-slate-600 max-w-[130px] truncate" :title="r.name" x-text="r.name"></td>
+                            <td class="py-1.5 text-right font-mono text-slate-700 font-medium" x-text="r.distance_km + ' km'"></td>
+                            <td class="py-1.5 text-right font-mono text-slate-600" x-text="fmtDuration(r.duration_sec)"></td>
+                            <td class="py-1.5 text-right font-mono text-slate-600" x-text="fmtPace(r.pace_sec_km)"></td>
+                            <td class="py-1.5 text-center text-slate-400" x-text="r.avg_heartrate ? Math.round(r.avg_heartrate) + '' : '--'"></td>
+                            <td class="py-1.5 text-center">
+                              <input type="checkbox" class="rounded border-amber-300 text-amber-500 focus:ring-amber-300"
+                                     :checked="officialRuns[r.strava_id]"
+                                     @change="officialRuns[r.strava_id] = $event.target.checked"
+                                     title="Marcar como carrera oficial">
+                            </td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </template>
+
+              <template x-if="stravaRuns.missing_checkin === 0">
+                <p class="text-xs text-emerald-500 text-center py-2">✓ Todas las runs ya tienen check-in</p>
+              </template>
+            </div>
+          </template>
+        </div>
+
         <!-- ── Instrucciones rápidas ───────────────────────────────── -->
         <div class="card px-5 py-4 bg-slate-50">
           <div class="label mb-2">Flujo</div>
@@ -1238,6 +1361,83 @@ function coachApp() {
     /** Emoji rating para 1-5 */
     ratingEmoji(v) {
       return ['', '😫', '😕', '😐', '🙂', '😄'][v] || '—';
+    },
+
+    // ── Importar Strava → Check-ins (selección manual del coach) ────────
+    stravaRuns: null,
+    loadingStrava: false,
+    backfilling: false,
+    backfillResult: null,
+    selectedRuns: {},    // { strava_id: true/false }
+    officialRuns: {},    // { strava_id: true/false }
+
+    async fetchStravaRuns() {
+      if (!this.cedula) return;
+      this.loadingStrava = true;
+      this.backfillResult = null;
+      this.selectedRuns = {};
+      this.officialRuns = {};
+      try {
+        const res = await fetch(`/athletes/${this.cedula}/strava-runs?days=365`);
+        if (res.ok) this.stravaRuns = await res.json();
+      } catch (e) {
+        this.stravaRuns = { runs: [], error: e.message };
+      } finally {
+        this.loadingStrava = false;
+      }
+    },
+
+    get selectedCount() {
+      return Object.values(this.selectedRuns).filter(Boolean).length;
+    },
+
+    toggleSelectAll() {
+      const allSelected = this.selectedCount === (this.stravaRuns?.runs || []).length;
+      (this.stravaRuns?.runs || []).forEach(r => {
+        this.selectedRuns[r.strava_id] = !allSelected;
+      });
+    },
+
+    async doBackfill() {
+      if (!this.cedula || this.selectedCount === 0) return;
+      this.backfilling = true;
+      this.backfillResult = null;
+      const ids = Object.entries(this.selectedRuns).filter(([,v]) => v).map(([k]) => k);
+      const officialIds = Object.entries(this.officialRuns).filter(([,v]) => v).map(([k]) => k);
+      try {
+        const res = await fetch(`/athletes/${this.cedula}/backfill-strava`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            strava_ids: ids,
+            mark_as_official: officialIds,
+            min_distance_km: 2.0,
+          }),
+        });
+        this.backfillResult = await res.json();
+        // Refresh
+        await Promise.all([this.fetchCheckinHistory(), this.fetchStravaRuns()]);
+      } catch (e) {
+        this.backfillResult = { error: e.message };
+      } finally {
+        this.backfilling = false;
+      }
+    },
+
+    fmtPace(secPerKm) {
+      if (!secPerKm) return '--';
+      const m = Math.floor(secPerKm / 60);
+      const s = Math.round(secPerKm % 60);
+      return `${m}:${String(s).padStart(2,'0')}/km`;
+    },
+
+    fmtDuration(sec) {
+      if (!sec) return '--';
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      return `${m}:${String(s).padStart(2,'0')}`;
     },
   };
 }
