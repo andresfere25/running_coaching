@@ -1386,81 +1386,97 @@ def backfill_strava_to_checkins(
     # Filtrar por distancia mínima
     activities = [a for a in activities if (a.get("distance_m") or 0) / 1000 >= body.min_distance_km]
 
-    # Crear check-ins
+    # Escribir directo a training_snapshots — NO tocar checkins.
+    # Checkins es solo para datos subjetivos del atleta.
+    #
+    # Deduplicación sin schema changes:
+    #   - Si ya existe snapshot con source=app_race para esa fecha → el atleta
+    #     ya lo registró manualmente, tiene datos subjetivos → NO sobrescribir.
+    #   - Si ya existe con source=coach_from_strava → reimport idempotente → OK sobrescribir.
+    #   - Si no existe → crear.
+    #
+    # strava_id se guarda dentro de data{} para trazabilidad.
     imported = []
+    skipped = []
     errors = []
-    snapshots_saved = 0
 
-    # Ensure athlete exists in Supabase (FK constraint)
+    # Cargar snapshots existentes del atleta para dedup
+    existing_snapshots = {}
     try:
-        sb.table("athletes").upsert(
-            {"cedula": cedula}, on_conflict="cedula"
-        ).execute()
+        snap_res = sb.table("training_snapshots").select("race_date,data").eq("cedula", cedula).execute()
+        for s in (snap_res.data or []):
+            d = s.get("data") or {}
+            existing_snapshots[s["race_date"]] = d.get("source", "unknown")
     except Exception:
         pass
 
     for act in activities:
         act_date = (act.get("activity_date") or "")[:10]
+        strava_id = str(act["strava_id"])
+
+        # Si el atleta ya registró manualmente esta fecha → no tocar
+        existing_source = existing_snapshots.get(act_date)
+        if existing_source == "app_race":
+            skipped.append({"date": act_date, "reason": "atleta ya registró check-in manual"})
+            continue
+
         dist_km = round((act.get("distance_m") or 0) / 1000, 2)
         dur_sec = act.get("duration_sec") or 0
         raw_strava = act.get("raw") or {}
         is_official = str(act["strava_id"]) in official_set
 
-        # Build check-in payload — transparente sobre el origen
-        raw = {
-            "source": "coach_from_strava",
-            "checkin_date": act_date,
-            "checkin_type": "race",
-            "race_distance_km": dist_km,
-            "race_time_sec": dur_sec,
-            "sensation_1_5": 3,  # neutral — no disponible desde Strava
-            "is_official": is_official,
-            "strava_id": act["strava_id"],
-            "strava_name": act.get("name", ""),
-            "avg_heartrate": raw_strava.get("average_heartrate"),
-            "max_heartrate": raw_strava.get("max_heartrate"),
+        avg_hr = raw_strava.get("average_heartrate")
+        max_hr = raw_strava.get("max_heartrate")
+        pace_sec_km = round(dur_sec / max(dist_km, 0.01), 2) if dist_km > 0 else None
+        aerobic_eff = round(pace_sec_km / avg_hr, 4) if (avg_hr and avg_hr > 0 and pace_sec_km) else None
+
+        dist_bucket = (
+            "5K"  if dist_km <= 6  else
+            "10K" if dist_km <= 12 else
+            "21K" if dist_km <= 23 else "42K"
+        )
+
+        snapshot = {
+            "cedula":             cedula,
+            "race_date":          act_date,
+            "strava_id":          strava_id,   # trazabilidad en data{}
+            "source":             "coach_from_strava",
+            "recorded_at":        datetime.utcnow().isoformat(),
+            "race_distance_km":   dist_km,
+            "race_time_sec":      dur_sec,
+            "pace_sec_km":        pace_sec_km,
+            "dist_bucket":        dist_bucket,
+            "is_official":        is_official,
+            "sensation_1_5":      None,
+            "avg_heartrate":      avg_hr,
+            "max_heartrate":      max_hr,
+            "aerobic_efficiency": aerobic_eff,
+            "strava_name":        act.get("name", ""),
         }
 
         try:
-            sb.table("checkins").upsert({
-                "cedula": cedula,
-                "checkin_date": act_date,
-                "raw": raw,
-            }, on_conflict="cedula,checkin_date").execute()
-
+            sb.table("training_snapshots").upsert(
+                {"cedula": cedula, "race_date": act_date, "data": snapshot},
+                on_conflict="cedula,race_date",
+            ).execute()
             imported.append({
-                "date": act_date,
+                "date":        act_date,
                 "distance_km": dist_km,
                 "duration_sec": dur_sec,
-                "name": act.get("name", ""),
+                "name":        act.get("name", ""),
                 "is_official": is_official,
+                "avg_hr":      avg_hr,
             })
-
-            # Save training snapshot for Q2 model (with FC from Strava)
-            try:
-                ok = _save_training_snapshot(
-                    cedula=cedula,
-                    race_date=act_date,
-                    race_distance_km=dist_km,
-                    race_time_sec=dur_sec,
-                    sensation_1_5=3,
-                    is_official=is_official,
-                    avg_heartrate=raw_strava.get("average_heartrate"),
-                    max_heartrate=raw_strava.get("max_heartrate"),
-                )
-                if ok:
-                    snapshots_saved += 1
-            except Exception:
-                pass
-
         except Exception as exc:
-            errors.append({"date": act_date, "error": str(exc)})
+            errors.append({"strava_id": strava_id, "date": act_date, "error": str(exc)})
 
     return {
-        "cedula": cedula,
+        "cedula":   cedula,
         "imported": len(imported),
-        "snapshots_saved": snapshots_saved,
-        "errors": len(errors),
+        "skipped":  len(skipped),
+        "errors":   len(errors),
         "error_details": errors[:5] if errors else [],
-        "runs": imported,
+        "skipped_details": skipped[:5] if skipped else [],
+        "runs":     imported,
+        "note":     "Datos en training_snapshots (ML). checkins del atleta intactos.",
     }

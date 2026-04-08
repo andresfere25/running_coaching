@@ -816,13 +816,15 @@
                 <div class="mb-3 p-3 rounded-lg text-xs"
                      :class="backfillResult.error ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'">
                   <template x-if="!backfillResult.error">
-                    <span>
-                      ✓ <strong x-text="backfillResult.imported"></strong> check-ins creados,
-                      <strong x-text="backfillResult.snapshots_saved"></strong> snapshots ML guardados
-                      <template x-if="backfillResult.errors > 0">
-                        <span class="text-amber-600"> · <span x-text="backfillResult.errors"></span> errores</span>
+                    <div class="space-y-0.5">
+                      <div>✓ <strong x-text="backfillResult.imported"></strong> actividades guardadas en modelo ML</div>
+                      <template x-if="backfillResult.skipped > 0">
+                        <div class="text-slate-500">↩ <span x-text="backfillResult.skipped"></span> omitidas (atleta ya tenía check-in manual — sus datos no fueron tocados)</div>
                       </template>
-                    </span>
+                      <template x-if="backfillResult.errors > 0">
+                        <div class="text-amber-600">⚠ <span x-text="backfillResult.errors"></span> errores</div>
+                      </template>
+                    </div>
                   </template>
                   <template x-if="backfillResult.error">
                     <span x-text="backfillResult.error"></span>
