@@ -835,6 +835,93 @@ def get_training_data(
     }
 
 
+# ─── Stats resumen por atleta (para panel del coach) ─────────────────────────
+
+@router.get("/{cedula}/stats")
+def get_athlete_stats(
+    cedula: str,
+    _: None = Depends(require_api_key),
+):
+    """
+    Métricas de participación del atleta para el panel del coach.
+    Lee todo desde Supabase — funciona en Railway sin archivos locales.
+
+    Retorna:
+      - ml_snapshots:     filas en training_snapshots (modelo Q2)
+        - manual:         source=app_race (check-in manual del atleta)
+        - strava:         source=coach_from_strava (importado por el coach)
+      - strava_runs:      actividades de running desde feb 2026
+      - strava_pending:   runs sin cobertura (approx: runs - snapshots strava)
+      - checkins_total:   total check-ins en tabla checkins
+      - last_checkin:     fecha del último check-in
+      - last_activity:    fecha de la última actividad Strava
+    """
+    from src.storage.supabase_client import get_client
+    PROJECT_START = "2026-02-01"
+
+    sb = get_client()
+    if not sb:
+        return {"cedula": cedula, "error": "Supabase no disponible"}
+
+    try:
+        # 1. Training snapshots — fuente y conteo
+        snaps = (
+            sb.table("training_snapshots")
+            .select("race_date,data")
+            .eq("cedula", cedula)
+            .execute()
+        ).data or []
+
+        snap_manual = sum(1 for s in snaps if (s.get("data") or {}).get("source") == "app_race")
+        snap_strava = sum(1 for s in snaps if (s.get("data") or {}).get("source") == "coach_from_strava")
+        snap_dates  = {s["race_date"] for s in snaps}
+
+        # 2. Check-ins manuales
+        checkins = (
+            sb.table("checkins")
+            .select("checkin_date,raw")
+            .eq("cedula", cedula)
+            .order("checkin_date", desc=True)
+            .execute()
+        ).data or []
+
+        last_checkin = checkins[0]["checkin_date"] if checkins else None
+
+        # 3. Actividades Strava desde inicio del proyecto
+        activities = (
+            sb.table("activities")
+            .select("activity_date,sport_type")
+            .eq("cedula", cedula)
+            .in_("sport_type", ["Run", "TrailRun"])
+            .gte("activity_date", PROJECT_START)
+            .order("activity_date", desc=True)
+            .execute()
+        ).data or []
+
+        strava_runs   = len(activities)
+        last_activity = activities[0]["activity_date"][:10] if activities else None
+        # Pendientes: runs cuya fecha no está cubierta por ningún snapshot
+        activity_dates = {a["activity_date"][:10] for a in activities}
+        strava_pending = len(activity_dates - snap_dates)
+
+        return {
+            "cedula":        cedula,
+            "ml_snapshots":  len(snaps),
+            "ml_manual":     snap_manual,
+            "ml_strava":     snap_strava,
+            "checkins_total": len(checkins),
+            "last_checkin":  last_checkin,
+            "strava_runs":   strava_runs,
+            "strava_pending": strava_pending,
+            "last_activity": last_activity,
+            # Compatibilidad con campo antiguo
+            "n_rows":        len(snaps),
+        }
+
+    except Exception as e:
+        return {"cedula": cedula, "error": str(e), "n_rows": 0}
+
+
 # ─── Actividades Strava ──────────────────────────────────────────────────────
 
 @router.get("/{cedula}/activities")
