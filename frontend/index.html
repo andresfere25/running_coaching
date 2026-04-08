@@ -479,6 +479,17 @@
                     <span>Muy mal</span><span>Increíble</span>
                   </div>
                 </div>
+                <!-- FC promedio (opcional) -->
+                <div>
+                  <label class="text-xs font-semibold text-slate-600 mb-1.5 block">❤️ FC promedio (opcional)</label>
+                  <div class="flex items-center gap-2">
+                    <input x-model="checkinForm.avg_heartrate" type="number" min="40" max="220"
+                           placeholder="ej: 162"
+                           class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#C41E3A]">
+                    <span class="text-xs text-slate-400 whitespace-nowrap">bpm</span>
+                  </div>
+                  <p class="text-[10px] text-slate-400 mt-1">Si tienes monitor cardíaco — mejora las predicciones del modelo</p>
+                </div>
                 <!-- ¿Fue carrera oficial? -->
                 <div>
                   <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">

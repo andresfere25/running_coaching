@@ -484,6 +484,8 @@ class RaceCheckinIn(BaseModel):
     sensation_1_5: int = Field(..., ge=1, le=5)
     is_official: bool = False
     race_date: Optional[date] = None  # default: hoy
+    avg_heartrate: Optional[float] = Field(None, ge=40, le=250, description="FC promedio (bpm)")
+    max_heartrate: Optional[float] = Field(None, ge=40, le=250, description="FC máxima (bpm)")
 
 
 @router.post("/{cedula}/checkin")
@@ -541,6 +543,8 @@ def post_checkin(
             "sensation_1_5": body.sensation_1_5,
             "is_official": body.is_official,
             "race_date": race_date,
+            "avg_heartrate": body.avg_heartrate,
+            "max_heartrate": body.max_heartrate,
             # Compatibilidad con dashboard
             "feeling_1_10": body.sensation_1_5 * 2,
             "fatigue_1_10": None,
@@ -588,6 +592,8 @@ def post_checkin(
             race_time_sec=body.race_time_sec,
             sensation_1_5=body.sensation_1_5,
             is_official=body.is_official,
+            avg_heartrate=body.avg_heartrate,
+            max_heartrate=body.max_heartrate,
         )
 
     result = {
@@ -611,15 +617,20 @@ def _save_training_snapshot(
     race_time_sec: int,
     sensation_1_5: int,
     is_official: bool,
+    avg_heartrate: Optional[float] = None,
+    max_heartrate: Optional[float] = None,
 ) -> bool:
     """
     Guarda una fila de entrenamiento para el modelo Q2.
 
     Combina:
-      - Resultado de carrera (distancia, tiempo, sensación)
+      - Resultado (distancia, tiempo, sensación, FC)
       - Features de carga de la semana previa (CTL, ATL, TSB, ACWR, km_week, etc.)
       - Perfil del atleta (edad, género)
       - Último check-in semanal disponible (sueño, energía)
+
+    FC (avg_heartrate, max_heartrate) disponible cuando viene de Strava o check-in manual.
+    Permite calcular eficiencia aeróbica (pace/FC) en NB09.
 
     Escribe en:
       - Local:    data/{cedula}/training_data/q2_rows.jsonl  (una fila JSON por línea)
@@ -685,6 +696,12 @@ def _save_training_snapshot(
             "42K"
         )
 
+        # Eficiencia aeróbica: pace / FC (útil para Q2)
+        # Menor valor = más eficiente (menor ritmo por latido)
+        aerobic_efficiency = None
+        if avg_heartrate and avg_heartrate > 0 and pace_sec_km:
+            aerobic_efficiency = round(pace_sec_km / avg_heartrate, 4)
+
         row_data = {
             # Identificadores
             "cedula":            cedula,
@@ -698,6 +715,10 @@ def _save_training_snapshot(
             # Sensación subjetiva post-carrera
             "sensation_1_5":     sensation_1_5,
             "is_official":       is_official,
+            # FC — disponible desde Strava o check-in manual con monitor
+            "avg_heartrate":     avg_heartrate,
+            "max_heartrate":     max_heartrate,
+            "aerobic_efficiency": aerobic_efficiency,  # pace_sec_km / avg_hr
             # Features de carga (semana previa)
             **load_features,
             # Perfil
@@ -1415,7 +1436,7 @@ def backfill_strava_to_checkins(
                 "is_official": is_official,
             })
 
-            # Save training snapshot for Q2 model
+            # Save training snapshot for Q2 model (with FC from Strava)
             try:
                 ok = _save_training_snapshot(
                     cedula=cedula,
@@ -1424,6 +1445,8 @@ def backfill_strava_to_checkins(
                     race_time_sec=dur_sec,
                     sensation_1_5=3,
                     is_official=is_official,
+                    avg_heartrate=raw_strava.get("average_heartrate"),
+                    max_heartrate=raw_strava.get("max_heartrate"),
                 )
                 if ok:
                     snapshots_saved += 1

@@ -977,7 +977,7 @@ function athleteApp() {
 
     openCheckin(mode) {
       this.checkinMode = mode;
-      this.checkinForm = { sleep: 3, energy: 3, pain: false, race_distance_km: '', raceH: 0, raceM: 0, raceS: 0, sensation: 3 };
+      this.checkinForm = { sleep: 3, energy: 3, pain: false, race_distance_km: '', raceH: 0, raceM: 0, raceS: 0, sensation: 3, is_official: false, avg_heartrate: '' };
       this.checkinSuccess = null;
       this.checkinError = null;
     },
@@ -1005,12 +1005,14 @@ function athleteApp() {
                         + (parseInt(this.checkinForm.raceS) || 0);
           if (!dist || dist <= 0) throw new Error('Ingresa una distancia válida');
           if (timeSec <= 0)       throw new Error('Ingresa un tiempo válido');
+          const fc = parseFloat(this.checkinForm.avg_heartrate);
           body = {
             type: 'race',
             race_distance_km: dist,
             race_time_sec: timeSec,
             sensation_1_5: this.checkinForm.sensation,
             is_official: this.checkinForm.is_official,
+            avg_heartrate: fc > 0 ? fc : null,
           };
         }
 
