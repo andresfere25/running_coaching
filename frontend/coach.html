@@ -795,19 +795,23 @@
           <!-- Resultado de búsqueda -->
           <template x-if="stravaRuns">
             <div>
-              <!-- Contadores -->
-              <div class="grid grid-cols-3 gap-2 mb-3">
-                <div class="bg-slate-50 rounded-lg px-3 py-2 text-center">
-                  <div class="text-lg font-bold text-slate-700" x-text="stravaRuns.total_runs"></div>
-                  <div class="text-[10px] text-slate-400">Runs totales</div>
+              <!-- Contadores: 4 estados -->
+              <div class="grid grid-cols-4 gap-1.5 mb-3">
+                <div class="bg-slate-50 rounded-lg px-2 py-2 text-center">
+                  <div class="text-base font-bold text-slate-700" x-text="stravaRuns.total_runs"></div>
+                  <div class="text-[10px] text-slate-400">Total</div>
                 </div>
-                <div class="bg-emerald-50 rounded-lg px-3 py-2 text-center">
-                  <div class="text-lg font-bold text-emerald-600" x-text="stravaRuns.already_have_checkin"></div>
-                  <div class="text-[10px] text-emerald-400">Ya con check-in</div>
+                <div class="bg-blue-50 rounded-lg px-2 py-2 text-center" title="Atleta registró manualmente">
+                  <div class="text-base font-bold text-blue-600" x-text="stravaRuns.manual || 0"></div>
+                  <div class="text-[10px] text-blue-400">Manual 📝</div>
                 </div>
-                <div class="bg-amber-50 rounded-lg px-3 py-2 text-center">
-                  <div class="text-lg font-bold text-amber-600" x-text="stravaRuns.missing_checkin"></div>
-                  <div class="text-[10px] text-amber-400">Pendientes</div>
+                <div class="bg-emerald-50 rounded-lg px-2 py-2 text-center" title="Coach importó desde Strava">
+                  <div class="text-base font-bold text-emerald-600" x-text="stravaRuns.imported || 0"></div>
+                  <div class="text-[10px] text-emerald-400">Importado ✓</div>
+                </div>
+                <div class="bg-amber-50 rounded-lg px-2 py-2 text-center" title="Sin cobertura — pendiente de importar">
+                  <div class="text-base font-bold text-amber-600" x-text="stravaRuns.pending || 0"></div>
+                  <div class="text-[10px] text-amber-400">Pendiente ⏳</div>
                 </div>
               </div>
 
@@ -830,6 +834,48 @@
                     <span x-text="backfillResult.error"></span>
                   </template>
                 </div>
+              </template>
+
+              <!-- Vista completa: todas las runs con estado -->
+              <template x-if="stravaRuns.all_runs && stravaRuns.all_runs.length > 0">
+                <details class="mb-3">
+                  <summary class="text-[11px] text-slate-500 cursor-pointer hover:text-slate-700 select-none">
+                    Ver historial completo (<span x-text="stravaRuns.total_runs"></span> runs)
+                  </summary>
+                  <div class="overflow-x-auto mt-2 max-h-[250px] overflow-y-auto">
+                    <table class="w-full text-xs">
+                      <thead class="sticky top-0 bg-white">
+                        <tr class="border-b border-slate-200">
+                          <th class="text-left py-1 text-[10px] text-slate-400">Fecha</th>
+                          <th class="text-left py-1 text-[10px] text-slate-400">Actividad</th>
+                          <th class="text-right py-1 text-[10px] text-slate-400">Dist</th>
+                          <th class="text-right py-1 text-[10px] text-slate-400">Ritmo</th>
+                          <th class="text-center py-1 text-[10px] text-slate-400">Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <template x-for="r in stravaRuns.all_runs" :key="r.strava_id">
+                          <tr class="border-b border-slate-100"
+                              :class="{
+                                'bg-emerald-50/40': r.status === 'imported',
+                                'bg-blue-50/40':    r.status === 'manual',
+                                'hover:bg-slate-50': r.status === 'pending'
+                              }">
+                            <td class="py-1 font-mono text-[11px] text-slate-500" x-text="r.date"></td>
+                            <td class="py-1 text-slate-600 max-w-[110px] truncate" :title="r.name" x-text="r.name"></td>
+                            <td class="py-1 text-right font-mono text-slate-600" x-text="r.distance_km + 'km'"></td>
+                            <td class="py-1 text-right font-mono text-slate-500" x-text="fmtPace(r.pace_sec_km)"></td>
+                            <td class="py-1 text-center">
+                              <span x-show="r.status === 'pending'"  class="text-[10px] text-amber-500 font-medium">⏳ pendiente</span>
+                              <span x-show="r.status === 'imported'" class="text-[10px] text-emerald-600 font-medium">✓ modelo ML</span>
+                              <span x-show="r.status === 'manual'"   class="text-[10px] text-blue-600 font-medium">📝 manual</span>
+                            </td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
               </template>
 
               <!-- Tabla con checkboxes -->
@@ -893,8 +939,12 @@
                 </div>
               </template>
 
-              <template x-if="stravaRuns.missing_checkin === 0">
-                <p class="text-xs text-emerald-500 text-center py-2">✓ Todas las runs ya tienen check-in</p>
+              <template x-if="stravaRuns.pending === 0">
+                <p class="text-xs text-emerald-600 text-center py-2 font-medium">
+                  ✓ Todas las runs están cubiertas
+                  (<span x-text="stravaRuns.imported || 0"></span> en modelo ML,
+                   <span x-text="stravaRuns.manual || 0"></span> manuales)
+                </p>
               </template>
             </div>
           </template>

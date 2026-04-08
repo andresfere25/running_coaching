@@ -1290,43 +1290,77 @@ def get_strava_runs_without_checkin(
         .execute()
     ).data or []
 
-    # 2. Traer check-ins existentes (solo fechas)
-    checkins = (
-        sb.table("checkins")
-        .select("checkin_date")
-        .eq("cedula", cedula)
-        .gte("checkin_date", cutoff)
-        .execute()
-    ).data or []
-    checkin_dates = {r["checkin_date"] for r in checkins}
+    # 2. Fechas cubiertas por check-in manual del atleta
+    checkin_dates = {
+        r["checkin_date"]
+        for r in (
+            sb.table("checkins")
+            .select("checkin_date")
+            .eq("cedula", cedula)
+            .gte("checkin_date", project_start)
+            .execute()
+        ).data or []
+    }
 
-    # 3. Filtrar actividades sin check-in
-    missing = []
+    # 3. Fechas cubiertas por import del coach (training_snapshots con source=coach_from_strava)
+    snapshot_dates = {}  # fecha → strava_id
+    for s in (
+        sb.table("training_snapshots")
+        .select("race_date,data")
+        .eq("cedula", cedula)
+        .gte("race_date", project_start)
+        .execute()
+    ).data or []:
+        d = s.get("data") or {}
+        if d.get("source") == "coach_from_strava":
+            snapshot_dates[s["race_date"]] = d.get("strava_id", "")
+
+    # 4. Clasificar cada actividad
+    runs = []
     for act in activities:
         act_date = (act.get("activity_date") or "")[:10]
-        if act_date not in checkin_dates:
-            dist_km = round((act.get("distance_m") or 0) / 1000, 2)
-            dur_sec = act.get("duration_sec") or 0
-            raw = act.get("raw") or {}
-            missing.append({
-                "strava_id": act["strava_id"],
-                "date": act_date,
-                "name": act.get("name", ""),
-                "sport_type": act.get("sport_type"),
-                "distance_km": dist_km,
-                "duration_sec": dur_sec,
-                "pace_sec_km": round(dur_sec / max(dist_km, 0.01), 1) if dist_km > 0.3 else None,
-                "avg_heartrate": raw.get("average_heartrate"),
-                "max_heartrate": raw.get("max_heartrate"),
-            })
+        dist_km  = round((act.get("distance_m") or 0) / 1000, 2)
+        dur_sec  = act.get("duration_sec") or 0
+        raw      = act.get("raw") or {}
+        strava_id = str(act["strava_id"])
+
+        if act_date in checkin_dates:
+            status = "manual"        # atleta lo registró
+        elif act_date in snapshot_dates:
+            status = "imported"      # coach ya importó
+        else:
+            status = "pending"       # sin cubrir
+
+        runs.append({
+            "strava_id":    strava_id,
+            "date":         act_date,
+            "name":         act.get("name", ""),
+            "sport_type":   act.get("sport_type"),
+            "distance_km":  dist_km,
+            "duration_sec": dur_sec,
+            "pace_sec_km":  round(dur_sec / max(dist_km, 0.01), 1) if dist_km > 0.3 else None,
+            "avg_heartrate": raw.get("average_heartrate"),
+            "max_heartrate": raw.get("max_heartrate"),
+            "status":       status,  # "pending" | "manual" | "imported"
+        })
+
+    pending  = [r for r in runs if r["status"] == "pending"]
+    imported = [r for r in runs if r["status"] == "imported"]
+    manual   = [r for r in runs if r["status"] == "manual"]
 
     return {
-        "cedula": cedula,
-        "days": days,
-        "total_runs": len(activities),
-        "already_have_checkin": len(activities) - len(missing),
-        "missing_checkin": len(missing),
-        "runs": missing,
+        "cedula":       cedula,
+        "total_runs":   len(runs),
+        "pending":      len(pending),
+        "imported":     len(imported),
+        "manual":       len(manual),
+        # Compatibilidad con UI anterior
+        "already_have_checkin": len(imported) + len(manual),
+        "missing_checkin":      len(pending),
+        # Solo las pendientes van a la tabla de selección
+        "runs": pending,
+        # Resumen completo para el panel
+        "all_runs": runs,
     }
 
 
