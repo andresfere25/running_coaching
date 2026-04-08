@@ -1367,9 +1367,9 @@ def backfill_strava_to_checkins(
     if not sb:
         raise HTTPException(status_code=503, detail="Supabase no disponible")
 
-    # Solo traer las actividades específicas seleccionadas por el coach
-    id_set = set(body.strava_ids)
-    official_set = set(body.mark_as_official)
+    # Normalizar a strings para comparación robusta (Supabase puede devolver int o str)
+    id_set = {str(x) for x in body.strava_ids}
+    official_set = {str(x) for x in body.mark_as_official}
 
     activities = (
         sb.table("activities")
@@ -1380,8 +1380,8 @@ def backfill_strava_to_checkins(
         .execute()
     ).data or []
 
-    # Filtrar solo los IDs seleccionados manualmente
-    activities = [a for a in activities if a["strava_id"] in id_set]
+    # Filtrar solo los IDs seleccionados manualmente (comparar como strings)
+    activities = [a for a in activities if str(a["strava_id"]) in id_set]
 
     # Filtrar por distancia mínima
     activities = [a for a in activities if (a.get("distance_m") or 0) / 1000 >= body.min_distance_km]
@@ -1404,7 +1404,7 @@ def backfill_strava_to_checkins(
         dist_km = round((act.get("distance_m") or 0) / 1000, 2)
         dur_sec = act.get("duration_sec") or 0
         raw_strava = act.get("raw") or {}
-        is_official = act["strava_id"] in official_set
+        is_official = str(act["strava_id"]) in official_set
 
         # Build check-in payload — transparente sobre el origen
         raw = {
