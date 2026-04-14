@@ -156,7 +156,7 @@ def _handle_deauthorize(strava_athlete_id: int) -> None:
 
     _delete_supabase_strava_data(cedula, strava_athlete_id)
     _delete_local_strava_files(cedula)
-    _mark_revoked_in_sheets(cedula)
+    _mark_revoked_in_supabase(cedula)
 
     logger.info("[webhook/deauth] Cleanup complete for cedula=%s", cedula)
 
@@ -278,39 +278,23 @@ def _delete_local_strava_files(cedula: str) -> None:
                 logger.warning("[webhook/deauth] Failed to delete %s: %s", f.name, exc)
 
 
-def _mark_revoked_in_sheets(cedula: str) -> None:
-    """Best-effort: set status=REVOKED in Google Sheets strava_tokens tab."""
+def _mark_revoked_in_supabase(cedula: str) -> None:
+    """Best-effort: clear Strava tokens in Supabase for revoked athlete."""
     try:
-        import pandas as pd
-        from src.ingest.sheets_client import (
-            open_sheet, read_worksheet_as_records, write_worksheet_from_df,
-        )
-
-        sheet_id = os.getenv("SHEET_ID")
-        sa_json  = os.getenv("GOOGLE_SA_JSON")
-        if not sheet_id or not sa_json:
+        from src.storage.supabase_client import get_client
+        client = get_client()
+        if not client:
             return
 
-        sheet   = open_sheet(sheet_id, sa_json)
-        records = read_worksheet_as_records(sheet, "strava_tokens")
-        if not records:
-            return
-
-        df         = pd.DataFrame(records)
-        status_col = "status (CONNECTED / REVOKED / ERROR)"
-        if status_col not in df.columns:
-            return
-
-        mask = df["cedula"].astype(str).str.strip() == str(cedula)
-        if not mask.any():
-            return
-
-        df.loc[mask, status_col] = "REVOKED"
-        write_worksheet_from_df(sheet, "strava_tokens", df)
-        logger.info("[webhook/deauth] Marked REVOKED in strava_tokens for cedula=%s", cedula)
+        client.table("athletes").update({
+            "strava_access_token": None,
+            "strava_refresh_token": None,
+            "strava_token_expires_at": None,
+        }).eq("cedula", str(cedula)).execute()
+        logger.info("[webhook/deauth] Cleared Strava tokens in Supabase for cedula=%s", cedula)
 
     except Exception as exc:
-        logger.warning("[webhook/deauth] Failed to update strava_tokens sheet: %s", exc)
+        logger.warning("[webhook/deauth] Failed to clear tokens in Supabase: %s", exc)
 
 
 # ─── Background: activity delete ─────────────────────────────────────────────

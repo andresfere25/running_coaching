@@ -6,11 +6,7 @@ import pandas as pd
 from dotenv import load_dotenv
 import duckdb
 
-from src.ingest.sheets_client import open_sheet, read_worksheet_as_records
 from src.ingest.parsers import norm_str, parse_yes_no, parse_int
-
-
-FORM2_TAB = "Form Responses 2"
 
 
 def write_parquet_duckdb(df: pd.DataFrame, path: Path) -> None:
@@ -106,87 +102,83 @@ def is_recent_checkin(ts: datetime | None, lookback_days: int = 10) -> bool:
 
 def main(cedula: str | None = None):
     """
-    Ingesta del Form 2 (check-ins semanales) desde Google Sheets.
+    Ingesta de check-ins desde Supabase.
+
+    Los check-ins llegan via POST /athletes/{cedula}/checkin y se guardan
+    en Supabase tabla `checkins`. Esta función lee los más recientes y
+    escribe latest_checkin.json para consumo del pipeline.
 
     cedula (opcional):
-      - Si se provee: escribe solo para ese atleta. Sin error si no tiene check-ins.
-      - Si es None:   procesa todos los atletas con check-ins (modo global para CLI).
-
-    Llamado desde sync.py con cedula específico.
-    Llamado desde run_pipeline.py sin cedula (procesa todos).
+      - Si se provee: procesa solo ese atleta.
+      - Si es None:   procesa todos los atletas con check-ins.
     """
     load_dotenv()
-    sheet_id = os.getenv("SHEET_ID")
-    sa_json  = os.getenv("GOOGLE_SA_JSON")
     data_dir = Path(os.getenv("DATA_DIR", "data/athletes"))
 
-    sheet = open_sheet(sheet_id, sa_json)
-    records = read_worksheet_as_records(sheet, FORM2_TAB)
-    if not records:
-        raise RuntimeError(f"No se encontraron registros en '{FORM2_TAB}'.")
+    try:
+        from src.storage.supabase_client import get_client
+        client = get_client()
+    except Exception:
+        client = None
 
-    df_raw = pd.DataFrame(records)
+    if not client:
+        print("[ingest_checkins] Supabase no configurado. Omitiendo ingesta de check-ins.")
+        return
 
-    normalized = []
-    for r in records:
-        n = normalize_checkin_row(r)
-        if n.get("cedula"):
-            normalized.append(n)
+    # Leer check-ins desde Supabase
+    try:
+        query = client.table("checkins").select("cedula, checkin_date, raw").order("checkin_date", desc=True)
+        if cedula:
+            query = query.eq("cedula", cedula)
+        res = query.limit(500).execute()
+    except Exception as exc:
+        print(f"[ingest_checkins] Error leyendo checkins de Supabase: {exc}")
+        return
 
-    df = pd.DataFrame(normalized)
-    if df.empty:
-        raise RuntimeError("No se pudieron normalizar filas del check-in (¿cambió el header de Cédula?).")
+    if not res.data:
+        if cedula:
+            print(f"[ingest_checkins] No hay check-ins para cedula {cedula}. Se omite.")
+        else:
+            print("[ingest_checkins] No hay check-ins en Supabase.")
+        return
 
-    # Convertimos timestamp a datetime real para orden y filtros
-    df["_ts_dt"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    # Agrupar por cédula y escribir latest_checkin.json
+    from collections import defaultdict
+    by_cedula = defaultdict(list)
+    for row in res.data:
+        ced = row.get("cedula")
+        if ced:
+            by_cedula[ced].append(row)
 
-    # Cédulas a procesar
-    all_cedulas = sorted([c for c in df["cedula"].unique() if c])
-    if cedula:
-        # Modo per-atleta: solo escribir para la cédula solicitada
-        cedulas = [cedula] if cedula in all_cedulas else []
-        if not cedulas:
-            print(f"ℹ️  No hay check-ins para cédula {cedula} en '{FORM2_TAB}'. Se omite.")
-            return
-    else:
-        cedulas = all_cedulas
+    count = 0
+    for ced, rows in by_cedula.items():
+        # Más reciente primero (ya ordenado por desc)
+        latest_row = rows[0]
+        raw = latest_row.get("raw") or {}
 
-    for cedula in cedulas:
-        athlete_df_raw = df_raw[df_raw["Cédula"].astype(str).str.strip() == cedula].copy() if "Cédula" in df_raw.columns else pd.DataFrame()
-
-        athlete_df = df[df["cedula"] == cedula].copy()
-        athlete_df = athlete_df.sort_values("_ts_dt")
-
-        paths = ensure_dirs(data_dir, cedula)
-
-        # Guardar RAW snapshot (solo para auditoría)
-        raw_path = paths["raw"] / "checkins_raw.parquet"
-        write_parquet_duckdb(athlete_df_raw, raw_path)
-
-        # Guardar SILVER (normalizado completo)
-        silver_path = paths["silver"] / "checkins.parquet"
-        write_parquet_duckdb(athlete_df.drop(columns=["_ts_dt"]), silver_path)
-
-        # latest_checkin (último por timestamp)
-        latest = athlete_df.iloc[-1].to_dict()
-        latest_dt = latest.get("_ts_dt")
-        latest_iso = latest_dt.isoformat() if pd.notna(latest_dt) else None
-
-        # banderas para consumo del plan
-        recent_flag = is_recent_checkin(latest_dt.to_pydatetime() if pd.notna(latest_dt) else None, lookback_days=10)
+        # Determinar si es reciente
+        checkin_date_str = latest_row.get("checkin_date")
+        recent_flag = False
+        if checkin_date_str:
+            try:
+                checkin_dt = datetime.fromisoformat(checkin_date_str.replace("Z", "+00:00"))
+                recent_flag = checkin_dt >= (datetime.now() - timedelta(days=10))
+            except Exception:
+                pass
 
         meta = {
-            "cedula": cedula,
-            "latest_timestamp": latest_iso,
+            "cedula": ced,
+            "latest_timestamp": checkin_date_str,
             "is_recent": bool(recent_flag),
-            "latest_checkin": {k: v for k, v in latest.items() if k != "_ts_dt"},
+            "latest_checkin": raw,
         }
 
+        paths = ensure_dirs(data_dir, ced)
         meta_path = paths["meta"] / "latest_checkin.json"
         meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        count += 1
 
-    print(f"✅ Check-ins procesados. Atletas encontrados: {len(cedulas)}")
-    print("Ejemplo atleta:", cedulas[0] if cedulas else "N/A")
+    print(f"[ingest_checkins] Check-ins procesados: {count} atletas desde Supabase.")
 
 
 if __name__ == "__main__":

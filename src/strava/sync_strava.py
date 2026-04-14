@@ -9,11 +9,8 @@ from dotenv import load_dotenv
 import requests
 import duckdb
 
-from src.ingest.sheets_client import open_sheet, read_worksheet_as_records, write_worksheet_from_df
 from src.ingest.parsers import norm_str
 from src.strava.strava_client import refresh_access_token
-
-TOKENS_TAB = "strava_tokens"
 
 STRAVA_ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities"
 STRAVA_ATHLETE_URL    = "https://www.strava.com/api/v3/athlete"
@@ -341,71 +338,66 @@ def _sync_via_supabase(cedula: str, data_dir: Path) -> None:
     print(f"   ✅ last_sync_at actualizado en Supabase para cedula={cedula}")
 
 
-# ─── Path B: Google Sheets (sync global — pipeline semanal) ──────────────────
+# ─── Path B: Supabase global (sync todos los atletas con tokens) ─────────────
 
-def _sync_via_sheets(data_dir: Path) -> None:
-    """Sync Strava global leyendo tokens de Google Sheets (pipeline semanal)."""
-    load_dotenv()
-    sheet_id = os.getenv("SHEET_ID")
-    sa_json  = os.getenv("GOOGLE_SA_JSON")
+def _sync_all_via_supabase(data_dir: Path) -> None:
+    """Sync Strava global leyendo tokens de Supabase (reemplaza Google Sheets)."""
+    from src.storage.supabase_client import get_client
+    from src.storage.writer import push_strava_tokens, push_strava_last_sync
 
-    print(f"[sync_strava] 📊 Leyendo tokens desde Google Sheets (global sync)")
-    sheet = open_sheet(sheet_id, sa_json)
+    client = get_client()
+    if not client:
+        raise RuntimeError("Supabase no configurado. No se puede hacer sync global.")
 
-    tokens_records = read_worksheet_as_records(sheet, TOKENS_TAB)
-    if not tokens_records:
-        raise RuntimeError("No hay registros en strava_tokens.")
+    print("[sync_strava] Leyendo tokens desde Supabase (global sync)")
+    res = (
+        client.table("athletes")
+        .select("cedula, strava_refresh_token, strava_access_token, "
+                "strava_token_expires_at, strava_last_sync_at")
+        .not_.is_("strava_refresh_token", "null")
+        .execute()
+    )
 
-    df_tokens = pd.DataFrame(tokens_records)
-
-    required_cols = ["cedula", "refresh_token", "status (CONNECTED / REVOKED / ERROR)", "last_sync_date"]
-    for c in required_cols:
-        if c not in df_tokens.columns:
-            raise RuntimeError(f"Falta columna '{c}' en strava_tokens.")
-
-    df_tokens["_status"]  = df_tokens["status (CONNECTED / REVOKED / ERROR)"].astype(str).str.strip().str.upper()
-    df_tokens["_refresh"] = df_tokens["refresh_token"].astype(str).str.strip()
-    df_connected = df_tokens[(df_tokens["_status"] == "CONNECTED") & (df_tokens["_refresh"] != "")].copy()
-
-    if df_connected.empty:
-        print("ℹ️ No hay atletas CONNECTED con refresh_token.")
+    if not res.data:
+        print("[sync_strava] No hay atletas con strava_refresh_token en Supabase.")
         return
 
-    now         = datetime.now(tz=BOGOTA_TZ)
-    updated_any = False
+    now = datetime.now(tz=BOGOTA_TZ)
+    now_unix = int(now.timestamp())
+    synced = 0
 
-    for idx, row in df_connected.iterrows():
-        cedula        = norm_str(row.get("cedula"))
-        refresh_token = norm_str(row.get("refresh_token"))
-        last_sync_raw = norm_str(row.get("last_sync_date"))
-
+    for row in res.data:
+        cedula = row.get("cedula")
+        refresh_token = row.get("strava_refresh_token")
         if not cedula or not refresh_token:
             continue
 
-        last_sync_dt = parse_last_sync_date(last_sync_raw)
+        print(f"\n[sync_strava] --- {cedula} ---")
+        last_sync_raw = row.get("strava_last_sync_at")
+        last_sync_dt = parse_last_sync_date(str(last_sync_raw)) if last_sync_raw else None
 
-        # Refrescar token fuera del core (Sheets siempre refresca — no hay caché)
-        tok          = refresh_access_token(refresh_token)
-        access_token = tok["access_token"]
-        new_refresh  = tok["refresh_token"]
-        new_expires  = tok["expires_at"]
+        cached_access = row.get("strava_access_token")
+        cached_expires = int(row.get("strava_token_expires_at") or 0)
 
-        _sync_athlete_core(cedula, access_token, new_refresh, last_sync_dt, data_dir, now)
+        def _persist(access_token, refresh_token, expires_at):
+            push_strava_tokens(cedula, access_token=access_token,
+                               refresh_token=refresh_token, expires_at=expires_at)
 
-        # 5) Actualizar Sheets con token rotado + last_sync_date
-        df_tokens.loc[idx, "refresh_token"] = new_refresh
-        df_tokens.loc[idx, "last_sync_date"] = now.isoformat(timespec="seconds")
-        updated_any = True
-        if "expires_at" in df_tokens.columns and new_expires:
-            df_tokens.loc[idx, "expires_at"] = str(new_expires)
-        print(f"   ✅ last_sync_date actualizado en Sheets: {now.isoformat(timespec='seconds')}")
+        try:
+            if cached_access and now_unix < cached_expires - 300:
+                access_token = cached_access
+            else:
+                access_token, refresh_token, _ = _refresh_and_persist(
+                    cedula, refresh_token, _persist
+                )
 
-    if updated_any:
-        df_tokens = df_tokens.drop(columns=["_status", "_refresh"], errors="ignore")
-        write_worksheet_from_df(sheet, TOKENS_TAB, df_tokens)
-        print("\n✅ strava_tokens actualizado en Google Sheets.")
-    else:
-        print("\nℹ️ No hubo actualizaciones.")
+            _sync_athlete_core(cedula, access_token, refresh_token, last_sync_dt, data_dir, now)
+            push_strava_last_sync(cedula)
+            synced += 1
+        except Exception as exc:
+            print(f"[sync_strava] ERROR para {cedula}: {exc}")
+
+    print(f"\n[sync_strava] Sync global completado: {synced}/{len(res.data)} atletas.")
 
 
 # ─── Entrada principal ────────────────────────────────────────────────────────
@@ -414,8 +406,8 @@ def main(cedula: "str | None" = None) -> None:
     """
     Sincroniza actividades de Strava.
 
-    Si cedula es provisto: lee tokens desde Supabase (portal OAuth path).
-    Si cedula es None:     lee tokens desde Google Sheets (pipeline semanal global).
+    Si cedula es provisto: sync solo ese atleta (tokens desde Supabase).
+    Si cedula es None:     sync global — todos los atletas con tokens en Supabase.
     """
     load_dotenv()
     data_dir = Path(os.getenv("DATA_DIR", "data/athletes"))
@@ -423,7 +415,7 @@ def main(cedula: "str | None" = None) -> None:
     if cedula:
         _sync_via_supabase(cedula, data_dir)
     else:
-        _sync_via_sheets(data_dir)
+        _sync_all_via_supabase(data_dir)
 
 
 if __name__ == "__main__":

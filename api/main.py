@@ -25,7 +25,7 @@ logger.info("cwd=%s", Path.cwd())
 logger.info("env_file=%s exists=%s", ENV_FILE, ENV_FILE.exists())
 logger.info("SUPABASE_URL loaded=%s", bool(os.getenv("SUPABASE_URL", "").strip()))
 logger.info("SUPABASE_KEY loaded=%s", bool(os.getenv("SUPABASE_SERVICE_KEY", "").strip()))
-logger.info("GOOGLE_SA_JSON path=%s", os.getenv("GOOGLE_SA_JSON", "secrets/google_service_account.json"))
+logger.info("STRAVA_CLIENT_ID loaded=%s", bool(os.getenv("STRAVA_CLIENT_ID", "").strip()))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

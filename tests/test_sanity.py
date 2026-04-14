@@ -121,7 +121,6 @@ def test_predict_calibrated_expone_segmento():
 def test_imports_ingest():
     import src.ingest.ingest_forms
     import src.ingest.ingest_checkins
-    import src.ingest.sheets_client
     import src.ingest.parsers
 
 
