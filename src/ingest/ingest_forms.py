@@ -16,6 +16,59 @@ from src.ingest.parsers import (
 FORM1_TAB = "Form Responses 1"
 
 
+def _create_minimal_profile_from_supabase(cedula: str, data_dir: Path) -> bool:
+    """
+    Fallback para atletas registrados vía portal (no Google Forms).
+    Lee datos mínimos desde Supabase tabla `athletes` y crea profile.json.
+    Retorna True si se creó el perfil, False si no hay datos.
+    """
+    try:
+        from src.storage.supabase_client import get_client
+        client = get_client()
+        if not client:
+            return False
+
+        res = (
+            client.table("athletes")
+            .select("cedula, name, strava_athlete_id")
+            .eq("cedula", cedula)
+            .limit(1)
+            .execute()
+        )
+        if not res.data:
+            return False
+
+        row = res.data[0]
+        profile = {
+            "cedula": cedula,
+            "name": row.get("name") or f"Atleta {cedula}",
+            "source": "portal",
+            "race_history": [],
+            # Campos opcionales — None/vacío es OK, build_features usa .get() con defaults
+        }
+
+        # Escribir profile.json
+        paths = ensure_dirs(data_dir, cedula)
+        profile_json_path = paths["meta"] / "profile.json"
+        profile_json_path.write_text(
+            json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+        # También push a Supabase athlete_profiles para que read_profile lo encuentre
+        try:
+            from src.storage.writer import push_profile
+            push_profile(cedula, paths["athlete_dir"])
+        except Exception:
+            pass  # No crítico, el archivo local ya existe
+
+        print(f"[ingest] Perfil minimo creado para {cedula} (fuente: portal)")
+        return True
+
+    except Exception as exc:
+        print(f"[ingest] Fallback Supabase fallo para {cedula}: {exc}")
+        return False
+
+
 def write_parquet_duckdb(df: pd.DataFrame, path: Path) -> None:
     """
     Escribe Parquet usando DuckDB (no requiere pyarrow).
@@ -226,9 +279,16 @@ def main(cedula: str | None = None):
     # 4) Determinar qué cédula(s) procesar
     if cedula:
         if not (df_norm["cedula"] == cedula).any():
+            # ── Fallback: atleta registrado vía portal (no Google Forms) ──
+            # Crear perfil mínimo desde Supabase para que el pipeline continúe
+            minimal = _create_minimal_profile_from_supabase(cedula, data_dir)
+            if minimal:
+                print(f"[ingest] Cedula '{cedula}' no esta en Google Sheets. "
+                      f"Perfil minimo creado desde Supabase (portal).")
+                return  # profile.json ya escrito, pipeline puede continuar
             raise RuntimeError(
-                f"Cédula '{cedula}' no encontrada en '{FORM1_TAB}'. "
-                f"Verifica que el atleta haya enviado el formulario."
+                f"Cédula '{cedula}' no encontrada en '{FORM1_TAB}' ni en Supabase. "
+                f"Verifica que el atleta haya enviado el formulario o se haya registrado en el portal."
             )
         cedulas_to_process = [cedula]
     else:
