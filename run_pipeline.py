@@ -49,15 +49,15 @@ def step_ingest_checkins():
     run()
 
 
-def step_sync_strava():
+def step_sync_strava(cedula: str | None = None):
     """
-    Sincroniza actividades de Strava (GLOBAL).
+    Sincroniza actividades de Strava.
 
-    Nota: src.strava.sync_strava.main() NO acepta parámetros.
-    El sync se basa en la hoja strava_tokens (status CONNECTED).
+    Si cedula: lee tokens desde Supabase (atleta específico, portal path).
+    Si None:   lee tokens desde Google Sheets (pipeline semanal global).
     """
     from src.strava.sync_strava import main as run
-    run()
+    run(cedula=cedula)
 
 
 def step_build_features(cedula: str):
@@ -193,17 +193,27 @@ def main():
     else:
         cedulas = [args.cedula]
 
-    # Si vas a correr Strava, corre global una sola vez antes del loop
+    # Strava sync: por cédula (Supabase) o global (Google Sheets)
     strava_ran = False
     if ("strava" in steps) and (not args.skip_strava):
-        log.info("\n🚴  Strava Sync (global)...")
-        try:
-            step_sync_strava()
-            strava_ran = True
-            log.info("  ✅  strava (global)")
-        except Exception as e:
-            log.error(f"  ❌  strava (global): {e}")
-            # No hacemos sys.exit aquí; dejamos que features/plan/pdf fallen con mensaje claro.
+        if args.cedula:
+            # Atleta específico → tokens desde Supabase (portal OAuth)
+            log.info(f"\n🚴  Strava Sync (Supabase) para {args.cedula}...")
+            try:
+                step_sync_strava(cedula=args.cedula)
+                strava_ran = True
+                log.info(f"  ✅  strava (cedula={args.cedula})")
+            except Exception as e:
+                log.error(f"  ❌  strava (cedula={args.cedula}): {e}")
+        else:
+            # Modo global → tokens desde Google Sheets
+            log.info("\n🚴  Strava Sync (global)...")
+            try:
+                step_sync_strava()
+                strava_ran = True
+                log.info("  ✅  strava (global)")
+            except Exception as e:
+                log.error(f"  ❌  strava (global): {e}")
 
     results = {}
     for cedula in cedulas:
