@@ -161,18 +161,27 @@ function athleteApp() {
       this.checkin      = null;
 
       try {
-        const [snapshot, plan, features] = await Promise.all([
+        // allSettled: si un endpoint falla, los demás siguen cargando
+        const [snapRes, planRes, featRes] = await Promise.allSettled([
           apiFetch(`/athletes/${this.cedula}/snapshot`),
           apiFetch(`/athletes/${this.cedula}/plan`),
           apiFetch(`/athletes/${this.cedula}/features?weeks=12`),
         ]);
-        this.snapshot = snapshot;
-        this.plan     = plan;
-        this.features = features;
+
+        this.snapshot = snapRes.status === 'fulfilled' ? snapRes.value : null;
+        this.plan     = planRes.status === 'fulfilled' ? planRes.value : null;
+        this.features = featRes.status === 'fulfilled' ? featRes.value : null;
+
+        // Si ninguno tiene datos, mostrar mensaje de pipeline pendiente
+        if (!this.snapshot && !this.plan && !this.features) {
+          const reason = snapRes.reason?.message || planRes.reason?.message || 'Pipeline no ejecutado';
+          this.error = reason;
+          this.isPipelinePending = true;
+        }
 
         // Usar la distancia objetivo del atleta como target por defecto
-        if (snapshot?.profile?.race_distance) {
-          this.predTarget = snapshot.profile.race_distance;
+        if (this.snapshot?.profile?.race_distance) {
+          this.predTarget = this.snapshot.profile.race_distance;
         }
 
         this.$nextTick(() => this._renderCharts());
@@ -185,7 +194,6 @@ function athleteApp() {
 
       } catch (e) {
         this.error = e.message;
-        // Detectar si el error es simplemente "pipeline no ejecutado aún" (atleta nuevo)
         this.isPipelinePending = e.message?.toLowerCase().includes('pipeline') ||
                                  e.message?.toLowerCase().includes('snapshot no disponible') ||
                                  e.message?.toLowerCase().includes('plan no disponible');
