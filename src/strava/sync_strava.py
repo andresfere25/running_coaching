@@ -234,6 +234,14 @@ def _sync_athlete_core(
     print(f"   ✅ RAW: {raw_path}")
     print(f"   ✅ SILVER: {silver_path}")
 
+    # 5) Push a Supabase (necesario en Railway donde no hay disco persistente)
+    try:
+        from src.storage.writer import push_activities
+        result = push_activities(cedula, paths["athlete_dir"])
+        print(f"   ✅ Supabase activities: {result.get('detail', 'ok')}")
+    except Exception as _exc:
+        print(f"   ⚠️  push_activities falló: {_exc}")
+
     return {"access_token": access_token, "new_refresh": new_refresh}
 
 

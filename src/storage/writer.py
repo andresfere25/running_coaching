@@ -546,10 +546,9 @@ def push_all(cedula: str, athlete_dir: Path) -> dict:
     Retorna un resumen de los resultados por tabla.
     Si Supabase no está configurado, todas las operaciones retornan 'skipped'.
 
-    NOTA: push_activities NO se incluye intencionalmente.
-    Las actividades raw de Strava se sirven desde el parquet local para reducir
-    la exposición de Strava Data en almacenamiento de terceros (§2.9 / §7 Strava API Agreement).
-    Para push explícito de actividades, llamar push_activities() directamente.
+    Activities are also pushed to Supabase — necessary for Railway where
+    there is no persistent disk. Strava data in Supabase is only used for
+    internal coaching features (never exposed publicly).
 
     Uso típico (después de que el pipeline haya corrido):
         from src.storage.writer import push_all
@@ -567,6 +566,7 @@ def push_all(cedula: str, athlete_dir: Path) -> dict:
         "weekly_features": push_weekly_features(cedula, athlete_dir),
         "plan":            push_plan(cedula, athlete_dir),
         "checkin":         push_checkin(cedula, athlete_dir),
+        "activities":      push_activities(cedula, athlete_dir),
     }
 
     all_ok = all(v["ok"] for v in results.values())
