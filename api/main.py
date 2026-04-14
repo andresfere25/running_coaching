@@ -71,6 +71,48 @@ app.include_router(coach.router,    prefix="/athletes", tags=["coach"])
 app.include_router(webhooks.router,                     tags=["webhooks"])
 
 
+# ─── Startup: re-hidratar datos desde Supabase después de cada deploy ─────────
+
+@app.on_event("startup")
+async def _startup_rehydrate():
+    """
+    Railway tiene disco efímero: cada deploy borra archivos locales.
+    Los datos viven en Supabase, pero el pipeline genera archivos locales
+    que algunos pasos necesitan. Al arrancar, disparamos pipelines para
+    todos los atletas registrados en background.
+    """
+    import asyncio
+    import threading
+
+    def _run_all_pipelines():
+        import time
+        time.sleep(5)  # esperar a que FastAPI termine de arrancar
+        try:
+            from src.storage.supabase_client import get_client
+            client = get_client()
+            if not client:
+                logger.warning("[startup] No Supabase client — skipping rehydration")
+                return
+            res = client.table("athletes").select("cedula").execute()
+            cedulas = [r["cedula"] for r in (res.data or []) if r.get("cedula")]
+            logger.info("[startup] Rehydrating %d athletes...", len(cedulas))
+
+            for ced in cedulas:
+                try:
+                    from api.routers.pipeline import _run_pipeline_subprocess
+                    _run_pipeline_subprocess(ced, ["ingest", "features", "plan"], skip_strava=True)
+                    logger.info("[startup] Pipeline OK: %s", ced)
+                except Exception as exc:
+                    logger.warning("[startup] Pipeline failed for %s: %s", ced, exc)
+
+            logger.info("[startup] Rehydration complete for %d athletes", len(cedulas))
+        except Exception as exc:
+            logger.error("[startup] Rehydration error: %s", exc)
+
+    # Correr en thread separado para no bloquear el servidor
+    threading.Thread(target=_run_all_pipelines, daemon=True).start()
+
+
 # ─── Root ────────────────────────────────────────────────────────────────────
 
 @app.get("/", tags=["root"])
