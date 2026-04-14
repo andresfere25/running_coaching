@@ -78,21 +78,36 @@ def _normalize_activity(row: dict, source: str) -> dict:
 def read_profile(cedula: str, athlete_dir: "Path | None") -> "dict | None":
     """
     Lee profile.json (perfil del atleta del Form 1).
-    Fuente 1: Supabase athlete_profiles.raw
+    Fuente 1: Supabase athlete_profiles (raw JSON + columnas PR/demográficas)
     Fuente 2: meta/profile.json
+
+    Las columnas de la tabla (pr_5k_sec, age, sex, etc.) se mergean sobre
+    el JSON raw para que ediciones manuales en Supabase se reflejen.
     """
+    PR_COLUMNS = ("pr_5k_sec", "pr_10k_sec", "pr_21k_sec", "pr_42k_sec")
+    MERGE_COLUMNS = PR_COLUMNS + ("age", "sex", "height_cm", "weight_kg")
+
     client = get_client()
     if client:
         try:
+            fields = "raw," + ",".join(MERGE_COLUMNS)
             res = (
                 client.table("athlete_profiles")
-                .select("raw")
+                .select(fields)
                 .eq("cedula", cedula)
                 .limit(1)
                 .execute()
             )
             if res.data:
-                return res.data[0]["raw"]
+                row = res.data[0]
+                profile = row.get("raw") or {}
+                # Mergear columnas de la tabla sobre el JSON raw
+                # (las columnas tienen prioridad — permiten edición manual)
+                for col in MERGE_COLUMNS:
+                    val = row.get(col)
+                    if val is not None and val != 0:
+                        profile[col] = val
+                return profile
         except Exception as exc:
             print(f"[reader] Supabase profile error para {cedula}: {exc}")
 

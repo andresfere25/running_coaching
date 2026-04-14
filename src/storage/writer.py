@@ -164,15 +164,18 @@ def push_profile(cedula: str, athlete_dir: Path) -> dict:
         "sex":           data.get("sex"),
         "weight_kg":     data.get("weight_kg"),
         "height_cm":     data.get("height_cm"),
-        "pr_5k_sec":     data.get("pr_5k_sec"),
-        "pr_10k_sec":    data.get("pr_10k_sec"),
-        "pr_21k_sec":    data.get("pr_21k_sec"),
-        "pr_42k_sec":    data.get("pr_42k_sec"),
         "race_distance": data.get("race_distance"),
         "race_date_raw": data.get("race_date_raw"),
         "time_goal_sec": data.get("time_goal_sec"),
         "raw":           data,
     })
+    # Solo incluir PRs si el profile los tiene — no sobreescribir con null
+    # ediciones manuales en Supabase
+    for pr_col in ("pr_5k_sec", "pr_10k_sec", "pr_21k_sec", "pr_42k_sec"):
+        val = data.get(pr_col)
+        if val is not None and val != 0:
+            row[pr_col] = val
+
     try:
         client.table("athlete_profiles").upsert(row, on_conflict="cedula").execute()
         return _ok("athlete_profiles upserted")
