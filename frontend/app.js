@@ -129,7 +129,8 @@ function athleteApp() {
     cedula:       new URLSearchParams(window.location.search).get('cedula') || '1070982737',
     activeTab:    'hoy',
     loading:      false,
-    error:        null,
+    error:             null,
+    isPipelinePending: false,
     snapshot:     null,
     plan:         null,
     features:     null,
@@ -150,6 +151,7 @@ function athleteApp() {
       if (!this.cedula.trim()) return;
       this.loading    = true;
       this.error      = null;
+      this.isPipelinePending = false;
       this.snapshot     = null;
       this.plan         = null;
       this.features     = null;
@@ -183,6 +185,10 @@ function athleteApp() {
 
       } catch (e) {
         this.error = e.message;
+        // Detectar si el error es simplemente "pipeline no ejecutado aún" (atleta nuevo)
+        this.isPipelinePending = e.message?.toLowerCase().includes('pipeline') ||
+                                 e.message?.toLowerCase().includes('snapshot no disponible') ||
+                                 e.message?.toLowerCase().includes('plan no disponible');
       } finally {
         this.loading = false;
       }

@@ -118,16 +118,30 @@
   <!-- ══ MAIN ══════════════════════════════════════════════════════════════ -->
   <main class="max-w-6xl mx-auto px-4 pb-10">
 
-    <!-- Error -->
-    <div x-show="error" x-transition
+    <!-- Error: pipeline pendiente (estado normal para atleta nuevo) -->
+    <div x-show="error && isPipelinePending" x-transition
+         class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-6 py-5 flex items-start gap-4">
+      <span class="text-2xl mt-0.5">⏳</span>
+      <div>
+        <p class="font-semibold text-base">Tu perfil está siendo configurado</p>
+        <p class="text-sm mt-1 text-amber-700">
+          Estamos preparando tu dashboard personalizado. Esto suele tomar unos minutos
+          después del registro. Vuelve a intentarlo en un momento.
+        </p>
+        <button onclick="location.reload()"
+                class="mt-3 text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg transition-colors font-medium">
+          🔄 Intentar de nuevo
+        </button>
+      </div>
+    </div>
+
+    <!-- Error: fallo real -->
+    <div x-show="error && !isPipelinePending" x-transition
          class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-6 py-4 flex items-start gap-3">
       <span class="text-xl mt-0.5">⚠️</span>
       <div>
         <p class="font-medium">No se pudo cargar el atleta</p>
         <p class="text-sm mt-1" x-text="error"></p>
-        <p class="text-xs mt-2 text-red-500">
-          Backend: <code>uvicorn api.main:app --port 8000</code>
-        </p>
       </div>
     </div>
 
