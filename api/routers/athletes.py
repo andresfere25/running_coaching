@@ -1601,3 +1601,67 @@ def backfill_strava_to_checkins(
         "runs":     imported,
         "note":     "Datos en training_snapshots (ML). checkins del atleta intactos.",
     }
+
+
+# ── DELETE athlete ──────────────────────────────────────────────────────────
+
+@router.delete(
+    "/{cedula}",
+    summary="Eliminar atleta y todos sus datos",
+    dependencies=[Depends(require_api_key)],
+)
+def delete_athlete(
+    cedula: str,
+    data_dir: Path = Depends(get_data_dir),
+):
+    """
+    Elimina TODOS los datos de un atleta:
+    - Supabase: athletes, athlete_profiles, athlete_snapshots,
+      weekly_features, activities, checkins, weekly_plans, coach_content
+    - Local: data/athletes/{cedula}/ (si existe)
+
+    Requiere API key del coach. Irreversible.
+    """
+    import shutil
+    from src.storage.supabase_client import get_client
+
+    results = {}
+
+    # 1. Supabase cleanup
+    client = get_client()
+    if client:
+        tables = [
+            "coach_content",
+            "weekly_plans",
+            "checkins",
+            "activities",
+            "weekly_features",
+            "athlete_snapshots",
+            "athlete_profiles",
+            "athletes",  # last — other tables may FK to this
+        ]
+        for table in tables:
+            try:
+                client.table(table).delete().eq("cedula", str(cedula)).execute()
+                results[table] = "deleted"
+            except Exception as exc:
+                results[table] = f"error: {exc}"
+    else:
+        results["supabase"] = "client not available"
+
+    # 2. Local files cleanup
+    athlete_dir = data_dir / "athletes" / str(cedula)
+    if athlete_dir.exists():
+        try:
+            shutil.rmtree(athlete_dir)
+            results["local_files"] = "deleted"
+        except Exception as exc:
+            results["local_files"] = f"error: {exc}"
+    else:
+        results["local_files"] = "not found (ok)"
+
+    return {
+        "cedula": cedula,
+        "status": "deleted",
+        "details": results,
+    }

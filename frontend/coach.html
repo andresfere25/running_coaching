@@ -83,9 +83,49 @@
           </template>
         </select>
         <button @click="loadDraft()" class="btn-ghost">↺</button>
+        <button @click="confirmDelete = true"
+                :disabled="!cedula"
+                class="text-xs text-red-400 hover:text-red-600 hover:bg-red-50 px-2 py-1.5 rounded-md transition-colors"
+                title="Eliminar atleta">🗑</button>
       </div>
     </div>
   </header>
+
+  <!-- ══ MODAL: confirmar eliminación ═════════════════════════════════════ -->
+  <div x-show="confirmDelete" x-transition.opacity
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+       @click.self="confirmDelete = false">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 space-y-4" @click.stop>
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-lg">⚠</div>
+        <div>
+          <h3 class="font-bold text-gray-900 text-base">Eliminar atleta</h3>
+          <p class="text-sm text-gray-500">Esta acción es irreversible</p>
+        </div>
+      </div>
+      <p class="text-sm text-gray-700">
+        Se eliminarán <strong>todos</strong> los datos de <strong x-text="cedula"></strong> de Supabase y del servidor:
+        perfil, actividades, check-ins, features, plan semanal y contenido del coach.
+      </p>
+      <div class="space-y-2">
+        <label class="text-xs font-medium text-gray-500">Escribe la cédula para confirmar:</label>
+        <input type="text" x-model="deleteConfirmInput"
+               class="field font-mono text-center tracking-wider"
+               placeholder="Cédula del atleta" />
+      </div>
+      <div class="flex justify-end gap-3 pt-2">
+        <button @click="confirmDelete = false; deleteConfirmInput = ''"
+                class="btn-ghost px-4 py-2">Cancelar</button>
+        <button @click="doDeleteAthlete()"
+                :disabled="deleteConfirmInput !== cedula || deleting"
+                class="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
+                :class="deleteConfirmInput === cedula && !deleting ? 'bg-red-600 hover:bg-red-700 cursor-pointer' : 'bg-red-300 cursor-not-allowed'">
+          <span x-show="!deleting">Eliminar definitivamente</span>
+          <span x-show="deleting">Eliminando…</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- ══ MAIN ══════════════════════════════════════════════════════════════ -->
   <main class="max-w-6xl mx-auto px-4 py-6 space-y-4">
@@ -1025,6 +1065,45 @@ function coachApp() {
       restrictions:       [],
       session_notes:      emptyNotes(),
       plan_overrides:     emptyOverrides(),
+    },
+
+    // ── Eliminación de atleta ────────────────────────────────────────────
+    confirmDelete:      false,
+    deleteConfirmInput: '',
+    deleting:           false,
+
+    async doDeleteAthlete() {
+      if (!this.cedula || this.deleteConfirmInput !== this.cedula) return;
+      this.deleting = true;
+      try {
+        const res = await fetch(`/athletes/${this.cedula}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error al eliminar');
+        // Limpiar estado y recargar lista
+        const deleted = this.cedula;
+        this.confirmDelete      = false;
+        this.deleteConfirmInput = '';
+        this.cedula   = '';
+        this.draft    = null;
+        this.published = null;
+        this.successMsg = `Atleta ${deleted} eliminado correctamente`;
+        // Recargar lista de atletas
+        try {
+          const r = await fetch('/athletes');
+          const d = await r.json();
+          this.athletes = d.athletes || [];
+          if (this.athletes.length > 0) {
+            this.cedula = this.athletes[0];
+            await this.loadDraft();
+          }
+        } catch (_) {}
+      } catch (e) {
+        this.error = 'Error al eliminar: ' + e.message;
+        this.confirmDelete = false;
+        this.deleteConfirmInput = '';
+      } finally {
+        this.deleting = false;
+      }
     },
 
     // ── Carrera objetivo ──────────────────────────────────────────────────
