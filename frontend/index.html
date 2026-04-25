@@ -22,39 +22,151 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
   <script defer src="/app/app.js?v=20260323b"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
   <style>
+    /* ── Design tokens ──────────────────────────────────────────────────── */
+    :root {
+      --cream-50:    #FDFBF7;
+      --bone-100:    #F5F2EB;
+      --surface:     #FFFFFF;
+
+      --ink-900: #0C0E12;
+      --ink-700: #363A42;
+      --ink-500: #5C636E;
+      --ink-300: #A8AEB8;
+      --ink-200: #D9DCE2;
+      --ink-100: #EDEFF3;
+
+      --carmine-700: #9B1729;
+      --carmine-600: #C41E3A;
+      --carmine-500: #D7344E;
+      --carmine-100: #FBE4E8;
+      --carmine-50:  #FCEFF1;
+
+      --success-700: #2F5E47;
+      --success-600: #3F7D5C;
+      --success-50:  #EBF3EE;
+      --warning-700: #8E6420;
+      --warning-600: #B8842B;
+      --warning-50:  #FAF1DF;
+      --info-700:    #2A4259;
+      --info-600:    #3B5876;
+      --info-50:     #E9EEF4;
+
+      --shadow-sm: 0 1px 2px rgba(12,14,18,0.06);
+      --shadow-md: 0 4px 12px rgba(12,14,18,0.08);
+      --shadow-lg: 0 12px 32px rgba(12,14,18,0.12);
+    }
+
     [x-cloak] { display: none !important; }
-    body { font-family: 'Inter', system-ui, sans-serif; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--cream-50);
+      color: var(--ink-900);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Cards ──────────────────────────────────────────────────────────── */
     .card {
-      background: #ffffff;
-      border-radius: 16px;
-      border: 1px solid #e2e8f0;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      background: var(--surface);
+      border: 1px solid var(--ink-200);
+      border-radius: 12px;
+      box-shadow: var(--shadow-sm);
     }
     .card-elevated {
-      box-shadow: 0 4px 16px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.06);
+      box-shadow: 0 4px 16px rgba(12,14,18,0.10), 0 2px 4px rgba(12,14,18,0.06);
     }
-    .section-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 1rem; }
+    .card-accent { border-top: 2px solid var(--carmine-600); }
+    .card-texture {
+      background-image: linear-gradient(135deg, transparent 0%, rgba(196,30,58,0.015) 100%);
+    }
+
+    /* ── Section dash headers ───────────────────────────────────────────── */
+    .section-dash {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 0;
+    }
+    .section-dash::before {
+      content: '';
+      display: block;
+      width: 24px;
+      height: 3px;
+      background: var(--carmine-600);
+      border-radius: 1px;
+      flex-shrink: 0;
+    }
+    .section-dash h3 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink-900);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin: 0;
+    }
+
+    /* ── Chips ──────────────────────────────────────────────────────────── */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .chip-carmine { background: var(--carmine-50);  color: var(--carmine-700); }
+    .chip-success { background: var(--success-50);  color: var(--success-700); }
+    .chip-warning { background: var(--warning-50);  color: var(--warning-700); }
+    .chip-info    { background: var(--info-50);     color: var(--info-700);    }
+    .chip-neutral { background: var(--ink-100);     color: var(--ink-700);     }
+
+    /* ── Typography helpers ─────────────────────────────────────────────── */
+    .section-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink-900);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 1rem;
+    }
     .metric-label {
       font-size: 10px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.08em;
+      color: var(--ink-500);
     }
-    .dist-bar-track { height: 6px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
+    .metric-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-feature-settings: "tnum" 1;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink-900);
+    }
+    .num-trace {
+      border-bottom: 2px solid var(--carmine-600);
+      padding-bottom: 2px;
+    }
+
+    /* ── Distribution bars ──────────────────────────────────────────────── */
+    .dist-bar-track { height: 6px; background: var(--ink-100); border-radius: 4px; overflow: hidden; }
     .dist-bar-fill  { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
 
-    /* ── Tooltips puros CSS ─────────────────────────────────────────────── */
+    /* ── Tooltips ───────────────────────────────────────────────────────── */
     .tip { position: relative; cursor: help; }
     .tip::after {
       content: attr(data-tip);
       position: absolute;
       bottom: calc(100% + 8px);
       left: 50%; transform: translateX(-50%);
-      background: #1e293b; color: #f1f5f9;
+      background: var(--ink-900); color: var(--ink-100);
       font-size: 11px; line-height: 1.5; font-weight: 400;
       padding: 8px 12px; border-radius: 8px;
       white-space: normal; width: 210px;
@@ -65,52 +177,63 @@
     }
     .tip:hover::after { opacity: 1; }
 
-    /* ── Texturas y decoraciones ─────────────────────────────────────────── */
-    .hero-pattern {
-      background-image:
-        radial-gradient(circle at 15% 40%, rgba(255,255,255,0.12) 1px, transparent 1px),
-        radial-gradient(circle at 85% 30%, rgba(255,255,255,0.08) 2px, transparent 2px),
-        radial-gradient(circle at 50% 80%, rgba(255,255,255,0.06) 1.5px, transparent 1.5px);
-      background-size: 30px 30px, 45px 45px, 20px 20px;
+    /* ── Hero card ──────────────────────────────────────────────────────── */
+    .hero-card-bg {
+      background: linear-gradient(160deg, var(--surface) 0%, var(--bone-100) 100%);
+      position: relative;
+      overflow: hidden;
     }
-    .race-card-glow {
-      box-shadow: 0 8px 24px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.2),
-                  inset 0 1px 0 rgba(255,255,255,0.08);
+    .track-watermark {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.05;
+      overflow: hidden;
     }
-    .card-texture {
-      background-image:
-        linear-gradient(135deg, transparent 0%, rgba(196,30,58,0.02) 100%);
-    }
-    .section-header-accent {
-      background: linear-gradient(135deg, #fafafa 0%, #f8f0f2 50%, #fafafa 100%);
-      border-bottom: 1px solid #f1e5e7;
+    .logo-decor {
+      position: absolute;
+      right: -32px;
+      bottom: -32px;
+      width: 200px;
+      height: 200px;
+      opacity: 0.04;
+      pointer-events: none;
     }
 
-    /* ── Mobile improvements ────────────────────────────────────────────── */
+    /* ── Zone markers ───────────────────────────────────────────────────── */
+    .zone-marker {
+      width: 6px;
+      height: 32px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+
+    /* ── Mobile ─────────────────────────────────────────────────────────── */
     @media (max-width: 640px) {
-      .tab-bar button { padding: 10px 12px; font-size: 12px; }
-      .hero-race-card { flex-direction: column; gap: 8px; }
       .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
     }
   </style>
 </head>
 
-<body class="bg-[#FDFBF7] min-h-screen" x-data="athleteApp()" x-cloak>
+<body class="min-h-screen" style="background:var(--cream-50);" x-data="athleteApp()" x-cloak>
 
   <!-- ══ HEADER ═══════════════════════════════════════════════════════════ -->
-  <header class="bg-white border-b border-gray-200 px-6 py-3.5 flex items-center justify-between sticky top-0 z-40">
+  <header class="bg-white border-b border-[var(--ink-200)] px-6 py-3.5 flex items-center justify-between sticky top-0 z-40">
     <div class="flex items-center gap-2.5">
       <svg width="20" height="28" viewBox="0 0 72 100" fill="none" xmlns="http://www.w3.org/2000/svg">
         <line x1="36" y1="38" x2="33" y2="6" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
         <line x1="36" y1="38" x2="8" y2="92" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
         <line x1="36" y1="38" x2="62" y2="86" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
       </svg>
-      <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:20px;color:#111827;letter-spacing:-0.02em;line-height:1;">RUNA</span>
+      <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:20px;color:var(--ink-900);letter-spacing:-0.02em;line-height:1;">RUNA</span>
     </div>
     <!-- Nombre del atleta en el header cuando ya cargó -->
     <template x-if="snapshot && !loading">
-      <div class="flex items-center gap-2 text-sm">
-        <span class="text-slate-500" x-text="athleteName"></span>
+      <div class="flex items-center gap-2.5">
+        <span class="text-sm" style="color:var(--ink-500);" x-text="athleteName"></span>
+        <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+             style="background:var(--ink-100);color:var(--ink-700);"
+             x-text="athleteName ? athleteName.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase() : 'AR'"></div>
       </div>
     </template>
   </header>
@@ -120,42 +243,46 @@
 
     <!-- Error: pipeline pendiente (estado normal para atleta nuevo) -->
     <div x-show="error && isPipelinePending" x-transition
-         class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-6 py-5 flex items-start gap-4">
-      <span class="text-2xl mt-0.5">⏳</span>
+         class="rounded-xl px-6 py-5 flex items-start gap-4 mt-4"
+         style="background:var(--warning-50);border:1px solid var(--warning-600)33;color:var(--warning-700);">
+      <i class="ph ph-hourglass-medium text-2xl mt-0.5 shrink-0" style="color:var(--warning-600);"></i>
       <div>
-        <p class="font-semibold text-base">Tu perfil está siendo configurado</p>
-        <p class="text-sm mt-1 text-amber-700">
+        <p class="font-semibold text-base" style="color:var(--warning-700);">Tu perfil está siendo configurado</p>
+        <p class="text-sm mt-1" style="color:var(--warning-600);">
           Estamos preparando tu dashboard personalizado. Esto suele tomar unos minutos
           después del registro. Vuelve a intentarlo en un momento.
         </p>
         <button onclick="location.reload()"
-                class="mt-3 text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg transition-colors font-medium">
-          🔄 Intentar de nuevo
+                class="mt-3 text-xs px-3 py-1.5 rounded-lg transition-colors font-medium"
+                style="background:rgba(184,132,43,0.12);color:var(--warning-700);">
+          Intentar de nuevo
         </button>
       </div>
     </div>
 
     <!-- Error: fallo real -->
     <div x-show="error && !isPipelinePending" x-transition
-         class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-6 py-4 flex items-start gap-3">
-      <span class="text-xl mt-0.5">⚠️</span>
+         class="rounded-xl px-6 py-4 flex items-start gap-3 mt-4"
+         style="background:var(--carmine-50);border:1px solid var(--carmine-100);color:var(--carmine-700);">
+      <i class="ph ph-warning text-xl mt-0.5 shrink-0"></i>
       <div>
-        <p class="font-medium">No se pudo cargar el atleta</p>
-        <p class="text-sm mt-1" x-text="error"></p>
+        <p class="font-semibold">No se pudo cargar el atleta</p>
+        <p class="text-sm mt-1" x-text="error" style="color:var(--carmine-600);"></p>
       </div>
     </div>
 
     <!-- Loading -->
     <div x-show="loading" x-transition class="flex flex-col items-center justify-center py-20 gap-4">
-      <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-      <p class="text-gray-500 text-sm">Cargando datos del atleta...</p>
+      <div class="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin"
+           style="border-color:var(--carmine-600);border-top-color:transparent;"></div>
+      <p class="text-sm" style="color:var(--ink-500);">Cargando datos del atleta...</p>
     </div>
 
     <!-- ── DASHBOARD ──────────────────────────────────────────────────── -->
     <div x-show="snapshot && !loading" x-transition>
 
       <!-- ══ TAB BAR ══════════════════════════════════════════════════════ -->
-      <div class="flex gap-0 border-b border-gray-200 mt-4 mb-6">
+      <div class="flex gap-0 mt-4 mb-6" style="border-bottom:1px solid var(--ink-200);">
         <template x-for="tab in [
           { id: 'hoy',         label: 'Hoy' },
           { id: 'plan',        label: 'Plan' },
@@ -165,10 +292,11 @@
         ]" :key="tab.id">
           <button
             @click="switchTab(tab.id)"
-            class="px-5 py-3 text-sm font-medium border-b-2 transition-colors -mb-px"
+            class="px-5 py-3.5 text-[13px] font-medium border-b-2 transition-all -mb-px"
             :class="activeTab === tab.id
-              ? 'border-[#C41E3A] text-[#C41E3A]'
-              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'"
+              ? 'border-[#C41E3A] text-[#C41E3A] font-semibold'
+              : 'border-transparent hover:border-[var(--ink-200)]'"
+            :style="activeTab !== tab.id ? 'color:var(--ink-500);' : ''"
             x-text="tab.label"
           ></button>
         </template>
@@ -186,13 +314,12 @@
 
       <!-- ══ BANNER NUEVA ACTIVIDAD STRAVA ═════════════════════════════════ -->
       <template x-if="latestRunToday">
-        <div class="flex items-center gap-3 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl px-4 py-3">
-          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center shadow-sm shrink-0">
-            <span class="text-white text-sm">🏃</span>
-          </div>
+        <div class="flex items-center gap-3 rounded-xl px-4 py-3"
+             style="background:var(--carmine-50);border:1px solid var(--carmine-100);border-left:3px solid var(--carmine-600);">
+          <i class="ph ph-person-simple-run text-xl shrink-0" style="color:var(--carmine-600);"></i>
           <div class="flex-1">
-            <p class="text-sm font-semibold text-orange-800">Nueva actividad registrada hoy</p>
-            <p class="text-xs text-orange-600 mt-0.5">
+            <p class="text-sm font-semibold" style="color:var(--carmine-700);">Nueva actividad registrada hoy</p>
+            <p class="text-xs mt-0.5" style="color:var(--carmine-500);">
               <span x-text="latestRunToday.name"></span> ·
               <span x-text="Number(latestRunToday.distance_km).toFixed(1) + ' km'"></span>
               <template x-if="latestRunToday.pace_sec_per_km">
@@ -201,7 +328,8 @@
             </p>
           </div>
           <button @click="openCheckin('race')"
-             class="text-[10px] font-bold bg-orange-500 text-white px-3 py-1.5 rounded-full hover:bg-orange-600 transition-colors shrink-0">
+             class="text-[10px] font-bold px-3 py-1.5 rounded-full transition-colors shrink-0"
+             style="background:var(--carmine-600);color:white;">
             Registrar carrera
           </button>
         </div>
@@ -209,46 +337,53 @@
 
       <!-- ══ BANNER CHECK-IN SEMANAL ════════════════════════════════════════ -->
       <template x-if="showCheckinBanner">
-        <div class="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-          <span class="text-xl shrink-0">📋</span>
+        <div class="flex items-center gap-3 rounded-xl px-4 py-3"
+             style="background:var(--warning-50);border:1px solid rgba(184,132,43,0.2);border-left:3px solid var(--warning-600);">
+          <i class="ph ph-clipboard-text text-xl shrink-0" style="color:var(--warning-600);"></i>
           <div class="flex-1">
-            <p class="text-sm font-semibold text-amber-800">Es momento de tu check-in semanal</p>
-            <p class="text-xs text-amber-600 mt-0.5">Complétalo antes del domingo para que tu plan de la próxima semana sea preciso.</p>
+            <p class="text-sm font-semibold" style="color:var(--warning-700);">Es momento de tu check-in semanal</p>
+            <p class="text-xs mt-0.5" style="color:var(--warning-600);">Complétalo antes del domingo para que tu plan de la próxima semana sea preciso.</p>
           </div>
         </div>
       </template>
 
       <!-- ══ FRASE MOTIVACIONAL DEL ATLETA ════════════════════════════════ -->
       <template x-if="coachContent?.athlete_motto">
-        <div class="card overflow-hidden" style="border: none; background: linear-gradient(135deg, #fdf2f4 0%, #fce7ea 50%, #fdf2f4 100%);">
-          <div class="px-6 py-5 flex items-start gap-3 relative">
-            <!-- Decoración lateral -->
-            <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[#C41E3A] via-[#e85d75] to-[#C41E3A]/30 rounded-r"></div>
-            <span class="text-2xl leading-none shrink-0 mt-0.5 ml-2">🔥</span>
+        <div class="overflow-hidden rounded-xl" style="background:var(--carmine-50);border:1px solid var(--carmine-100);border-left:3px solid var(--carmine-600);">
+          <div class="px-5 py-4 flex items-start gap-3">
+            <i class="ph ph-quotes text-lg shrink-0 mt-0.5" style="color:var(--carmine-500);"></i>
             <div>
-              <p class="text-sm font-bold text-slate-700 leading-relaxed italic"
-                 style="font-family:'Plus Jakarta Sans',sans-serif;"
-                 x-text="'\"' + coachContent.athlete_motto + '\"'"></p>
-              <p class="text-[10px] text-[#C41E3A]/50 mt-1.5 uppercase tracking-widest font-bold">Mi motivación</p>
+              <p class="text-sm font-semibold leading-relaxed italic"
+                 style="font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink-700);"
+                 x-text="'&quot;' + coachContent.athlete_motto + '&quot;'"></p>
+              <p class="text-[10px] mt-1.5 uppercase tracking-widest font-bold" style="color:var(--carmine-600);opacity:0.6;">Mi motivación</p>
             </div>
           </div>
         </div>
       </template>
 
       <!-- ══ HERO CARD ═════════════════════════════════════════════════════ -->
-      <div class="card overflow-hidden" style="border: none;">
+      <div class="card overflow-hidden hero-card-bg" style="border-radius:16px;">
 
-        <!-- Banda principal — gradiente más intenso basado en semáforo -->
-        <div class="px-6 py-7 relative hero-pattern"
-             :style="{
-               background: 'linear-gradient(135deg, ' + semConfig.bg + ' 0%, ' + semConfig.bg + 'ee 35%, ' + semConfig.bg + 'cc 70%, ' + semConfig.bg + 'aa 100%)',
-             }">
+        <!-- Track watermark -->
+        <div class="track-watermark" aria-hidden="true">
+          <svg width="100%" height="100%" viewBox="0 0 400 200" preserveAspectRatio="xMaxYMid meet" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="340" cy="100" rx="120" ry="60" stroke="#C41E3A" stroke-width="18"/>
+            <ellipse cx="340" cy="100" rx="80"  ry="38" stroke="#C41E3A" stroke-width="10"/>
+            <ellipse cx="340" cy="100" rx="42"  ry="18" stroke="#C41E3A" stroke-width="6"/>
+          </svg>
+        </div>
+        <!-- Logo decor -->
+        <div class="logo-decor" aria-hidden="true">
+          <svg viewBox="0 0 72 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line x1="36" y1="38" x2="33" y2="6"  stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
+            <line x1="36" y1="38" x2="8"  y2="92" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
+            <line x1="36" y1="38" x2="62" y2="86" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
+          </svg>
+        </div>
 
-          <!-- Geometría decorativa sutil -->
-          <div class="absolute top-0 right-0 w-32 h-32 opacity-[0.07]"
-               style="background: radial-gradient(circle at 100% 0%, white 0%, transparent 70%);"></div>
-          <div class="absolute bottom-0 left-0 w-24 h-24 opacity-[0.05]"
-               style="background: radial-gradient(circle at 0% 100%, white 0%, transparent 60%);"></div>
+        <!-- Banda principal -->
+        <div class="px-6 py-7 relative">
 
           <div class="relative flex items-start gap-4">
 
@@ -256,24 +391,27 @@
             <div class="flex-1 min-w-0">
               <!-- Check-in reminder (solo si es SIN_CHECKIN) -->
               <template x-if="snapshot?.semaforo_latest_checkin === 'SIN_CHECKIN'">
-                <div class="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 mb-3">
-                  <span class="text-white/90 text-[11px] font-medium">📋 Sin check-in reciente</span>
+                <div class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 mb-3"
+                     style="background:var(--ink-100);border:1px solid var(--ink-200);">
+                  <i class="ph ph-clipboard text-xs" style="color:var(--ink-500);"></i>
+                  <span class="text-[11px] font-medium" style="color:var(--ink-500);">Sin check-in reciente</span>
                 </div>
               </template>
               <template x-if="snapshot?.semaforo_latest_checkin && snapshot.semaforo_latest_checkin !== 'SIN_CHECKIN'">
-                <div class="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 mb-3">
+                <div class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 mb-3"
+                     style="background:var(--ink-100);border:1px solid var(--ink-200);">
                   <span class="w-2 h-2 rounded-full animate-pulse"
-                        :style="{ backgroundColor: snapshot.semaforo_latest_checkin === 'VERDE' ? '#4ade80' : snapshot.semaforo_latest_checkin === 'AMARILLO' ? '#fbbf24' : '#f87171' }"></span>
-                  <span class="text-white/90 text-[11px] font-medium" x-text="semConfig.label"></span>
+                        :style="{ backgroundColor: snapshot.semaforo_latest_checkin === 'VERDE' ? '#3F7D5C' : snapshot.semaforo_latest_checkin === 'AMARILLO' ? '#B8842B' : '#C41E3A' }"></span>
+                  <span class="text-[11px] font-medium" style="color:var(--ink-700);" x-text="semConfig.label"></span>
                 </div>
               </template>
-              <h2 class="text-white text-2xl font-bold leading-tight font-display tracking-tight drop-shadow-sm"
-                  style="font-family: 'Plus Jakarta Sans', sans-serif; text-shadow: 0 1px 3px rgba(0,0,0,0.2);"
+              <h2 class="text-2xl font-bold leading-tight tracking-tight"
+                  style="font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink-900);"
                   x-text="athleteName"></h2>
-              <p class="text-white/70 text-xs mt-1.5 flex items-center gap-1.5">
+              <p class="text-xs mt-1.5 flex items-center gap-1.5" style="color:var(--ink-500);">
                 <span x-text="profile.city_country || ''"></span>
                 <template x-if="profile.age">
-                  <span class="text-white/40">· <span x-text="profile.age + ' años'"></span></span>
+                  <span style="color:var(--ink-300);">· <span x-text="profile.age + ' años'"></span></span>
                 </template>
               </p>
             </div>
@@ -329,13 +467,13 @@
         </div>
 
         <!-- Sub-banda: tipo de semana + fecha ACTUAL -->
-        <div class="px-6 py-3 flex items-center justify-between border-t border-slate-100"
-             :style="{ backgroundColor: weekTypeBg || '#f8fafc' }">
+        <div class="px-6 py-3 flex items-center justify-between"
+             style="border-top:1px solid var(--ink-100);">
           <span class="text-sm font-semibold"
                 :style="{ color: weekTypeColor }"
                 x-text="weekType + (effectiveWeeklyFocus ? ' · ' + effectiveWeeklyFocus.split('—')[0].trim() : '')">
           </span>
-          <span class="text-xs text-slate-400 font-mono"
+          <span class="text-xs font-mono" style="color:var(--ink-300);"
                 x-text="currentWeekLabel"></span>
         </div>
 
@@ -347,22 +485,24 @@
       <div class="grid grid-cols-2 gap-3">
         <button @click="openCheckin('weekly')"
            class="card card-texture px-4 py-3.5 flex items-center gap-3 hover:shadow-md transition-all group cursor-pointer text-left">
-          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
-            <span class="text-white text-sm">📋</span>
+          <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+               style="background:var(--warning-50);border:1px solid rgba(184,132,43,0.2);">
+            <i class="ph ph-clipboard-text text-lg" style="color:var(--warning-600);"></i>
           </div>
           <div>
-            <div class="text-xs font-bold text-slate-700" style="font-family:'Plus Jakarta Sans',sans-serif;">Check-in semanal</div>
-            <div class="text-[10px] text-slate-400 mt-0.5">Sueño, energía, dolor</div>
+            <div class="text-xs font-bold" style="font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink-900);">Check-in semanal</div>
+            <div class="text-[10px] mt-0.5" style="color:var(--ink-400, #9CA3AF);">Sueño, energía, dolor</div>
           </div>
         </button>
         <button @click="openCheckin('race')"
            class="card card-texture px-4 py-3.5 flex items-center gap-3 hover:shadow-md transition-all group cursor-pointer text-left">
-          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
-            <span class="text-white text-sm">🏅</span>
+          <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+               style="background:var(--success-50);border:1px solid rgba(63,125,92,0.2);">
+            <i class="ph ph-medal text-lg" style="color:var(--success-600);"></i>
           </div>
           <div>
-            <div class="text-xs font-bold text-slate-700" style="font-family:'Plus Jakarta Sans',sans-serif;">Registrar carrera</div>
-            <div class="text-[10px] text-slate-400 mt-0.5">Tiempo oficial + sensación</div>
+            <div class="text-xs font-bold" style="font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink-900);">Registrar carrera</div>
+            <div class="text-[10px] mt-0.5" style="color:var(--ink-400, #9CA3AF);">Tiempo oficial + sensación</div>
           </div>
         </button>
       </div>
@@ -373,9 +513,11 @@
 
           <!-- Header -->
           <div class="px-5 py-3.5 flex items-center justify-between"
-               style="background: linear-gradient(135deg, #1e293b, #0f172a);">
+               style="background:var(--ink-900);">
             <div class="flex items-center gap-2.5">
-              <span class="text-lg" x-text="checkinMode === 'weekly' ? '📋' : '🏅'"></span>
+              <i class="ph text-base"
+                 :class="checkinMode === 'weekly' ? 'ph-clipboard-text' : 'ph-medal'"
+                 style="color:rgba(255,255,255,0.7);"></i>
               <h3 class="text-sm font-bold text-white" style="font-family:'Plus Jakarta Sans',sans-serif;"
                   x-text="checkinMode === 'weekly' ? 'Check-in semanal' : 'Registrar carrera'"></h3>
             </div>
@@ -554,18 +696,15 @@
 
       <!-- ══ SESIÓN DE HOY ══════════════════════════════════════════════════ -->
       <div class="card overflow-hidden card-texture">
-        <!-- Header con gradiente mejorado -->
-        <div class="px-6 py-4 section-header-accent">
+        <div class="px-6 py-4" style="border-bottom:1px solid var(--ink-100);">
           <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-[#C41E3A] to-[#a01830] flex items-center justify-center shadow-sm">
-                <span class="text-white text-sm">🗓</span>
-              </div>
-              <div>
-                <h3 class="text-sm font-bold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Sesión de hoy</h3>
-              </div>
+            <div class="section-dash">
+              <i class="ph ph-calendar-check text-base" style="color:var(--carmine-600);"></i>
+              <h3>Sesión de hoy</h3>
             </div>
-            <span class="text-xs text-slate-400 font-mono bg-slate-100 px-2.5 py-1 rounded-full" x-text="todayLabel"></span>
+            <span class="text-xs font-mono px-2.5 py-1 rounded-full"
+                  style="background:var(--ink-100);color:var(--ink-500);"
+                  x-text="todayLabel"></span>
           </div>
         </div>
 
@@ -625,11 +764,12 @@
         <!-- Descanso -->
         <template x-if="todaySession.sessions.length === 0">
           <div class="py-8 text-center">
-            <div class="w-16 h-16 mx-auto mb-3 rounded-2xl bg-slate-100 flex items-center justify-center">
-              <span class="text-3xl">💤</span>
+            <div class="w-16 h-16 mx-auto mb-3 rounded-2xl flex items-center justify-center"
+                 style="background:var(--ink-100);">
+              <i class="ph ph-moon-stars text-3xl" style="color:var(--ink-300);"></i>
             </div>
-            <p class="text-gray-600 text-sm font-semibold" style="font-family:'Plus Jakarta Sans',sans-serif;">Día de descanso</p>
-            <p class="text-gray-400 text-xs mt-1">Recuperar es tan importante como entrenar.</p>
+            <p class="text-sm font-semibold" style="font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink-700);">Día de descanso</p>
+            <p class="text-xs mt-1" style="color:var(--ink-400,#9CA3AF);">Recuperar es tan importante como entrenar.</p>
           </div>
         </template>
         </div>
@@ -643,10 +783,10 @@
 
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-sm">
-                <span class="text-white text-sm">💬</span>
+              <div class="section-dash">
+                <i class="ph ph-chat-teardrop-text text-base" style="color:var(--carmine-600);"></i>
+                <h3>Comentarios del coach</h3>
               </div>
-              <h3 class="text-base font-semibold text-slate-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Comentarios del coach</h3>
               <!-- Badge cuando el contenido viene de published -->
               <template x-if="hasPublishedCoach">
                 <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 uppercase tracking-wide">
@@ -717,13 +857,11 @@
       <!-- ══ FORMA COMPACTA ════════════════════════════════════════════════ -->
       <template x-if="snapshot && formaPanel.hasData">
         <div class="card overflow-hidden card-texture">
-          <div class="px-6 py-4 section-header-accent">
+          <div class="px-6 py-4" style="border-bottom:1px solid var(--ink-100);">
           <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-sm">
-                <span class="text-white text-sm">⚡</span>
-              </div>
-              <span class="text-sm font-bold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Estado de forma</span>
+            <div class="section-dash">
+              <i class="ph ph-lightning text-base" style="color:var(--carmine-600);"></i>
+              <h3>Estado de forma</h3>
             </div>
             <template x-if="formaPanel.readinessScore !== null">
               <span class="tip text-xs font-semibold px-3 py-1 rounded-full"
@@ -830,15 +968,14 @@
       <!-- ══ ÚLTIMO CHECK-IN ═══════════════════════════════════════════════ -->
       <template x-if="checkin?.latest_checkin">
         <div class="card overflow-hidden card-texture">
-          <div class="px-6 py-4 section-header-accent">
+          <div class="px-6 py-4" style="border-bottom:1px solid var(--ink-100);">
           <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-sm">
-                <span class="text-white text-sm">📋</span>
-              </div>
-              <span class="text-sm font-bold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Último check-in</span>
+            <div class="section-dash">
+              <i class="ph ph-clipboard-text text-base" style="color:var(--carmine-600);"></i>
+              <h3>Último check-in</h3>
             </div>
-            <span class="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full"
+            <span class="text-xs font-mono px-2.5 py-1 rounded-full"
+                  style="background:var(--ink-100);color:var(--ink-500);"
                   x-text="checkin.latest_checkin.checkin_date || ''"></span>
           </div>
           </div>
@@ -901,19 +1038,16 @@
       <!-- ══ COMPARATIVO KM ════════════════════════════════════════════════ -->
       <template x-if="kmVsPrevWeek">
         <div class="card overflow-hidden card-texture">
-          <div class="px-6 py-4 section-header-accent">
+          <div class="px-6 py-4" style="border-bottom:1px solid var(--ink-100);">
             <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2.5">
-                <div class="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm"
-                     :class="kmVsPrevWeek.positive ? 'bg-gradient-to-br from-green-400 to-emerald-500' : 'bg-gradient-to-br from-amber-400 to-orange-500'">
-                  <span class="text-white text-sm" x-text="kmVsPrevWeek.positive ? '📈' : '📉'"></span>
-                </div>
-                <span class="text-sm font-bold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">
-                  Esta semana vs. anterior
-                </span>
+              <div class="section-dash">
+                <i class="ph text-base"
+                   :class="kmVsPrevWeek.positive ? 'ph-trend-up' : 'ph-trend-down'"
+                   style="color:var(--carmine-600);"></i>
+                <h3>Esta semana vs. anterior</h3>
               </div>
-              <span class="text-xs font-bold px-3 py-1 rounded-full"
-                    :class="kmVsPrevWeek.positive ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'"
+              <span class="text-xs font-bold px-3 py-1 rounded-full chip"
+                    :class="kmVsPrevWeek.positive ? 'chip-success' : 'chip-warning'"
                     x-text="(kmVsPrevWeek.positive ? '↑ +' : '↓ ') + Math.abs(kmVsPrevWeek.diff) + ' km (' + (kmVsPrevWeek.positive ? '+' : '') + kmVsPrevWeek.pct + '%)'">
               </span>
             </div>
@@ -943,26 +1077,24 @@
       <div x-show="activeTab === 'rendimiento'" class="space-y-5">
 
       <!-- ══ 2.5 PREDICCIÓN DE RENDIMIENTO ══════════════════════════════════ -->
-      <div class="card card-texture p-6">
+      <div class="card card-accent p-6">
 
         <!-- Header -->
-        <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-[#C41E3A] to-[#8b1225] flex items-center justify-center shadow-sm">
-              <span class="text-white text-sm">📈</span>
-            </div>
-            <h3 class="text-base font-semibold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Predicción de rendimiento</h3>
+        <div class="flex items-center justify-between mb-5">
+          <div class="section-dash">
+            <i class="ph ph-chart-line-up text-base" style="color:var(--carmine-600);"></i>
+            <h3>Predicción de rendimiento</h3>
           </div>
 
-          <!-- Selector de distancia -->
-          <div class="flex gap-1">
+          <!-- Selector de distancia (segmented control) -->
+          <div class="flex gap-0.5 p-1 rounded-lg" style="background:var(--ink-100);">
             <template x-for="dist in ['5K','10K','21K','42K']" :key="dist">
               <button
                 @click="predTarget = dist; fetchPrediction()"
-                class="px-3 py-1 rounded-full text-xs font-medium transition-colors"
+                class="px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
                 :class="predTarget === dist
-                  ? 'bg-[#C41E3A] text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                  ? 'bg-white shadow-sm text-[#C41E3A]'
+                  : 'text-[var(--ink-500)] hover:text-[var(--ink-700)]'"
                 x-text="dist"
               ></button>
             </template>
@@ -971,24 +1103,26 @@
 
         <!-- Loading -->
         <template x-if="!prediction">
-          <div class="flex items-center justify-center py-8 text-gray-400 text-sm gap-2">
-            <div class="w-4 h-4 border-2 border-[#C41E3A] border-t-transparent rounded-full animate-spin"></div>
-            <span>Calculando predicción...</span>
+          <div class="flex items-center justify-center py-8 gap-2" style="color:var(--ink-400,#9CA3AF);">
+            <div class="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin"
+                 style="border-color:var(--carmine-600);border-top-color:transparent;"></div>
+            <span class="text-sm">Calculando predicción...</span>
           </div>
         </template>
 
         <!-- Sin PRs -->
         <template x-if="prediction?.error === 'SIN_PR'">
-          <div class="bg-amber-50 border border-amber-100 rounded-lg px-4 py-4 text-sm text-amber-700">
-            <p class="font-medium mb-1">Sin marcas personales registradas</p>
-            <p class="text-xs text-amber-600"
+          <div class="rounded-lg px-4 py-4 text-sm"
+               style="background:var(--warning-50);border:1px solid rgba(184,132,43,0.2);color:var(--warning-700);">
+            <p class="font-semibold mb-1">Sin marcas personales registradas</p>
+            <p class="text-xs" style="color:var(--warning-600);"
                x-text="prediction.message || 'Registra al menos un tiempo de carrera en el formulario de ingreso.'"></p>
           </div>
         </template>
 
         <!-- Error de fetch -->
         <template x-if="prediction?.error && prediction.error !== 'SIN_PR'">
-          <div class="text-xs text-red-500 py-4 text-center" x-text="prediction.message || prediction.error"></div>
+          <div class="text-xs py-4 text-center" style="color:var(--carmine-600);" x-text="prediction.message || prediction.error"></div>
         </template>
 
         <!-- Predicción disponible -->
@@ -996,44 +1130,48 @@
           <div>
 
             <!-- Frase conversacional -->
-            <p class="text-sm text-gray-600 mb-4">
-              Para tu próxima <span class="font-semibold text-gray-800" x-text="predTarget"></span>,
+            <p class="text-sm mb-4" style="color:var(--ink-500);">
+              Para tu próxima <span class="font-semibold" style="color:var(--ink-900);" x-text="predTarget"></span>,
               tu ritmo estimado es:
             </p>
 
             <!-- Bloque principal: ritmo + metadatos -->
             <div class="flex flex-col sm:flex-row gap-4 mb-4">
 
-              <!-- Rango de ritmo — paleta suavizada -->
-              <div class="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-5 text-center">
-                <div class="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">
+              <!-- Rango de ritmo -->
+              <div class="flex-1 rounded-xl p-5 text-center"
+                   style="background:var(--bone-100);border:1px solid var(--ink-200);">
+                <div class="metric-label mb-2">
                   Ritmo estimado · <span x-text="predTarget"></span>
                 </div>
-                <div class="text-2xl font-bold font-mono text-[#C41E3A] leading-none"
+                <div class="text-2xl font-bold leading-none num-trace"
+                     style="font-family:'JetBrains Mono',monospace;color:var(--carmine-600);"
                      x-text="prediction.pace_range_fmt || '—'"></div>
-                <div class="text-sm font-mono text-slate-600 mt-2"
+                <div class="text-sm mt-2" style="font-family:'JetBrains Mono',monospace;color:var(--ink-700);"
                      x-text="prediction.time_range_fmt || ''"></div>
-                <div class="text-xs text-slate-400 mt-1">
+                <div class="text-xs mt-1" style="color:var(--ink-400,#9CA3AF);">
                   ± <span x-text="maeInSec(prediction.mae_effective_min)"></span> seg (margen de error)
                 </div>
               </div>
 
-              <!-- Metadatos simplificados: solo confianza y PR fuente -->
+              <!-- Metadatos simplificados: confianza y PR fuente -->
               <div class="flex flex-col gap-2 sm:w-52">
 
-                <div class="flex items-center justify-between bg-white border border-gray-100 rounded-lg px-3 py-2.5">
+                <div class="flex items-center justify-between rounded-lg px-3 py-2.5"
+                     style="background:var(--surface);border:1px solid var(--ink-100);">
                   <div>
-                    <div class="text-xs text-gray-400">Confianza</div>
-                    <div class="text-[10px] text-gray-300 mt-0.5">Basada en tu historial de carreras</div>
+                    <div class="metric-label">Confianza</div>
+                    <div class="text-[10px] mt-0.5" style="color:var(--ink-300);">Historial de carreras</div>
                   </div>
                   <span class="text-xs font-semibold px-2 py-0.5 rounded-full ml-2 shrink-0"
                         :class="confidenceBadgeClass(prediction.confidence)"
                         x-text="prediction.confidence"></span>
                 </div>
 
-                <div class="flex items-center justify-between bg-white border border-gray-100 rounded-lg px-3 py-2.5">
-                  <span class="text-xs text-gray-400">PR fuente</span>
-                  <span class="text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full"
+                <div class="flex items-center justify-between rounded-lg px-3 py-2.5"
+                     style="background:var(--surface);border:1px solid var(--ink-100);">
+                  <span class="metric-label">PR fuente</span>
+                  <span class="text-xs font-semibold px-2 py-0.5 rounded-full chip chip-neutral"
                         x-text="prediction.source_pr || '—'"></span>
                 </div>
 
@@ -1042,7 +1180,8 @@
 
             <!-- Nota de extrapolación descendente -->
             <template x-if="prediction.direction_note">
-              <p class="mt-1 text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2"
+              <p class="mt-1 text-xs rounded-lg px-3 py-2"
+                 style="color:var(--warning-700);background:var(--warning-50);border:1px solid rgba(184,132,43,0.2);"
                  x-text="prediction.direction_note"></p>
             </template>
 
@@ -1054,32 +1193,31 @@
 
 
       <!-- ══ ÚLTIMAS SALIDAS ═══════════════════════════════════════════════ -->
-      <div class="card card-texture p-6">
+      <div class="card p-6">
 
         <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-[#C41E3A] to-[#a01830] flex items-center justify-center shadow-sm">
-              <span class="text-white text-sm">🏃</span>
-            </div>
-            <h3 class="text-base font-semibold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Últimas salidas</h3>
+          <div class="section-dash">
+            <i class="ph ph-sneaker-move text-base" style="color:var(--carmine-600);"></i>
+            <h3>Últimas salidas</h3>
           </div>
           <template x-if="activities?.count">
-            <span class="text-xs text-gray-400"
+            <span class="text-xs chip chip-neutral"
                   x-text="activities.count + ' actividades'"></span>
           </template>
         </div>
 
         <!-- Loading -->
         <template x-if="activitiesLoading || !activities">
-          <div class="flex items-center justify-center py-8 text-gray-400 text-sm gap-2">
-            <div class="w-4 h-4 border-2 border-[#C41E3A] border-t-transparent rounded-full animate-spin"></div>
-            <span>Cargando actividades...</span>
+          <div class="flex items-center justify-center py-8 gap-2" style="color:var(--ink-400,#9CA3AF);">
+            <div class="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin"
+                 style="border-color:var(--carmine-600);border-top-color:transparent;"></div>
+            <span class="text-sm">Cargando actividades...</span>
           </div>
         </template>
 
         <!-- Sin datos -->
         <template x-if="!activitiesLoading && activities && recentRuns.length === 0">
-          <p class="text-sm text-slate-400 text-center py-6">
+          <p class="text-sm text-center py-6" style="color:var(--ink-300);">
             Sin actividades de running registradas.
             <br>
             <span class="text-xs">Conecta Strava y ejecuta el pipeline para verlas aquí.</span>
@@ -1090,7 +1228,7 @@
         <template x-if="!activitiesLoading && recentRuns.length > 0">
           <div class="space-y-1.5">
             <template x-for="act in recentRuns" :key="(act.activity_id || act.strava_id || '') + act.activity_date">
-              <div class="flex items-center gap-3 px-3 py-3 rounded-xl bg-slate-50 hover:bg-red-50 transition-colors">
+              <div class="flex items-center gap-3 px-3 py-3 rounded-xl transition-colors" style="background:var(--bone-100);" onmouseover="this.style.background='var(--carmine-50)'" onmouseout="this.style.background='var(--bone-100)'">
 
                 <!-- Distancia -->
                 <div class="w-14 shrink-0 text-center">
@@ -1130,19 +1268,17 @@
       <template x-if="!activitiesLoading && recentCross.length > 0">
         <div class="card p-6">
 
-          <div class="flex items-center gap-2.5 mb-4">
-            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center shadow-sm">
-              <span class="text-white text-sm">🏋️</span>
+          <div class="flex items-center justify-between mb-4">
+            <div class="section-dash">
+              <i class="ph ph-barbell text-base" style="color:var(--info-600);"></i>
+              <h3 style="color:var(--ink-900);">Otras actividades</h3>
             </div>
-            <div>
-              <h3 class="text-base font-semibold text-gray-800" style="font-family:'Plus Jakarta Sans',sans-serif;">Otras actividades</h3>
-              <span class="text-[10px] text-slate-400">Cross-training · contexto complementario</span>
-            </div>
+            <span class="chip chip-info text-[10px]">Cross-training</span>
           </div>
 
           <div class="space-y-1.5">
             <template x-for="act in recentCross" :key="(act.activity_id || '') + act.activity_date">
-              <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
+              <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors" style="background:var(--bone-100);" onmouseover="this.style.background='var(--ink-100)'" onmouseout="this.style.background='var(--bone-100)'">
 
                 <!-- Icono de tipo -->
                 <div class="w-8 text-center text-xl shrink-0"
@@ -1191,12 +1327,12 @@
       <div x-show="activeTab === 'plan'" class="space-y-4">
 
       <!-- ══ HEADER DEL PLAN ═══════════════════════════════════════════════ -->
-      <div class="card p-6">
+      <div class="card card-accent p-6">
 
         <!-- Título + badge tipo de semana -->
         <div class="flex items-start justify-between gap-3 mb-4">
           <div>
-            <h3 class="text-base font-semibold text-slate-800">Plan semanal</h3>
+            <div class="section-dash mb-1"><h3>Plan semanal</h3></div>
             <template x-if="effectiveWeeklyFocus">
               <p class="text-sm text-slate-500 mt-0.5 flex items-center gap-1.5">
                 <span x-text="effectiveWeeklyFocus"></span>
@@ -1411,8 +1547,8 @@
       <!-- ══ CONSEJOS GENERALES ════════════════════════════════════════════ -->
       <div class="card px-5 py-4">
         <div class="flex items-center gap-2 mb-3">
-          <span class="text-base">💡</span>
-          <div class="metric-label text-slate-500">Consejos generales</div>
+          <i class="ph ph-lightbulb text-base" style="color:var(--warning-600);"></i>
+          <div class="metric-label">Consejos generales</div>
         </div>
         <div class="space-y-2.5">
           <p class="text-xs text-slate-600 flex items-start gap-2">
@@ -1448,40 +1584,44 @@
       <template x-if="analyticsKpis">
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
 
-          <div class="card card-texture px-4 py-5 text-center overflow-hidden relative tip"
+          <!-- KPI: Esta semana -->
+          <div class="card px-4 py-5 text-center overflow-hidden relative tip"
                data-tip="Kilómetros acumulados en la semana actual (hasta hoy).">
-            <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#C41E3A] to-[#e85d75]"></div>
-            <div class="metric-label text-[#C41E3A]/60 mb-1.5">Esta semana</div>
-            <div class="text-2xl font-extrabold text-[#C41E3A] tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;"
+            <div class="absolute top-0 left-0 right-0 h-0.5" style="background:var(--carmine-600);"></div>
+            <div class="metric-label mb-1.5" style="color:var(--carmine-600);opacity:0.7;">Esta semana</div>
+            <div class="text-2xl font-extrabold tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;color:var(--carmine-600);"
                  x-text="analyticsKpis.thisWeek"></div>
-            <div class="text-[10px] text-[#C41E3A]/40 font-semibold mt-0.5">km</div>
+            <div class="text-[10px] font-semibold mt-0.5" style="color:var(--carmine-600);opacity:0.4;">km</div>
           </div>
 
-          <div class="card card-texture px-4 py-5 text-center overflow-hidden relative tip"
+          <!-- KPI: Prom / semana -->
+          <div class="card px-4 py-5 text-center overflow-hidden relative tip"
                data-tip="Promedio de km por semana del historial completo. Un buen indicador de volumen base.">
-            <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-sky-400"></div>
-            <div class="metric-label text-blue-400 mb-1.5">Prom. / semana</div>
-            <div class="text-2xl font-extrabold text-slate-700 tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;"
+            <div class="absolute top-0 left-0 right-0 h-0.5" style="background:var(--info-600);"></div>
+            <div class="metric-label mb-1.5" style="color:var(--info-600);">Prom. / semana</div>
+            <div class="text-2xl font-extrabold tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink-900);"
                  x-text="analyticsKpis.avgWeek"></div>
-            <div class="text-[10px] text-slate-300 font-semibold mt-0.5" x-text="'km · últimas ' + analyticsKpis.weeks + ' sem.'"></div>
+            <div class="text-[10px] font-semibold mt-0.5" style="color:var(--ink-300);" x-text="'km · últimas ' + analyticsKpis.weeks + ' sem.'"></div>
           </div>
 
-          <div class="card card-texture px-4 py-5 text-center overflow-hidden relative tip"
+          <!-- KPI: Prom / mes -->
+          <div class="card px-4 py-5 text-center overflow-hidden relative tip"
                data-tip="Volumen mensual estimado: promedio semanal × 4.3 semanas.">
-            <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 to-purple-400"></div>
-            <div class="metric-label text-violet-400 mb-1.5">Prom. / mes</div>
-            <div class="text-2xl font-extrabold text-slate-700 tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;"
+            <div class="absolute top-0 left-0 right-0 h-0.5" style="background:#7C3AED;"></div>
+            <div class="metric-label mb-1.5" style="color:#7C3AED;">Prom. / mes</div>
+            <div class="text-2xl font-extrabold tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink-900);"
                  x-text="analyticsKpis.avgMonth"></div>
-            <div class="text-[10px] text-slate-300 font-semibold mt-0.5">km</div>
+            <div class="text-[10px] font-semibold mt-0.5" style="color:var(--ink-300);">km</div>
           </div>
 
-          <div class="card card-texture px-4 py-5 text-center overflow-hidden relative tip"
+          <!-- KPI: Semana máxima -->
+          <div class="card px-4 py-5 text-center overflow-hidden relative tip"
                data-tip="La semana con mayor volumen de km en todo el historial.">
-            <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400"></div>
-            <div class="metric-label text-emerald-400 mb-1.5">Semana máxima</div>
-            <div class="text-2xl font-extrabold text-slate-700 tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;"
+            <div class="absolute top-0 left-0 right-0 h-0.5" style="background:var(--success-600);"></div>
+            <div class="metric-label mb-1.5" style="color:var(--success-600);">Semana máxima</div>
+            <div class="text-2xl font-extrabold tabular-nums" style="font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink-900);"
                  x-text="analyticsKpis.maxWeek"></div>
-            <div class="text-[10px] text-slate-300 font-semibold mt-0.5">km</div>
+            <div class="text-[10px] font-semibold mt-0.5" style="color:var(--ink-300);">km</div>
           </div>
 
         </div>
@@ -1492,8 +1632,8 @@
 
         <div class="card p-6">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="section-title mb-0">Km por semana</h3>
-            <span class="text-xs text-gray-400"
+            <div class="section-dash"><h3>Km por semana</h3></div>
+            <span class="text-xs" style="color:var(--ink-400,#9CA3AF);"
                   x-text="'Últimas ' + (features?.weeks_returned || 0) + ' semanas'"></span>
           </div>
           <div class="h-48">
@@ -1503,8 +1643,8 @@
 
         <div class="card p-6">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="section-title mb-0">CTL / ATL — Fitness y fatiga</h3>
-            <span class="text-xs text-gray-400">EWMA semanal (km)</span>
+            <div class="section-dash"><h3>CTL / ATL — Fitness y fatiga</h3></div>
+            <span class="text-xs" style="color:var(--ink-400,#9CA3AF);">EWMA semanal (km)</span>
           </div>
           <div class="h-48">
             <canvas id="chartCtl"></canvas>
@@ -1529,9 +1669,9 @@
 
         <div class="card p-6 lg:col-span-2">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="section-title mb-0">ACWR — Ratio agudo/crónico (EWMA)</h3>
-            <span class="flex items-center gap-1 text-xs text-gray-400">
-              <span class="inline-block w-3 h-0.5 bg-green-400"></span> Zona segura 0.8–1.3
+            <div class="section-dash"><h3>ACWR — Ratio agudo/crónico (EWMA)</h3></div>
+            <span class="flex items-center gap-1.5 text-xs" style="color:var(--ink-400,#9CA3AF);">
+              <span class="inline-block w-3 h-0.5 rounded" style="background:var(--success-600);"></span> Zona segura 0.8–1.3
             </span>
           </div>
           <div class="h-40">
@@ -1552,12 +1692,10 @@
       <!-- HR Trend -->
       <div class="card p-6">
         <div class="flex items-center gap-3 mb-4">
-          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center">
-            <span class="text-white text-sm">❤</span>
-          </div>
+          <i class="ph ph-heartbeat text-xl shrink-0" style="color:var(--carmine-600);"></i>
           <div>
-            <h3 class="font-semibold text-sm text-slate-800" style="font-family:'Plus Jakarta Sans',sans-serif">Tendencia de Frecuencia Cardíaca</h3>
-            <p class="text-[10px] text-slate-400">Últimas 20 actividades · FC media y máxima</p>
+            <h3 class="font-semibold text-sm" style="font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink-900);">Tendencia de Frecuencia Cardíaca</h3>
+            <p class="text-[10px] mt-0.5" style="color:var(--ink-400,#9CA3AF);">Últimas 20 actividades · FC media y máxima</p>
           </div>
         </div>
         <template x-if="runsWithHR.length >= 3">
@@ -1571,12 +1709,10 @@
       <!-- Aerobic Efficiency -->
       <div class="card p-6">
         <div class="flex items-center gap-3 mb-4">
-          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-            <span class="text-white text-sm">⚡</span>
-          </div>
+          <i class="ph ph-lightning text-xl shrink-0" style="color:var(--success-600);"></i>
           <div>
-            <h3 class="font-semibold text-sm text-slate-800" style="font-family:'Plus Jakarta Sans',sans-serif">Eficiencia Aeróbica</h3>
-            <p class="text-[10px] text-slate-400">Ratio ritmo/FC · Menor = más eficiente</p>
+            <h3 class="font-semibold text-sm" style="font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink-900);">Eficiencia Aeróbica</h3>
+            <p class="text-[10px] mt-0.5" style="color:var(--ink-400,#9CA3AF);">Ratio ritmo/FC · Menor = más eficiente</p>
           </div>
         </div>
         <template x-if="aerobicEffData.length >= 3">
@@ -1593,12 +1729,10 @@
         <!-- HR Zone Distribution -->
         <div class="card p-6">
           <div class="flex items-center gap-3 mb-4">
-            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-              <span class="text-white text-sm">🎯</span>
-            </div>
+            <i class="ph ph-target text-xl shrink-0" style="color:#7C3AED;"></i>
             <div>
-              <h3 class="font-semibold text-sm text-slate-800" style="font-family:'Plus Jakarta Sans',sans-serif">Zonas de FC</h3>
-              <p class="text-[10px] text-slate-400">Distribución por zona · FCmax est. <span x-text="estimatedFCmax"></span> bpm</p>
+              <h3 class="font-semibold text-sm" style="font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink-900);">Zonas de FC</h3>
+              <p class="text-[10px] mt-0.5" style="color:var(--ink-400,#9CA3AF);">Distribución por zona · FCmax est. <span x-text="estimatedFCmax"></span> bpm</p>
             </div>
           </div>
           <template x-if="hrZoneDistribution.total > 0">
@@ -1612,12 +1746,10 @@
         <!-- Cadence -->
         <div class="card p-6">
           <div class="flex items-center gap-3 mb-4">
-            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
-              <span class="text-white text-sm">👟</span>
-            </div>
+            <i class="ph ph-metronome text-xl shrink-0" style="color:var(--warning-600);"></i>
             <div>
-              <h3 class="font-semibold text-sm text-slate-800" style="font-family:'Plus Jakarta Sans',sans-serif">Cadencia</h3>
-              <p class="text-[10px] text-slate-400">Pasos/min · Óptimo 170-185 spm</p>
+              <h3 class="font-semibold text-sm" style="font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink-900);">Cadencia</h3>
+              <p class="text-[10px] mt-0.5" style="color:var(--ink-400,#9CA3AF);">Pasos/min · Óptimo 170-185 spm</p>
             </div>
           </div>
           <template x-if="cadenceData.length >= 3">
@@ -1633,12 +1765,10 @@
       <!-- Weekly Elevation -->
       <div class="card p-6">
         <div class="flex items-center gap-3 mb-4">
-          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center">
-            <span class="text-white text-sm">⛰</span>
-          </div>
+          <i class="ph ph-mountains text-xl shrink-0" style="color:var(--info-600);"></i>
           <div>
-            <h3 class="font-semibold text-sm text-slate-800" style="font-family:'Plus Jakarta Sans',sans-serif">Elevación Semanal</h3>
-            <p class="text-[10px] text-slate-400">Desnivel acumulado por semana (metros)</p>
+            <h3 class="font-semibold text-sm" style="font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink-900);">Elevación Semanal</h3>
+            <p class="text-[10px] mt-0.5" style="color:var(--ink-400,#9CA3AF);">Desnivel acumulado por semana (metros)</p>
           </div>
         </div>
         <template x-if="weeklyElevation.length >= 2">
@@ -1651,7 +1781,7 @@
 
       <!-- ══ HISTORIAL DE FEATURES SEMANALES ══════════════════════════════ -->
       <div class="card p-6">
-        <h3 class="section-title">Historial semanal</h3>
+        <div class="section-dash mb-4"><h3>Historial semanal</h3></div>
 
         <div class="overflow-x-auto">
           <table class="w-full text-sm text-left">
@@ -1722,8 +1852,8 @@
 
         <!-- ══ INTRO ══════════════════════════════════════════════════════ -->
         <div class="card p-6">
-          <h3 class="text-base font-semibold text-slate-800 mb-1">Glosario</h3>
-          <p class="text-sm text-slate-500">Definiciones de los términos que aparecen en el dashboard. Sin jerga innecesaria.</p>
+          <div class="section-dash mb-2"><h3>Glosario</h3></div>
+          <p class="text-sm" style="color:var(--ink-500);">Definiciones de los términos que aparecen en el dashboard. Sin jerga innecesaria.</p>
         </div>
 
         <!-- ══ ENTRENAMIENTO Y CARGA ═══════════════════════════════════════ -->
@@ -1970,38 +2100,30 @@
 
     <!-- Estado inicial -->
     <div x-show="!snapshot && !loading && !error"
-         class="text-center py-20 text-gray-400">
-      <div class="text-5xl mb-4">🏃</div>
-      <p class="text-lg font-medium text-gray-500">Cargando tu dashboard...</p>
+         class="text-center py-20" style="color:var(--ink-300);">
+      <i class="ph ph-person-simple-run text-5xl mb-4 block" style="color:var(--ink-200);"></i>
+      <p class="text-base font-medium" style="color:var(--ink-400,#9CA3AF);">Cargando tu dashboard...</p>
     </div>
 
   </main>
 
   <!-- ══ FOOTER ══════════════════════════════════════════════════════════════ -->
-  <footer class="border-t border-gray-200 bg-white mt-10 px-6 py-6">
+  <footer class="mt-12 px-6 py-6" style="border-top:1px solid var(--ink-200);background:var(--surface);">
     <div class="max-w-6xl mx-auto">
-      <!-- Separador sutil -->
-      <div class="flex items-center gap-4 mb-4">
-        <div class="flex-1 h-px bg-gradient-to-r from-transparent via-[#C41E3A]/20 to-transparent"></div>
-        <span class="text-[#C41E3A]/30 text-lg">🏃</span>
-        <div class="flex-1 h-px bg-gradient-to-r from-transparent via-[#C41E3A]/20 to-transparent"></div>
-      </div>
-      <!-- Frase motivacional -->
-      <p class="text-center text-xs text-slate-400 italic mb-4 leading-relaxed">
-        "La constancia no es hacer algo una vez con todo tu esfuerzo — es hacer algo cada día, aunque no tengas ganas."
-      </p>
-      <div class="flex items-center justify-between text-xs text-gray-400">
-        <div class="flex items-center gap-2">
-          <svg width="14" height="19" viewBox="0 0 72 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <svg width="14" height="20" viewBox="0 0 72 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <line x1="36" y1="38" x2="33" y2="6" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
-            <line x1="36" y1="38" x2="8" y2="92" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
+            <line x1="36" y1="38" x2="8"  y2="92" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
             <line x1="36" y1="38" x2="62" y2="86" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
           </svg>
-          <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;color:#374151;letter-spacing:-0.01em;">RUNA</span>
-          <span class="text-gray-300">·</span>
-          <span>AR Athletes Lab · 2026</span>
+          <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;color:var(--ink-700);letter-spacing:-0.01em;">RUNA</span>
+          <span style="color:var(--ink-200);">·</span>
+          <span class="text-xs" style="color:var(--ink-400,#9CA3AF);">AR Athletes Lab · 2026</span>
         </div>
-        <span>Dashboard del atleta</span>
+        <p class="text-xs italic" style="color:var(--ink-300);">
+          "La constancia no es hacer algo una vez — es hacer algo cada día."
+        </p>
       </div>
     </div>
   </footer>

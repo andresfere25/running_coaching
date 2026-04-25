@@ -747,3 +747,155 @@ def test_coach_make_template_estructura():
     # Las 7 claves canónicas de día deben estar en session_notes
     for key in ("LUN", "MAR", "MIE", "JUE", "VIE", "SAB", "DOM"):
         assert key in t["session_notes"]
+
+
+# ─── Daniels VDOT: ritmos de entrenamiento desde PR ──────────────────────────
+
+def test_daniels_imports():
+    from src.ml.daniels import (
+        compute_vdot, pace_from_vdot,
+        training_paces_from_vdot, training_paces_from_profile,
+    )
+
+
+def test_daniels_vdot_5k_19min_aprox_53():
+    """5K en 19:00 corresponde a VDOT ≈ 52–53 (tabla oficial Daniels)."""
+    from src.ml.daniels import compute_vdot
+    vdot = compute_vdot(time_sec=1140, distance_km=5.0)
+    assert 51.5 < vdot < 54.0, f"VDOT esperado ~53, calculado: {vdot:.2f}"
+
+
+def test_daniels_vdot_42k_3h_aprox_50():
+    """Maratón en 3:00 corresponde a VDOT ≈ 53–55."""
+    from src.ml.daniels import compute_vdot
+    vdot = compute_vdot(time_sec=10800, distance_km=42.195)
+    assert 51.0 < vdot < 56.0, f"VDOT 3h marathon fuera de rango: {vdot:.2f}"
+
+
+def test_daniels_vdot_inputs_invalidos():
+    from src.ml.daniels import compute_vdot
+    import pytest
+    with pytest.raises(ValueError):
+        compute_vdot(time_sec=0, distance_km=5.0)
+    with pytest.raises(ValueError):
+        compute_vdot(time_sec=1140, distance_km=0)
+    with pytest.raises(ValueError):
+        compute_vdot(time_sec=-100, distance_km=5.0)
+
+
+def test_daniels_pace_orden_intensidades():
+    """Mayor intensidad → ritmo más rápido (menor sec/km)."""
+    from src.ml.daniels import pace_from_vdot
+    vdot = 50.0
+    p_easy       = pace_from_vdot(vdot, 0.66)
+    p_marathon   = pace_from_vdot(vdot, 0.80)
+    p_threshold  = pace_from_vdot(vdot, 0.87)
+    p_interval   = pace_from_vdot(vdot, 0.98)
+    p_repetition = pace_from_vdot(vdot, 1.05)
+    assert p_easy > p_marathon > p_threshold > p_interval > p_repetition
+
+
+def test_daniels_pace_inputs_invalidos():
+    from src.ml.daniels import pace_from_vdot
+    import pytest
+    with pytest.raises(ValueError):
+        pace_from_vdot(vdot=0, intensity_pct=0.7)
+    with pytest.raises(ValueError):
+        pace_from_vdot(vdot=50, intensity_pct=0)
+
+
+def test_daniels_paces_from_vdot_estructura():
+    """training_paces_from_vdot retorna las 5 zonas con campos esperados."""
+    from src.ml.daniels import training_paces_from_vdot
+    paces = training_paces_from_vdot(53.0)
+    assert paces['vdot'] == 53.0
+    for zone in ('easy', 'marathon', 'threshold', 'interval', 'repetition'):
+        assert zone in paces
+        z = paces[zone]
+        assert 'center' in z and 'center_fmt' in z
+        assert 'low' in z and 'low_fmt' in z
+        assert 'high' in z and 'high_fmt' in z
+        assert 'range_fmt' in z and 'label' in z
+        # low (más rápido) < center < high (más lento)
+        assert z['low'] < z['center'] < z['high']
+        # formato 'M:SS'
+        assert ':' in z['center_fmt']
+
+
+def test_daniels_paces_dentro_de_rangos_oficiales():
+    """
+    Para VDOT 53 (≈ 5K en 19:00), los ritmos deben caer cerca de la
+    tabla oficial Daniels 4ta ed. Tolerancia ±15 sec/km respecto al
+    centro tabulado (las tablas oficiales usan rangos anchos).
+    """
+    from src.ml.daniels import training_paces_from_vdot
+    paces = training_paces_from_vdot(53.0)
+    # Easy: tabla oficial 5:14–5:46, centro ≈ 5:30 (330 s/km)
+    assert 280 < paces['easy']['center']     < 340, (
+        f"Easy fuera de rango: {paces['easy']['center_fmt']}"
+    )
+    # Marathon: tabla oficial ≈ 4:32 (272 s/km)
+    assert 250 < paces['marathon']['center']  < 290
+    # Threshold: tabla oficial ≈ 4:14 (254 s/km)
+    assert 235 < paces['threshold']['center'] < 275
+    # Interval (1km): tabla oficial ≈ 3:51 (231 s/km)
+    assert 215 < paces['interval']['center']  < 250
+    # Repetition (400m extrapolado a sec/km): ≈ 3:39 (219 s/km)
+    assert 200 < paces['repetition']['center'] < 240
+
+
+def test_daniels_from_profile_basico():
+    """Perfil con PR 5K → tabla completa con metadata del PR fuente."""
+    from src.ml.daniels import training_paces_from_profile
+    result = training_paces_from_profile({'pr_5k_sec': 1140})
+    assert result is not None
+    assert result['source_pr'] == '5K'
+    assert result['source_pr_sec'] == 1140
+    assert result['model'] == 'daniels_vdot'
+    assert 51 < result['vdot'] < 54
+    assert 'easy' in result and 'threshold' in result
+
+
+def test_daniels_from_profile_prefiere_5k():
+    """Con varios PRs disponibles, debe usar el más corto (5K)."""
+    from src.ml.daniels import training_paces_from_profile
+    profile = {
+        'pr_5k_sec':  1140,    # 19:00
+        'pr_10k_sec': 2400,    # 40:00
+        'pr_21k_sec': 5100,    # 1:25
+    }
+    result = training_paces_from_profile(profile)
+    assert result['source_pr'] == '5K'
+
+
+def test_daniels_from_profile_fallback_a_largo():
+    """Sin PRs cortos, usa el más corto disponible (21K si solo hay 21K y 42K)."""
+    from src.ml.daniels import training_paces_from_profile
+    profile = {'pr_21k_sec': 5100, 'pr_42k_sec': 10800}
+    result = training_paces_from_profile(profile)
+    assert result['source_pr'] == '21K'
+    assert result is not None
+
+
+def test_daniels_from_profile_sin_prs_retorna_none():
+    """Sin ningún PR válido retorna None."""
+    from src.ml.daniels import training_paces_from_profile
+    assert training_paces_from_profile({}) is None
+    assert training_paces_from_profile({'pr_5k_sec': 0}) is None
+    assert training_paces_from_profile({'pr_5k_sec': None}) is None
+
+
+def test_daniels_vdot_consistencia_inversa():
+    """
+    Si calculo VDOT desde una carrera y luego pace_from_vdot a la intensidad
+    de esa carrera, debo recuperar el ritmo original (consistencia interna).
+    """
+    from src.ml.daniels import compute_vdot, pace_from_vdot, _pct_vo2max_at_race
+    pr_sec  = 1140       # 5K en 19:00
+    pr_km   = 5.0
+    vdot    = compute_vdot(pr_sec, pr_km)
+    pct     = _pct_vo2max_at_race(pr_sec / 60)
+    pace_recuperado = pace_from_vdot(vdot, pct)   # sec/km
+    pace_original   = pr_sec / pr_km              # 228 s/km
+    # Tolerancia de 1 sec/km por errores numéricos de las raíces cuadradas
+    assert abs(pace_recuperado - pace_original) < 1.0

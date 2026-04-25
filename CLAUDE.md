@@ -4,6 +4,146 @@ Archivo de contexto operativo para Claude Code. Léelo al inicio de cada sesión
 
 ---
 
+## 🔴 ESTADO ACTUAL — Sesión 2026-04-24 (LEER PRIMERO)
+
+Esta sección es el snapshot al final de la jornada del 24 de abril. Si abres una sesión nueva (incluso en otro computador vía OneDrive), **empieza por aquí**.
+
+### Entorno
+
+- **SO**: Windows · shell bash disponible vía Git Bash
+- **Python**: 3.14.3 — ⚠️ **no hay wheels para muchos paquetes ML** (naiveautoml, xgboost, lightgbm fallaron). Usar sólo `scikit-learn`, `scikit-posthocs`, `pandas`, `numpy`, `matplotlib`, `python-docx`, `pyarrow`.
+- **pandoc**: NO instalado. Para editar .docx usar `python-docx` directamente o el skill `anthropic-skills:docx` (unpack/pack XML).
+- **OneDrive root**: `C:/Users/RentAdvisor/OneDrive/Documentos/Maestría Analítica Aplicada/running_coaching/`
+
+### Qué está hecho (Nivel 1 cerrado)
+
+El **Nivel 1 del modelo jerárquico está entrenado, validado y serializado**. Resultados:
+
+| Métrica | Valor |
+|---|---|
+| Modelo ganador | **Ridge** (alpha=1.0) |
+| Feature set | **v4 (+dens_hr)** — 8 features |
+| N sesiones / usuarios | 20 710 / 356 |
+| MAE CV (GroupKFold K=10) | **40.16 sec/km** |
+| R² | **+0.188** |
+| Conformal (α=0.20) | ±63.6 sec/km, cobertura empírica 0.800 |
+| vs Baseline Karvonen | −3.75 sec/km (−8.5 %), Friedman p=0.0064 |
+
+**Features ganadoras (v4):** `gender_bin`, `fcmax_obs`, `hr_mean`, `pct_fcmax`, `zona_num`, `hr_max_rel`, `log_duration`, `dens_hr`.
+
+**Conclusión metodológica:** el techo del prior poblacional está en ~40 sec/km con variables agregadas por sesión. Feature engineering adicional no cierra la brecha — requiere datos individuales del atleta (Niveles 2 y 3).
+
+### Artefactos producidos (rutas absolutas)
+
+**Scripts reproducibles** (en `ml/scripts/`):
+- `nb11_full_scale.py` — EDA streaming de endomondoHR.json (6.6 GB) → parquet
+- `nb12_full_run.py` — entrenamiento + Friedman-Nemenyi + conformal
+- `nb12_v2_feature_engineering.py` — grid 5 feature sets × 5 modelos
+- `nb12_full_figures.py` — genera figuras 1, 2 y 3
+- `insert_nivel1_into_v3.py` — inserta sección 8.10 en el docx
+- `fix_v3_coherence.py` — embebió imágenes + reescribió 6.1/6.4/8.1/8.4
+- `clean_boston_v3.py` — eliminó 8.2/8.3/8.4 Boston y reescrituras
+- `add_citations_and_refs.py` — citas APA al glosario + 22 referencias
+- `build_session_doc.py` — generador de la bitácora de sesión
+
+**Datos procesados** (en `ml/notebooks/outputs/nb11/`):
+- `endomondo_runs_clean_FULL.parquet` — 20 710 sesiones limpias
+- `user_summary_FULL.parquet` — 356 usuarios con FCmax_obs estable
+
+**Modelos serializados** (en `ml/notebooks/outputs/nb12/`):
+- `nivel1_prior_poblacional_FULL.pkl` — Ridge v1 (5 features, histórico)
+- `nivel1_prior_poblacional_FULL_v2.pkl` — **Ridge v4 (8 features, RECOMENDADO)**
+
+**Figuras** (en `ml/notebooks/outputs/nb12/`):
+- `nb12_full_fig1_ranking_modelos.png` — ranking 9 modelos
+- `nb12_full_fig2_cobertura_conformal.png` — 0.804 vs 0.80
+- `nb12_full_fig3_ritmo_por_zona.png` — boxplot Z1–Z5
+- `nb12_v2_fig_iteracion_features.png` — curva FE por # features
+
+**CSVs de soporte**:
+- `nb12_v2_feature_grid.csv` — 25 combinaciones
+- `nb12_v2_pivot_mae.csv` — pivot modelo × feature set
+- `nb12_full_report.txt` — bitácora run principal
+
+**Diagramas** (en `Documentos Maestria/diagramas_png/`):
+- `03_flujo_general.png` + `.mmd` — arquitectura macro
+- `02_flujo_ml.png` + `.mmd` — detalle componente ML (landscape, flowchart LR)
+- `01_flujo_datos.png` + `.mmd` — pipeline de ingesta
+
+### Documentos de tesis al cierre de la sesión
+
+Carpeta: `Documentos Maestria/`
+
+| Archivo | Estado |
+|---|---|
+| `Avances_Tesis_Running_17abril_v1.docx` | Original (previo al reencuadre 23-abril) |
+| `Avances_Tesis_Running_17abril_v2.docx` | Intermedio |
+| `Avances_Tesis_Running_17abril_v3.docx` | **ACTUAL — trabajar aquí** |
+| `Avances_Tesis_Running_17abril_v3.backup.docx` | Snapshot previo a inserción de 8.10 |
+| `Avances_Tesis_Running_17abril_v3.pre-clean.docx` | Snapshot previo a limpieza Boston |
+| `Sesion_23abril_2026_Resultados.docx` | **Bitácora ejecutiva para el director** (10 secciones, 5 figuras, 3 tablas) |
+| `Resultados_Nivel1_borrador.md` | Markdown fuente con 6.X.1–6.X.8 (incluye 8.X.8 FE v2) |
+| `RUNA_Flujos_Editables.md` | Fuente Mermaid de los 3 diagramas |
+
+**Cambios aplicados a v3.docx hoy** (no deshacer sin razón):
+1. Sección **8.10 · Nivel 1 · Prior poblacional FC ↔ ritmo (Endomondo)** insertada antes del Cap. 9 (8 subsecciones 8.10.1–8.10.8, 5 tablas nuevas, 4 figuras embebidas).
+2. **Boston eliminado**: secciones 8.2, 8.3, 8.4 y stub 8.7 borradas (tablas incluidas).
+3. **Reescrituras**: 6.1, 6.4, 6.5, 6.7, 8.1 para coherencia con FitRec como fuente primaria.
+4. **Glosario (Cap. 5)** con citas APA en 23/24 definiciones; título limpio.
+5. **Cap. 11 Referencias** poblado con 22 entradas APA 7 consolidadas.
+
+### Pendientes inmediatos cuando retomes
+
+1. **Revisión manual del usuario** de los objetivos específicos OE1/OE2/OE3 en Cap. 4 — quedaron "muy cargados". El usuario lo hace él mismo; cuando pregunte, tenemos preparadas dos redacciones alternativas del **objetivo general** (ver historial de chat: versión A neutra vs. B explícita con LOAO-CV).
+2. **Nivel 2 (NB13)** — DIFERIDO 8 días (hasta ~2026-05-02) porque la cohorte RUNA aún no está completa. El usuario dijo textualmente: "No tengo los atletas aun, entonces eso dejemoslo para dentro de 8 dias".
+3. **Nivel 3** — personalización bayesiana, pendiente post-Nivel 2.
+
+### Si el usuario te muestra un docx con Boston residual
+
+Ya se limpió la versión v3 actual. Si aparecen menciones, pueden ser:
+- Legítimas: "Riegel" / "VDOT" / "Karvonen" como baselines en glosario (Cap. 5) o comparación (Cap. 6.8) — OK
+- "42K" como distancia objetivo en OE1/OE2 — OK
+- "Gradient Boosting" como uno de los 7 modelos del AutoML-equivalente en 8.10 — OK
+- Cualquier otra mención a Boston, splits, pacing artifact activo → borrarla
+
+### Convenciones aprendidas esta sesión
+
+- **Unidad speed en FitRec**: H2 (km/h). H1 (m/s) produce 1.5 min/km imposible.
+- **Zonas Z1–Z5**: empíricas sobre FCmax_obs por usuario (no `220−edad`). Umbrales: <60 / 60-70 / 70-80 / 80-90 / ≥90 %.
+- **Filtro mínimo**: ≥10 sesiones/usuario para FCmax_obs estable.
+- **Target Nivel 1**: `pace_min_km` (no tiempo absoluto).
+- **Grupo CV**: siempre `userId` (GroupKFold K=10, nunca KFold plano).
+- **Conformal**: split 60/20/20 estratificado por atleta.
+- **Path de dataset crudo**: `Datasets running/endomondoHR.json` (6.6 GB) y `endomondoMeta.json` (10 GB). Nunca cargar completos; procesar en streaming como hace `nb11_full_scale.py`.
+
+### Patrón de trabajo con docx desde Python 3.14
+
+```python
+# NO usar string con ñ/á/í en path sin codificación explícita — rompe.
+# Usar Path literal o variable:
+from pathlib import Path
+DOCX = Path(r'C:/Users/RentAdvisor/OneDrive/Documentos/Maestría Analítica Aplicada/running_coaching/Documentos Maestria/Avances_Tesis_Running_17abril_v3.docx')
+# En script a través de Bash, siempre sys.stdout.reconfigure(encoding='utf-8')
+```
+
+Para insertar párrafos antes de un ancla: `p.insert_paragraph_before(text)`. Para tablas: crearlas con `doc.add_table`, luego mover `tbl_elem.getparent().remove(tbl_elem); anchor._element.addprevious(tbl_elem)`.
+
+### Comandos rápidos para reanudar
+
+```bash
+# Verificar que todo siga en su sitio tras cambio de máquina:
+ls "C:/Users/RentAdvisor/OneDrive/Documentos/Maestría Analítica Aplicada/running_coaching/ml/notebooks/outputs/nb12/"
+ls "C:/Users/RentAdvisor/OneDrive/Documentos/Maestría Analítica Aplicada/running_coaching/Documentos Maestria/"
+
+# Regenerar figuras si hacen falta:
+python "C:/Users/.../ml/scripts/nb12_full_figures.py"
+
+# Regenerar bitácora de sesión:
+python "C:/Users/.../ml/scripts/build_session_doc.py"
+```
+
+---
+
 ## Objetivo dual del proyecto
 
 Este proyecto tiene **dos dimensiones que deben coexistir**, no competir:
@@ -18,6 +158,68 @@ Este proyecto tiene **dos dimensiones que deben coexistir**, no competir:
 - Construir una app/web de running coaching con interfaz útil para atletas
 - Mostrar progreso, métricas, plan semanal, evolución y recomendaciones
 - Permitir check-ins, seguimiento y visualización de carga de entrenamiento
+
+---
+
+## Reencuadre metodológico 2026-04-23 (DECISIÓN ACTUAL, prevalece sobre notas previas)
+
+Tras feedback del profesor (Teams + recursos compartidos: Asana SMART goals, github.com/fmohr/naiveautoml) y análisis de los datasets `endomondoHR.json` (6 GB, ~40K corridas con HR+velocidad) y `endomondoMeta.json` (10 GB) disponibles desde 2026-04-23, se reformula el proyecto así:
+
+### Target de predicción (unificado)
+**Ritmo sostenible (min/km) por zona de FC (Z1–Z5)** para un atleta dado.
+De ahí se derivan:
+- Tiempo estimado en 5K / 10K / 21K (prioridad) y 42K (reporte honesto).
+- Recomendación de ritmo de entrenamiento por zona (uso coaching).
+
+Un solo modelo, dos usos. No son modelos separados.
+
+### Arquitectura jerárquica de 3 niveles (reformulada)
+
+| Nivel | Fuente de datos | Rol | N validado (NB09) |
+|---|---|---|---|
+| **Nivel 1 — Prior poblacional** | **Endomondo** (~40K corridas con HR+velocidad, público, anónimo) | Aprende relación universal FC↔ritmo por zona. Resuelve cold start. | (dataset público) |
+| **Nivel 2 — Núcleo generalizable** | **RUNA: features derivados de Strava + autorreporte** | Modelo generalizable con LOAO-CV + AutoML (naiveautoml). ESTE es el modelo generalizable que pidió el profesor. | **N≥30–40 atletas, n_cal≥100 obs** |
+| **Nivel 3 — Personalización bayesiana** | Historial del atleta + carreras reales + **entrenamientos duros como "race simulations"** (tempo runs/sesiones cercanas a esfuerzo de carrera) | Refina por atleta. Multiplica por 5–10× el N efectivo de "carreras". | **≥3 race simulations** |
+
+### Legal / ético (crítico)
+- **NO se entrena con datos crudos de Strava** (GPS trace). Solo features derivados por sesión: FC media, FC máx, ritmo medio, distancia, duración, fecha.
+- Anonimización en ingesta: hash SHA-256 del user_id, sin nombre/email en tablas de entrenamiento.
+- Consentimiento explícito Ley 1581 Colombia + términos Strava API.
+- Sección "Consideraciones éticas" obligatoria en el documento de tesis.
+
+### Datasets: qué se mantiene y qué se descarta
+
+| Dataset | Decisión | Rol |
+|---|---|---|
+| **Endomondo (HR+Meta)** | ✅ INCORPORAR | Nivel 1 — prior poblacional FC↔ritmo |
+| **RUNA/Strava features** | ✅ NÚCLEO | Nivel 2 — modelo generalizable |
+| **Results.csv** (399K maratonistas) | ✅ MANTENER (mínimo) | Solo NB09 Análisis 4: baseline honesto IC 80% para 42K poblacional |
+| **Boston 2015–2018** | ❌ DESCARTAR de la tesis | NB03/NB07/NB08 pasan a "trabajo exploratorio previo" mencionado en 1 frase / anexo. No aporta valor dado el tiempo restante. Élite-sesgado. |
+| **Injury Prediction** (NB06) | ❌ FUERA DE ALCANCE | Ya decidido en 2026-03-10: evidencia débil, capa apagada. |
+
+### Metodología ML
+- **AutoML**: `naiveautoml` (github.com/fmohr/naiveautoml) — recomendación explícita del profesor.
+- **Validación**: LOAO-CV (Leave-One-Athlete-Out).
+- **Intervalos**: split-conformal prediction (n_cal≥100).
+- **Comparación de modelos**: Friedman–Nemenyi.
+- **Baselines de comparación**: Karvonen (zonas FC), VDOT (Jack Daniels), Riegel calibrado.
+
+### Objetivos SMART (3 grupos, pendiente escritura en v2.docx)
+El profesor pidió agrupar los 6 objetivos específicos previos en 3 grupos SMART:
+- **OE1 (analítico)**: Nivel 1 + Nivel 2 — modelo generalizable con AutoML
+- **OE2 (producto)**: Plataforma RUNA integrando Strava + motor de ritmos
+- **OE3 (validación de campo)**: Cohorte RUNA + Nivel 3 bayesiano + Results.csv baseline 42K
+
+### Cronograma forzado por tiempo restante de maestría
+1. NB11 — EDA Endomondo + validar unidades de velocidad + calcular ritmo por zona FC
+2. Actualizar objetivos SMART en `Avances_Tesis_Running_17abril_v2.docx`
+3. Implementar Nivel 1 con naiveautoml sobre Endomondo
+4. Integrar Nivel 2 con cohorte real de RUNA
+5. Race simulations + refinamiento bayesiano (Nivel 3)
+
+### Notas previas obsoletas
+- La nota de 2026-03-11 "Strava: producto/visualización/coaching analytics — NO para entrenamiento del modelo base" **QUEDA SUPERADA**. Strava (vía features derivados) es ahora el núcleo generalizable (Nivel 2).
+- Toda la infraestructura NB03/NB07/NB08 de Boston se conserva en el repo como trabajo exploratorio, pero **no entra al documento de tesis** salvo mención breve.
 
 ---
 
