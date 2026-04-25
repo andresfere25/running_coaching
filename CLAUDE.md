@@ -4,6 +4,49 @@ Archivo de contexto operativo para Claude Code. Léelo al inicio de cada sesión
 
 ---
 
+## ⚠️ CAMBIO DE EQUIPO — 2026-04-25 (LEER ANTES DE CUALQUIER COSA)
+
+El proyecto fue migrado a un nuevo computador. Hay cambios críticos en rutas y entorno que afectan todos los scripts.
+
+### Cambios de ruta
+
+| Qué | Ruta anterior (PC viejo) | Ruta nueva (PC actual) |
+|---|---|---|
+| Usuario Windows | `C:/Users/RentAdvisor/` | `C:/Users/andre/` |
+| Proyecto | `...RentAdvisor/OneDrive/Documentos/Maestría Analítica Aplicada/running_coaching/` | `...andre/OneDrive/Documentos/Maestría Analítica Aplicada/running_coaching/` |
+| **endomondoHR.json** | dentro del proyecto (OneDrive) | **`C:\Datasets\running_coaching\endomondoHR.json\`** |
+| **endomondoMeta.json** | dentro del proyecto (OneDrive) | **`C:\Datasets\running_coaching\endomondoMeta.json\`** |
+| **Datasets running** | dentro del proyecto (OneDrive) | **`C:\Datasets\running_coaching\Datasets running\`** |
+
+> Los datasets grandes (endomondoHR 6.2 GB, endomondoMeta 9.9 GB) fueron movidos **fuera de OneDrive** intencionalmente para evitar que OneDrive los sincronice y ralentice el sistema. Esta es la ubicación definitiva. NO moverlos de vuelta a OneDrive.
+
+### Cambios de entorno Python
+
+| Qué | Antes | Ahora |
+|---|---|---|
+| Python | 3.14.3 (sin wheels ML) | **3.11** (conda env `running_coaching`) |
+| Activar entorno | — | `conda activate running_coaching` |
+| Paquetes disponibles | scikit-learn, pandas, numpy, matplotlib | pandas, duckdb, fastapi, uvicorn, supabase, gspread, requests, reportlab, matplotlib, python-dotenv |
+| XGBoost / LightGBM | fallaban | **disponibles en Python 3.11** — instalar con `pip install xgboost lightgbm` si se necesitan |
+
+### Acción requerida al iniciar sesión
+
+Antes de correr cualquier script que cargue los datasets de Endomondo, actualizar las rutas hardcodeadas. Ejemplo:
+
+```python
+# ANTES (PC viejo - NO usar)
+path = "C:/Users/RentAdvisor/OneDrive/.../running_coaching/endomondoHR.json"
+
+# AHORA (PC nuevo - usar esto)
+path = r"C:\Datasets\running_coaching\endomondoHR.json"
+```
+
+Los parquets procesados (`endomondo_runs_clean_FULL.parquet`, `user_summary_FULL.parquet`) siguen dentro del proyecto en `ml/notebooks/outputs/nb11/` — esos no se movieron y son los que se usan normalmente para entrenar. Los JSON originales solo se necesitan si hay que reprocesar desde cero.
+
+---
+
+---
+
 ## 🔴 ESTADO ACTUAL — Sesión 2026-04-24 (LEER PRIMERO)
 
 Esta sección es el snapshot al final de la jornada del 24 de abril. Si abres una sesión nueva (incluso en otro computador vía OneDrive), **empieza por aquí**.
@@ -11,9 +54,9 @@ Esta sección es el snapshot al final de la jornada del 24 de abril. Si abres un
 ### Entorno
 
 - **SO**: Windows · shell bash disponible vía Git Bash
-- **Python**: 3.14.3 — ⚠️ **no hay wheels para muchos paquetes ML** (naiveautoml, xgboost, lightgbm fallaron). Usar sólo `scikit-learn`, `scikit-posthocs`, `pandas`, `numpy`, `matplotlib`, `python-docx`, `pyarrow`.
+- **Python**: **3.11** — conda env `running_coaching` (`conda activate running_coaching`). XGBoost y LightGBM disponibles.
 - **pandoc**: NO instalado. Para editar .docx usar `python-docx` directamente o el skill `anthropic-skills:docx` (unpack/pack XML).
-- **OneDrive root**: `C:/Users/RentAdvisor/OneDrive/Documentos/Maestría Analítica Aplicada/running_coaching/`
+- **OneDrive root**: `C:/Users/andre/OneDrive/Documentos/Maestría Analítica Aplicada/running_coaching/`
 
 ### Qué está hecho (Nivel 1 cerrado)
 
@@ -122,7 +165,7 @@ Ya se limpió la versión v3 actual. Si aparecen menciones, pueden ser:
 # NO usar string con ñ/á/í en path sin codificación explícita — rompe.
 # Usar Path literal o variable:
 from pathlib import Path
-DOCX = Path(r'C:/Users/RentAdvisor/OneDrive/Documentos/Maestría Analítica Aplicada/running_coaching/Documentos Maestria/Avances_Tesis_Running_17abril_v3.docx')
+DOCX = Path(r'C:/Users/andre/OneDrive/Documentos/Maestría Analítica Aplicada/running_coaching/Documentos Maestria/Avances_Tesis_Running_17abril_v3.docx')
 # En script a través de Bash, siempre sys.stdout.reconfigure(encoding='utf-8')
 ```
 
@@ -131,15 +174,15 @@ Para insertar párrafos antes de un ancla: `p.insert_paragraph_before(text)`. Pa
 ### Comandos rápidos para reanudar
 
 ```bash
-# Verificar que todo siga en su sitio tras cambio de máquina:
-ls "C:/Users/RentAdvisor/OneDrive/Documentos/Maestría Analítica Aplicada/running_coaching/ml/notebooks/outputs/nb12/"
-ls "C:/Users/RentAdvisor/OneDrive/Documentos/Maestría Analítica Aplicada/running_coaching/Documentos Maestria/"
+# Verificar que todo siga en su sitio:
+ls "C:/Users/andre/OneDrive/Documentos/Maestría Analítica Aplicada/running_coaching/ml/notebooks/outputs/nb12/"
+ls "C:/Users/andre/OneDrive/Documentos/Maestría Analítica Aplicada/running_coaching/Documentos Maestria/"
 
 # Regenerar figuras si hacen falta:
-python "C:/Users/.../ml/scripts/nb12_full_figures.py"
+python "C:/Users/andre/OneDrive/Documentos/Maestría Analítica Aplicada/running_coaching/ml/scripts/nb12_full_figures.py"
 
 # Regenerar bitácora de sesión:
-python "C:/Users/.../ml/scripts/build_session_doc.py"
+python "C:/Users/andre/OneDrive/Documentos/Maestría Analítica Aplicada/running_coaching/ml/scripts/build_session_doc.py"
 ```
 
 ---
