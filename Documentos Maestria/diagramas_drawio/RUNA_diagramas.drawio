@@ -1,0 +1,231 @@
+<mxfile host="app.diagrams.net" modified="2026-04-26T12:00:00.000Z" agent="RUNA-thesis" version="22.0.0">
+  <diagram name="01_Flujo_Modelo_ML" id="diag_modelo">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- TÍTULO -->
+        <mxCell id="title" value="Flujo del modelo jerárquico — RUNA" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#0C0E12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="20" width="540" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ============ COLUMNA IZQUIERDA: FUENTES DE DATOS ============ -->
+        <mxCell id="lbl_datos" value="FUENTES DE DATOS" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1;fontColor=#5C636E;" vertex="1" parent="1">
+          <mxGeometry x="40" y="70" width="220" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="data_fitrec" value="&lt;b&gt;FitRec / Endomondo&lt;/b&gt;&lt;br&gt;Dataset público&lt;br&gt;20.710 sesiones · 356 usuarios&lt;br&gt;&lt;i&gt;Cold-start poblacional&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="40" y="120" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="data_runa" value="&lt;b&gt;Cohorte RUNA + Strava&lt;/b&gt;&lt;br&gt;Atletas reclutados&lt;br&gt;Features semanales (CTL/ATL)&lt;br&gt;&lt;i&gt;Generalización por segmento&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="40" y="240" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="data_checkins" value="&lt;b&gt;Check-ins + PRs + Carreras&lt;/b&gt;&lt;br&gt;Datos individuales del atleta&lt;br&gt;Sueño · energía · dolor&lt;br&gt;&lt;i&gt;Personalización bayesiana&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="40" y="360" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ============ COLUMNA CENTRAL: NIVELES DEL MODELO ============ -->
+        <mxCell id="lbl_modelo" value="NIVELES DEL MODELO" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1;fontColor=#5C636E;" vertex="1" parent="1">
+          <mxGeometry x="340" y="70" width="320" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="nivel1" value="&lt;b&gt;NIVEL 1 — Prior poblacional&lt;/b&gt; ✅&lt;br&gt;&lt;br&gt;&lt;b&gt;Features (8):&lt;/b&gt; gender, fcmax_obs, hr_mean,&lt;br&gt;pct_fcmax, zona, hr_max_rel, log_duration, dens_hr&lt;br&gt;&lt;b&gt;Modelo:&lt;/b&gt; Ridge α=1.0&lt;br&gt;&lt;b&gt;Validación:&lt;/b&gt; GroupKFold K=10 (por userId)&lt;br&gt;&lt;b&gt;MAE:&lt;/b&gt; 40.16 sec/km · &lt;b&gt;R²:&lt;/b&gt; +0.188" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="340" y="110" width="320" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="nivel2" value="&lt;b&gt;NIVEL 2 — Núcleo generalizable&lt;/b&gt; ⏳&lt;br&gt;&lt;br&gt;&lt;b&gt;Features añadidos:&lt;/b&gt; CTL, ATL, ACWR, km/sem,&lt;br&gt;ritmo_4sem, cadencia, desnivel, edad, PRs&lt;br&gt;&lt;b&gt;Modelo:&lt;/b&gt; AutoML (naiveautoml)&lt;br&gt;&lt;b&gt;Validación:&lt;/b&gt; LOAO-CV (por atleta)&lt;br&gt;&lt;b&gt;MAE esperado:&lt;/b&gt; ~25 sec/km" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fad7ac;strokeColor=#b46504;fontSize=11;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="340" y="240" width="320" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="nivel3" value="&lt;b&gt;NIVEL 3 — Personalización bayesiana&lt;/b&gt; ⏳&lt;br&gt;&lt;br&gt;&lt;b&gt;Features añadidos:&lt;/b&gt; carreras propias del atleta,&lt;br&gt;check-ins (sueño/energía/dolor), race simulations&lt;br&gt;&lt;b&gt;Modelo:&lt;/b&gt; refinamiento bayesiano&lt;br&gt;&lt;b&gt;Activación:&lt;/b&gt; ≥3 carreras + 8 sem check-ins&lt;br&gt;&lt;b&gt;MAE esperado:&lt;/b&gt; ~15 sec/km" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="340" y="370" width="320" height="120" as="geometry" />
+        </mxCell>
+
+        <!-- Flechas verticales entre niveles (herencia) -->
+        <mxCell id="arr_n1_n2" value="hereda predicción + agrega features" style="endArrow=classic;html=1;rounded=0;fontSize=9;fontStyle=2;strokeColor=#5C636E;" edge="1" parent="1" source="nivel1" target="nivel2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="arr_n2_n3" value="hereda predicción + agrega features" style="endArrow=classic;html=1;rounded=0;fontSize=9;fontStyle=2;strokeColor=#5C636E;" edge="1" parent="1" source="nivel2" target="nivel3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ============ COLUMNA DERECHA: SALIDA ============ -->
+        <mxCell id="lbl_salida" value="SALIDA" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1;fontColor=#5C636E;" vertex="1" parent="1">
+          <mxGeometry x="740" y="70" width="220" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="out_ritmo" value="&lt;b&gt;Ritmo sostenible&lt;/b&gt;&lt;br&gt;por zona Z1–Z5 (min/km)&lt;br&gt;&lt;i&gt;Ej: Z3 = 5:33 min/km&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="740" y="120" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="out_tiempos" value="&lt;b&gt;Tiempos por distancia&lt;/b&gt;&lt;br&gt;5K · 10K · 21K · 42K&lt;br&gt;&lt;i&gt;Ej: 10K en Z3 = 55:30&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="740" y="240" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="out_conformal" value="&lt;b&gt;Intervalo conformal&lt;/b&gt;&lt;br&gt;cobertura 80%&lt;br&gt;&lt;i&gt;Ej: ±64 sec/km&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="740" y="360" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Flechas datos→niveles -->
+        <mxCell id="arr_d1_n1" style="endArrow=classic;html=1;rounded=0;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="data_fitrec" target="nivel1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="arr_d2_n2" style="endArrow=classic;html=1;rounded=0;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" parent="1" source="data_runa" target="nivel2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="arr_d3_n3" style="endArrow=classic;html=1;rounded=0;strokeColor=#d79b00;strokeWidth=2;" edge="1" parent="1" source="data_checkins" target="nivel3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Flechas niveles→salida (cualquier nivel produce las 3 salidas) -->
+        <mxCell id="arr_n3_o1" style="endArrow=classic;html=1;rounded=0;strokeColor=#9673a6;strokeWidth=2;exitX=1;exitY=0.2;exitDx=0;exitDy=0;" edge="1" parent="1" source="nivel3" target="out_ritmo">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="arr_n3_o2" style="endArrow=classic;html=1;rounded=0;strokeColor=#9673a6;strokeWidth=2;" edge="1" parent="1" source="nivel3" target="out_tiempos">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="arr_n3_o3" style="endArrow=classic;html=1;rounded=0;strokeColor=#9673a6;strokeWidth=2;exitX=1;exitY=0.8;exitDx=0;exitDy=0;" edge="1" parent="1" source="nivel3" target="out_conformal">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- LEYENDA / NOTAS -->
+        <mxCell id="legend" value="&lt;b&gt;LEYENDA&lt;/b&gt;&lt;br&gt;✅ Cerrado · ⏳ Pendiente&lt;br&gt;Cada nivel hereda la predicción del anterior y la refina con más información del atleta.&lt;br&gt;El MAE disminuye al pasar de Nivel 1 → 2 → 3.&lt;br&gt;El intervalo conformal se vuelve más estrecho con cada nivel." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;align=left;verticalAlign=top;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="510" width="920" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Notebooks de referencia -->
+        <mxCell id="nb_ref" value="&lt;b&gt;Notebooks de referencia:&lt;/b&gt;&lt;br&gt;Nivel 1 — NB11 (EDA Endomondo) · NB12 (entrenamiento + Friedman-Nemenyi + conformal)&lt;br&gt;Nivel 2 — NB13 (pendiente, ~mayo 2026) · Nivel 3 — pospuesto" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontStyle=2;fontColor=#5C636E;" vertex="1" parent="1">
+          <mxGeometry x="40" y="610" width="920" height="60" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="02_Arquitectura_Proyecto" id="diag_proyecto">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- TÍTULO -->
+        <mxCell id="title2" value="Arquitectura general — Proyecto RUNA" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#0C0E12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="20" width="540" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ============ LANE ACADÉMICO ============ -->
+        <mxCell id="lane_acad" value="COMPONENTE ACADÉMICO — Sistema jerárquico de ML" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;fontStyle=1;align=left;verticalAlign=top;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="1020" height="240" as="geometry" />
+        </mxCell>
+
+        <mxCell id="acad_fitrec" value="&lt;b&gt;FitRec&lt;/b&gt;&lt;br&gt;Endomondo público&lt;br&gt;253K registros" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="80" y="140" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="acad_n1" value="&lt;b&gt;Nivel 1&lt;/b&gt;&lt;br&gt;Prior poblacional&lt;br&gt;Ridge · MAE 40 s/km" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="280" y="140" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="acad_n2" value="&lt;b&gt;Nivel 2&lt;/b&gt;&lt;br&gt;Núcleo generalizable&lt;br&gt;AutoML + LOAO-CV" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fad7ac;strokeColor=#b46504;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="480" y="140" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="acad_n3" value="&lt;b&gt;Nivel 3&lt;/b&gt;&lt;br&gt;Personalización&lt;br&gt;bayesiana" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="680" y="140" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="acad_motor" value="&lt;b&gt;Motor de ritmos&lt;/b&gt;&lt;br&gt;Ritmo Z1–Z5&lt;br&gt;+ intervalos conformales" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="880" y="140" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="acad_valid" value="&lt;b&gt;Validación estadística:&lt;/b&gt; Friedman-Nemenyi (comparación modelos) · Split-conformal prediction (intervalos 80%) · Análisis de potencia Monte Carlo (tamaño de muestra)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontStyle=2;fontColor=#5C636E;" vertex="1" parent="1">
+          <mxGeometry x="60" y="240" width="980" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Flechas dentro del lane académico -->
+        <mxCell id="arr_a1" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="acad_fitrec" target="acad_n1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr_a2" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="acad_n1" target="acad_n2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr_a3" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="acad_n2" target="acad_n3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr_a4" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="acad_n3" target="acad_motor">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ============ LANE PRODUCTO ============ -->
+        <mxCell id="lane_prod" value="COMPONENTE PRODUCTO — Plataforma RUNA" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d32;fontSize=12;fontStyle=1;align=left;verticalAlign=top;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="380" width="1020" height="280" as="geometry" />
+        </mxCell>
+
+        <!-- Capa de ingesta -->
+        <mxCell id="prod_form" value="&lt;b&gt;Formulario&lt;/b&gt;&lt;br&gt;Edad · Género&lt;br&gt;Peso · PRs&lt;br&gt;Consentimiento" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="80" y="430" width="140" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="prod_strava" value="&lt;b&gt;Strava OAuth&lt;/b&gt;&lt;br&gt;Actividades sync&lt;br&gt;HR · ritmo · km&lt;br&gt;Cadencia · desnivel" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="280" y="430" width="140" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="prod_checkin" value="&lt;b&gt;Check-in semanal&lt;/b&gt;&lt;br&gt;Sueño · energía&lt;br&gt;Dolor · carreras&lt;br&gt;Resultados reales" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="480" y="430" width="140" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Pipeline -->
+        <mxCell id="prod_pipeline" value="&lt;b&gt;Pipeline analítico&lt;/b&gt;&lt;br&gt;Limpieza + features&lt;br&gt;CTL/ATL/ACWR&lt;br&gt;Llamada al motor de ritmos" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bbdefb;strokeColor=#1976d2;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="680" y="430" width="160" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Output al atleta -->
+        <mxCell id="prod_dashboard" value="&lt;b&gt;Dashboard atleta&lt;/b&gt;&lt;br&gt;Ritmos por zona&lt;br&gt;Predicción 5K-42K&lt;br&gt;Estado de carga&lt;br&gt;Plan semanal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#f57c00;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="880" y="430" width="140" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Coach panel debajo -->
+        <mxCell id="prod_coach" value="&lt;b&gt;Panel coach&lt;/b&gt; — vista agregada de todos los atletas (FastAPI + Alpine.js, deploy en Railway)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f9a825;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="80" y="550" width="940" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Stack tecnológico -->
+        <mxCell id="prod_stack" value="&lt;b&gt;Stack:&lt;/b&gt; FastAPI · Supabase (PostgreSQL) · Alpine.js + Tailwind · Chart.js · Strava API v3 · Google Forms" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontStyle=2;fontColor=#2e7d32;" vertex="1" parent="1">
+          <mxGeometry x="60" y="610" width="980" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Flechas dentro del lane producto -->
+        <mxCell id="arr_p1" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="prod_form" target="prod_pipeline">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr_p2" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="prod_strava" target="prod_pipeline">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr_p3" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="prod_checkin" target="prod_pipeline">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr_p4" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="prod_pipeline" target="prod_dashboard">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ============ FLECHA QUE CONECTA ACADÉMICO ↔ PRODUCTO ============ -->
+        <mxCell id="arr_motor_prod" value="motor de ritmos consumido vía API" style="endArrow=classic;html=1;rounded=0;strokeWidth=3;strokeColor=#C41E3A;fontSize=10;fontStyle=2;" edge="1" parent="1" source="acad_motor" target="prod_pipeline">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="arr_runa_data" value="datos individuales alimentan Niveles 2–3" style="endArrow=classic;html=1;rounded=0;strokeWidth=3;strokeColor=#C41E3A;fontSize=10;fontStyle=2;dashed=1;" edge="1" parent="1" source="prod_pipeline" target="acad_n2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
