@@ -18,9 +18,8 @@ import urllib.request
 import urllib.error
 import json
 
-BASE_URL = os.getenv(
-    "RAILWAY_URL",
-    "https://runningcoaching-production.up.railway.app",
+BASE_URL = (
+    os.getenv("RAILWAY_URL") or "https://runningcoaching-production.up.railway.app"
 ).rstrip("/")
 
 API_KEY = os.getenv("API_KEY", "")
