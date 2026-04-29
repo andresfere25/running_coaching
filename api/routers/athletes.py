@@ -1159,6 +1159,234 @@ def get_dashboard(
     })
 
 
+# ─── Jerarquía ML — predicción por zona de FC ───────────────────────────────
+
+@router.get("/{cedula}/ml-hierarchy")
+def get_ml_hierarchy(
+    cedula: str,
+    _: None = Depends(require_api_key),
+):
+    """
+    Retorna la predicción del modelo jerárquico ML para este atleta.
+
+    Nivel 1 (Prior poblacional): Ridge sobre FitRec/Endomondo (20 710 sesiones).
+    Predice pace_min_km para cada zona de FC (Z1–Z5) usando FCmax observada.
+
+    Nivel 2 (Cohorte RUNA): pendiente — retorna placeholder.
+    Nivel 3 (Bayesiano individual): pendiente — retorna placeholder.
+
+    Campos clave:
+    - fcmax: FCmax observada (de Strava) o estimada (220−edad)
+    - fcmax_source: 'strava' | 'formula'
+    - zones: Z1–Z5 con rangos de FC y ritmo estimado por nivel
+    - distances: ritmo estimado para 5K/10K/21K/42K (solo Nivel 1)
+    - model_info: metadatos del modelo activo
+    - levels: estado de cada nivel (active/pending/future)
+    """
+    import math
+    import pickle
+    from pathlib import Path as _Path
+
+    # ── 1. Leer perfil del atleta ────────────────────────────────────────────
+    athlete_dir = get_data_dir() / cedula
+    profile = read_profile(cedula, athlete_dir if athlete_dir.exists() else None)
+    if not profile:
+        raise HTTPException(
+            status_code=404,
+            detail="Perfil no disponible. Ejecuta primero: POST /athletes/{cedula}/sync",
+        )
+
+    age = profile.get("age")
+    gender = profile.get("sex") or profile.get("gender")
+    gender_bin = 1 if gender and gender.strip().upper() in ("M", "MALE", "MASCULINO", "HOMBRE") else 0
+
+    # ── 2. Determinar FCmax ──────────────────────────────────────────────────
+    # Prioridad: FCmax real observada en Strava > fórmula 220−edad
+    fcmax_obs = None
+    fcmax_source = "formula"
+
+    # Intentar leer FCmax de actividades Strava
+    try:
+        acts = read_activities(cedula, athlete_dir if athlete_dir.exists() else None, limit=200)
+        if acts:
+            max_hrs = [
+                a.get("max_heartrate") or a.get("raw", {}).get("max_heartrate") or 0
+                for a in acts
+                if a.get("max_heartrate") or (a.get("raw") or {}).get("max_heartrate")
+            ]
+            if max_hrs:
+                fcmax_obs = max(max_hrs)
+                if fcmax_obs > 100:  # sanity check
+                    fcmax_source = "strava"
+    except Exception:
+        pass
+
+    if not fcmax_obs or fcmax_obs <= 100:
+        if age and age > 10:
+            fcmax_obs = 220 - int(age)
+        else:
+            fcmax_obs = 190  # fallback genérico
+
+    # ── 3. Cargar modelo Nivel 1 ─────────────────────────────────────────────
+    model_path = _Path(__file__).resolve().parents[2] / "ml" / "notebooks" / "outputs" / "nb12" / "nivel1_prior_poblacional_FULL_v2.pkl"
+    if not model_path.exists():
+        raise HTTPException(
+            status_code=500,
+            detail=f"Modelo Nivel 1 no encontrado en {model_path}",
+        )
+
+    with open(model_path, "rb") as f:
+        pkg = pickle.load(f)
+
+    ridge = pkg["model"]
+    scaler = pkg["scaler"]
+    features = pkg["features"]  # ['gender_bin', 'fcmax_obs', 'hr_mean', 'pct_fcmax', 'zona_num', 'hr_max_rel', 'log_duration', 'dens_hr']
+    conformal_q = pkg["conformal_q_min_km"]  # ±1.06 min/km
+    mae_sec_km = pkg["best_mae_sec_km"]      # 40.16 sec/km
+
+    # ── 4. Definir zonas y predecir ritmo por zona ───────────────────────────
+    # Zonas Z1–Z5 sobre FCmax observada (misma definición que el dataset)
+    zone_defs = [
+        {"zone": 1, "name": "Z1 · Recuperación",  "pct_min": 0.00, "pct_max": 0.60, "color": "#3B82F6"},
+        {"zone": 2, "name": "Z2 · Aeróbico fácil", "pct_min": 0.60, "pct_max": 0.70, "color": "#22C55E"},
+        {"zone": 3, "name": "Z3 · Tempo",          "pct_min": 0.70, "pct_max": 0.80, "color": "#EAB308"},
+        {"zone": 4, "name": "Z4 · Umbral",         "pct_min": 0.80, "pct_max": 0.90, "color": "#F97316"},
+        {"zone": 5, "name": "Z5 · VO₂max",         "pct_min": 0.90, "pct_max": 1.00, "color": "#EF4444"},
+    ]
+
+    # Duraciones típicas por zona (en segundos, para log_duration)
+    typical_duration_sec = {1: 3600, 2: 3600, 3: 2400, 4: 1800, 5: 1200}
+
+    zones = []
+    for zd in zone_defs:
+        z = zd["zone"]
+        hr_mid = fcmax_obs * (zd["pct_min"] + zd["pct_max"]) / 2
+        hr_min = round(fcmax_obs * zd["pct_min"])
+        hr_max = round(fcmax_obs * zd["pct_max"])
+        pct_mid = (zd["pct_min"] + zd["pct_max"]) / 2 * 100
+        dur_sec = typical_duration_sec[z]
+
+        # Feature vector: gender_bin, fcmax_obs, hr_mean, pct_fcmax, zona_num, hr_max_rel, log_duration, dens_hr
+        hr_max_rel = hr_mid / fcmax_obs
+        log_dur = math.log(dur_sec)
+        dens_hr = 1.0 / (fcmax_obs * 0.10 + 1)  # proxy de densidad
+
+        X_raw = [[gender_bin, fcmax_obs, hr_mid, pct_mid, z, hr_max_rel, log_dur, dens_hr]]
+        X_scaled = scaler.transform(X_raw)
+        pred_min_km = float(ridge.predict(X_scaled)[0])
+
+        # Conformal interval
+        pred_lower = pred_min_km - conformal_q
+        pred_upper = pred_min_km + conformal_q
+
+        # Clamp to reasonable ranges
+        pred_min_km = max(pred_min_km, 2.5)
+        pred_lower = max(pred_lower, 2.0)
+        pred_upper = max(pred_upper, pred_min_km)
+
+        zones.append({
+            "zone": z,
+            "name": zd["name"],
+            "color": zd["color"],
+            "hr_min": hr_min,
+            "hr_max": hr_max,
+            "pct_fcmax_range": f"{int(zd['pct_min']*100)}–{int(zd['pct_max']*100)}%",
+            "nivel1": {
+                "pace_min_km": round(pred_min_km, 2),
+                "pace_sec_km": round(pred_min_km * 60, 0),
+                "pace_fmt": f"{int(pred_min_km)}:{int((pred_min_km % 1) * 60):02d} /km",
+                "interval_lower_fmt": f"{int(pred_lower)}:{int((pred_lower % 1) * 60):02d}",
+                "interval_upper_fmt": f"{int(pred_upper)}:{int((pred_upper % 1) * 60):02d}",
+                "conformal_width_sec": round(conformal_q * 60, 0),
+            },
+            "nivel2": None,  # pendiente — cohorte RUNA
+            "nivel3": None,  # pendiente — bayesiano individual
+        })
+
+    # ── 5. Estimación de tiempos por distancia (Riegel desde zona 3) ─────────
+    # Usar la predicción de Z3 (tempo) como proxy de ritmo sostenible
+    z3_pace = next((z["nivel1"]["pace_min_km"] for z in zones if z["zone"] == 3), 5.5)
+    distances = []
+    for dist_label, dist_km in [("5K", 5.0), ("10K", 10.0), ("21K", 21.0975), ("42K", 42.195)]:
+        # Ajuste simple de ritmo por distancia (factor Riegel simplificado)
+        # A mayor distancia, el ritmo es más lento
+        riegel_factor = (dist_km / 10.0) ** 0.06  # ref = 10K
+        adj_pace = z3_pace * riegel_factor
+        time_sec = adj_pace * 60 * dist_km
+
+        h = int(time_sec // 3600)
+        m = int((time_sec % 3600) // 60)
+        s = int(time_sec % 60)
+        time_fmt = f"{h}:{m:02d}:{s:02d}" if h > 0 else f"{m}:{s:02d}"
+
+        distances.append({
+            "distance": dist_label,
+            "km": dist_km,
+            "estimated_pace_min_km": round(adj_pace, 2),
+            "estimated_pace_fmt": f"{int(adj_pace)}:{int((adj_pace % 1) * 60):02d} /km",
+            "estimated_time_sec": round(time_sec),
+            "estimated_time_fmt": time_fmt,
+            "source_level": 1,
+        })
+
+    # ── 6. Info del modelo ───────────────────────────────────────────────────
+    model_info = {
+        "name": "Ridge Regression",
+        "alpha": 1.0,
+        "features": features,
+        "n_features": len(features),
+        "mae_sec_km": round(mae_sec_km, 2),
+        "mae_min_km": round(mae_sec_km / 60, 2),
+        "conformal_width_min_km": round(conformal_q, 2),
+        "conformal_coverage": 0.80,
+        "n_train_sessions": pkg.get("n_train_sessions"),
+        "n_users": pkg.get("n_users"),
+        "dataset": "FitRec/Endomondo (Ni et al., 2019)",
+        "cv_protocol": pkg.get("cv_protocol"),
+        "feature_set": pkg.get("feature_set_name"),
+    }
+
+    # ── 7. Estado de niveles ─────────────────────────────────────────────────
+    levels = [
+        {
+            "level": 1,
+            "name": "Prior poblacional",
+            "status": "active",
+            "description": "Modelo entrenado con 20 710 sesiones de 356 usuarios de Endomondo",
+            "icon": "globe",
+            "accuracy": f"MAE = {round(mae_sec_km, 1)} seg/km",
+        },
+        {
+            "level": 2,
+            "name": "Cohorte RUNA",
+            "status": "pending",
+            "description": "AutoML + LOAO-CV sobre la cohorte de atletas RUNA (en desarrollo)",
+            "icon": "users-three",
+            "accuracy": "Pendiente — se espera mejorar MAE en ~15–25%",
+        },
+        {
+            "level": 3,
+            "name": "Personalización individual",
+            "status": "future",
+            "description": "Actualización bayesiana con las carreras y entrenamientos del atleta",
+            "icon": "user-focus",
+            "accuracy": "Futuro — mejora progresiva con cada actividad registrada",
+        },
+    ]
+
+    return sanitize_json({
+        "cedula": cedula,
+        "fcmax": fcmax_obs,
+        "fcmax_source": fcmax_source,
+        "gender": "M" if gender_bin else "F",
+        "age": age,
+        "zones": zones,
+        "distances": distances,
+        "model_info": model_info,
+        "levels": levels,
+    })
+
+
 # ─── Predicción de rendimiento ───────────────────────────────────────────────
 
 @router.get("/{cedula}/prediction")

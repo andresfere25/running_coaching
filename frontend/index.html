@@ -288,6 +288,7 @@
           { id: 'plan',        label: 'Plan' },
           { id: 'rendimiento', label: 'Rendimiento' },
           { id: 'analitica',   label: 'Analítica' },
+          { id: 'ml',          label: 'ML' },
           { id: 'glosario',    label: 'Glosario' },
         ]" :key="tab.id">
           <button
@@ -307,6 +308,7 @@
         'max-w-2xl mx-auto': activeTab === 'hoy' || activeTab === 'glosario',
         'max-w-5xl mx-auto': activeTab === 'plan' || activeTab === 'analitica',
         'max-w-3xl mx-auto': activeTab === 'rendimiento',
+        'max-w-4xl mx-auto': activeTab === 'ml',
       }">
 
       <!-- ════════════════ TAB: HOY ════════════════════════════════════════ -->
@@ -1846,6 +1848,383 @@
       </div>
 
       </div><!-- fin tab ANALÍTICA -->
+
+      <!-- ════════════════ TAB: ML (JERARQUÍA) ════════════════════════════ -->
+      <div x-show="activeTab === 'ml'" class="space-y-5">
+
+        <!-- ══ LOADING STATE ══════════════════════════════════════════════ -->
+        <template x-if="!mlData && mlLoading">
+          <div class="card p-8 text-center">
+            <div class="animate-pulse space-y-3">
+              <div class="h-4 bg-gray-200 rounded w-48 mx-auto"></div>
+              <div class="h-3 bg-gray-100 rounded w-64 mx-auto"></div>
+            </div>
+            <p class="text-sm mt-4" style="color:var(--ink-500);">Cargando modelo ML...</p>
+          </div>
+        </template>
+
+        <!-- ══ ERROR STATE ════════════════════════════════════════════════ -->
+        <template x-if="mlError && !mlLoading">
+          <div class="card p-6 border-l-4" style="border-left-color:var(--warning-600);">
+            <p class="text-sm font-medium" style="color:var(--warning-700);">
+              <i class="ph ph-warning mr-1"></i> No se pudo cargar el análisis ML
+            </p>
+            <p class="text-xs mt-1" style="color:var(--ink-500);" x-text="mlError"></p>
+          </div>
+        </template>
+
+        <template x-if="mlData">
+        <div class="space-y-5">
+
+        <!-- ══ HERO: JERARQUÍA DE PREDICCIÓN ════════════════════════════ -->
+        <div class="card card-accent card-texture p-6">
+          <div class="section-dash mb-3"><h3>Jerarquía ML de Predicción</h3></div>
+          <p class="text-sm" style="color:var(--ink-500);line-height:1.6;">
+            El sistema RUNA estima el ritmo sostenible por zona de frecuencia cardíaca
+            usando una jerarquía de tres niveles. Cada nivel refina la estimación
+            del anterior con datos más específicos del atleta.
+          </p>
+        </div>
+
+        <!-- ══ NIVELES — PIPELINE VISUAL ════════════════════════════════ -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <template x-for="lvl in mlData.levels" :key="lvl.level">
+            <div class="card p-5 relative overflow-hidden transition-all"
+                 :class="lvl.status === 'active'
+                   ? 'card-elevated ring-2'
+                   : 'opacity-70'"
+                 :style="lvl.status === 'active'
+                   ? 'ring-color:var(--carmine-600);border-top:3px solid var(--carmine-600);'
+                   : lvl.status === 'pending'
+                     ? 'border-top:3px solid var(--warning-600);'
+                     : 'border-top:3px solid var(--ink-300);'">
+
+              <!-- Level number badge -->
+              <div class="flex items-center gap-2 mb-2">
+                <span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold text-white"
+                      :style="lvl.status === 'active'
+                        ? 'background:var(--carmine-600);'
+                        : lvl.status === 'pending'
+                          ? 'background:var(--warning-600);'
+                          : 'background:var(--ink-300);'"
+                      x-text="'N' + lvl.level"></span>
+                <span class="chip"
+                      :class="lvl.status === 'active' ? 'chip-carmine'
+                        : lvl.status === 'pending' ? 'chip-warning' : 'chip-neutral'"
+                      x-text="lvl.status === 'active' ? 'ACTIVO' : lvl.status === 'pending' ? 'EN DESARROLLO' : 'FUTURO'">
+                </span>
+              </div>
+
+              <h4 class="font-display text-sm font-bold mb-1" style="color:var(--ink-900);" x-text="lvl.name"></h4>
+              <p class="text-xs leading-relaxed mb-2" style="color:var(--ink-500);" x-text="lvl.description"></p>
+
+              <!-- Accuracy badge -->
+              <div class="mt-auto">
+                <span class="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-1 rounded"
+                      :class="lvl.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-500'"
+                      x-text="lvl.accuracy"></span>
+              </div>
+
+              <!-- Connector arrow (visual only, hidden on first) -->
+              <template x-if="lvl.level > 1">
+                <div class="hidden sm:block absolute -left-4 top-1/2 -translate-y-1/2">
+                  <i class="ph ph-caret-right text-lg" style="color:var(--ink-300);"></i>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+
+        <!-- ══ FCMAX + DATOS DEL ATLETA ════════════════════════════════ -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <!-- FCmax card -->
+          <div class="card p-5 text-center">
+            <div class="metric-label mb-1">FC Máxima</div>
+            <div class="text-3xl font-mono font-bold" style="color:var(--carmine-600);"
+                 x-text="mlData.fcmax"></div>
+            <div class="text-xs mt-1" style="color:var(--ink-500);">bpm</div>
+            <div class="chip mt-2"
+                 :class="mlData.fcmax_source === 'strava' ? 'chip-success' : 'chip-warning'">
+              <i class="ph" :class="mlData.fcmax_source === 'strava' ? 'ph-heart' : 'ph-calculator'"></i>
+              <span x-text="mlData.fcmax_source === 'strava' ? 'Observada (Strava)' : 'Estimada (220−edad)'"></span>
+            </div>
+          </div>
+
+          <!-- Modelo info -->
+          <div class="card p-5">
+            <div class="metric-label mb-2">Modelo Nivel 1</div>
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-xs">
+                <span style="color:var(--ink-500);">Algoritmo</span>
+                <span class="font-mono font-semibold" x-text="mlData.model_info.name"></span>
+              </div>
+              <div class="flex justify-between text-xs">
+                <span style="color:var(--ink-500);">MAE</span>
+                <span class="font-mono font-semibold" x-text="mlData.model_info.mae_sec_km + ' seg/km'"></span>
+              </div>
+              <div class="flex justify-between text-xs">
+                <span style="color:var(--ink-500);">Intervalo conformal</span>
+                <span class="font-mono font-semibold" x-text="'±' + mlData.model_info.conformal_width_min_km + ' min/km'"></span>
+              </div>
+              <div class="flex justify-between text-xs">
+                <span style="color:var(--ink-500);">Cobertura</span>
+                <span class="font-mono font-semibold" x-text="(mlData.model_info.conformal_coverage * 100) + '%'"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dataset info -->
+          <div class="card p-5">
+            <div class="metric-label mb-2">Dataset de entrenamiento</div>
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-xs">
+                <span style="color:var(--ink-500);">Fuente</span>
+                <span class="font-semibold text-right text-[11px]" x-text="mlData.model_info.dataset"></span>
+              </div>
+              <div class="flex justify-between text-xs">
+                <span style="color:var(--ink-500);">Sesiones</span>
+                <span class="font-mono font-semibold" x-text="(mlData.model_info.n_train_sessions || 0).toLocaleString()"></span>
+              </div>
+              <div class="flex justify-between text-xs">
+                <span style="color:var(--ink-500);">Usuarios</span>
+                <span class="font-mono font-semibold" x-text="mlData.model_info.n_users"></span>
+              </div>
+              <div class="flex justify-between text-xs">
+                <span style="color:var(--ink-500);">Validación</span>
+                <span class="font-mono font-semibold text-[10px]" x-text="mlData.model_info.cv_protocol"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ ZONAS DE FC + RITMO POR NIVEL ══════════════════════════ -->
+        <div class="card p-0 overflow-hidden">
+          <div class="p-5 pb-3">
+            <div class="section-dash mb-2"><h3>Ritmo estimado por zona de FC</h3></div>
+            <p class="text-xs" style="color:var(--ink-500);">
+              Cada zona se define como un porcentaje de tu FCmax (<span class="font-mono font-semibold" x-text="mlData.fcmax"></span> bpm).
+              El modelo predice el ritmo sostenible medio para cada zona.
+            </p>
+          </div>
+
+          <!-- Zone bars visualization -->
+          <div class="px-5 pb-4 space-y-2">
+            <template x-for="z in mlData.zones" :key="z.zone">
+              <div class="flex items-center gap-3">
+                <!-- Zone label -->
+                <div class="w-36 shrink-0">
+                  <div class="flex items-center gap-2">
+                    <span class="inline-block w-3 h-3 rounded-sm shrink-0" :style="'background:' + z.color"></span>
+                    <span class="text-xs font-semibold" style="color:var(--ink-900);" x-text="z.name"></span>
+                  </div>
+                  <div class="text-[10px] font-mono ml-5" style="color:var(--ink-500);"
+                       x-text="z.hr_min + '–' + z.hr_max + ' bpm · ' + z.pct_fcmax_range"></div>
+                </div>
+
+                <!-- Pace bar -->
+                <div class="flex-1 relative h-9 rounded-lg overflow-hidden"
+                     style="background:var(--ink-100);">
+                  <div class="absolute inset-y-0 left-0 rounded-lg transition-all duration-500 flex items-center justify-end pr-3"
+                       :style="'background:' + z.color + '20; border-left:3px solid ' + z.color + '; width:' + Math.max(20, Math.min(95, (12 - z.nivel1.pace_min_km) / 10 * 100)) + '%;'">
+                    <span class="font-mono text-xs font-bold" :style="'color:' + z.color"
+                          x-text="z.nivel1.pace_fmt"></span>
+                  </div>
+                </div>
+
+                <!-- Conformal interval -->
+                <div class="w-28 text-right shrink-0">
+                  <span class="text-[10px] font-mono" style="color:var(--ink-500);"
+                        x-text="z.nivel1.interval_lower_fmt + ' – ' + z.nivel1.interval_upper_fmt"></span>
+                  <div class="text-[9px]" style="color:var(--ink-300);">intervalo 80%</div>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Legend -->
+          <div class="px-5 py-3 flex items-center gap-4 text-[10px]"
+               style="background:var(--bone-100);border-top:1px solid var(--ink-200);color:var(--ink-500);">
+            <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:var(--carmine-600);"></span> Nivel 1 — Prior poblacional (activo)</span>
+            <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:var(--warning-600);"></span> Nivel 2 — Cohorte RUNA (próximamente)</span>
+            <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:var(--ink-300);"></span> Nivel 3 — Individual (futuro)</span>
+          </div>
+        </div>
+
+        <!-- ══ TABLA DETALLADA POR ZONA ═══════════════════════════════ -->
+        <div class="card overflow-hidden">
+          <div class="p-5 pb-3">
+            <div class="section-dash mb-2"><h3>Detalle por zona</h3></div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead>
+                <tr style="background:var(--bone-100);border-bottom:1px solid var(--ink-200);">
+                  <th class="text-left px-4 py-2.5 font-semibold" style="color:var(--ink-700);">Zona</th>
+                  <th class="text-center px-3 py-2.5 font-semibold" style="color:var(--ink-700);">Rango FC</th>
+                  <th class="text-center px-3 py-2.5 font-semibold" style="color:var(--ink-700);">% FCmax</th>
+                  <th class="text-center px-3 py-2.5 font-semibold" style="color:var(--carmine-700);">
+                    <i class="ph ph-globe mr-0.5"></i> Nivel 1
+                  </th>
+                  <th class="text-center px-3 py-2.5 font-semibold" style="color:var(--warning-700);">
+                    <i class="ph ph-users-three mr-0.5"></i> Nivel 2
+                  </th>
+                  <th class="text-center px-3 py-2.5 font-semibold" style="color:var(--ink-500);">
+                    <i class="ph ph-user-focus mr-0.5"></i> Nivel 3
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="z in mlData.zones" :key="'tbl-' + z.zone">
+                  <tr class="border-b" style="border-color:var(--ink-100);">
+                    <td class="px-4 py-3">
+                      <div class="flex items-center gap-2">
+                        <span class="inline-block w-2.5 h-2.5 rounded-sm" :style="'background:' + z.color"></span>
+                        <span class="font-semibold" x-text="z.name"></span>
+                      </div>
+                    </td>
+                    <td class="text-center px-3 py-3 font-mono" x-text="z.hr_min + '–' + z.hr_max"></td>
+                    <td class="text-center px-3 py-3 font-mono" x-text="z.pct_fcmax_range"></td>
+                    <td class="text-center px-3 py-3">
+                      <span class="font-mono font-bold" style="color:var(--carmine-600);"
+                            x-text="z.nivel1.pace_fmt"></span>
+                    </td>
+                    <td class="text-center px-3 py-3">
+                      <span class="chip chip-warning text-[10px]">
+                        <i class="ph ph-clock-countdown"></i> Próximo
+                      </span>
+                    </td>
+                    <td class="text-center px-3 py-3">
+                      <span class="chip chip-neutral text-[10px]">
+                        <i class="ph ph-hourglass"></i> Futuro
+                      </span>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ══ ESTIMACIONES POR DISTANCIA ═════════════════════════════ -->
+        <div class="card overflow-hidden">
+          <div class="p-5 pb-3">
+            <div class="section-dash mb-2"><h3>Tiempos estimados por distancia</h3></div>
+            <p class="text-xs" style="color:var(--ink-500);">
+              Estimación basada en el ritmo de Z3 (tempo) con ajuste Riegel por distancia.
+              Solo Nivel 1 disponible actualmente.
+            </p>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 px-5 pb-5">
+            <template x-for="d in mlData.distances" :key="d.distance">
+              <div class="card p-4 text-center card-accent">
+                <div class="text-lg font-display font-bold" style="color:var(--carmine-600);"
+                     x-text="d.distance"></div>
+                <div class="text-2xl font-mono font-bold mt-1" style="color:var(--ink-900);"
+                     x-text="d.estimated_time_fmt"></div>
+                <div class="text-[11px] font-mono mt-1" style="color:var(--ink-500);"
+                     x-text="d.estimated_pace_fmt"></div>
+                <div class="chip chip-carmine mt-2 text-[9px]">
+                  <i class="ph ph-globe"></i> Nivel <span x-text="d.source_level"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- ══ FEATURES DEL MODELO ════════════════════════════════════ -->
+        <div class="card p-5">
+          <div class="section-dash mb-3"><h3>Features del modelo</h3></div>
+          <p class="text-xs mb-3" style="color:var(--ink-500);">
+            Las 8 variables que el modelo Ridge utiliza para estimar el ritmo.
+            Seleccionadas mediante ingeniería de features iterativa (v4).
+          </p>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <template x-for="feat in mlData.model_info.features" :key="feat">
+              <div class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
+                   style="background:var(--ink-100);color:var(--ink-700);">
+                <i class="ph ph-chart-bar text-sm" style="color:var(--carmine-600);"></i>
+                <span class="font-mono font-medium" x-text="feat"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- ══ COMPARACIÓN VISUAL ENTRE NIVELES ═══════════════════════ -->
+        <div class="card p-5">
+          <div class="section-dash mb-3"><h3>Mejora progresiva por nivel</h3></div>
+          <div class="space-y-4">
+            <!-- Level 1 bar -->
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-semibold" style="color:var(--carmine-600);">Nivel 1 — Prior poblacional</span>
+                <span class="text-xs font-mono" style="color:var(--ink-500);"
+                      x-text="'MAE: ' + mlData.model_info.mae_sec_km + ' seg/km'"></span>
+              </div>
+              <div class="h-5 rounded-full overflow-hidden" style="background:var(--ink-100);">
+                <div class="h-full rounded-full transition-all duration-1000"
+                     style="background:linear-gradient(90deg, var(--carmine-600), var(--carmine-500)); width:60%;"></div>
+              </div>
+              <div class="text-[10px] mt-0.5" style="color:var(--ink-500);">
+                Precisión base · 20 710 sesiones · 356 usuarios
+              </div>
+            </div>
+
+            <!-- Level 2 bar -->
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-semibold" style="color:var(--warning-600);">Nivel 2 — Cohorte RUNA</span>
+                <span class="text-xs font-mono" style="color:var(--ink-300);">MAE: ~30–34 seg/km (estimado)</span>
+              </div>
+              <div class="h-5 rounded-full overflow-hidden" style="background:var(--ink-100);">
+                <div class="h-full rounded-full"
+                     style="background:repeating-linear-gradient(45deg, var(--warning-600), var(--warning-600) 4px, var(--warning-50) 4px, var(--warning-50) 8px); width:75%; opacity:0.6;"></div>
+              </div>
+              <div class="text-[10px] mt-0.5" style="color:var(--ink-500);">
+                Esperado: mejora ~15–25% · Datos de atletas RUNA · En desarrollo
+              </div>
+            </div>
+
+            <!-- Level 3 bar -->
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-semibold" style="color:var(--ink-500);">Nivel 3 — Personalización individual</span>
+                <span class="text-xs font-mono" style="color:var(--ink-300);">MAE: ~20–25 seg/km (proyectado)</span>
+              </div>
+              <div class="h-5 rounded-full overflow-hidden" style="background:var(--ink-100);">
+                <div class="h-full rounded-full"
+                     style="background:repeating-linear-gradient(45deg, var(--ink-300), var(--ink-300) 4px, var(--ink-100) 4px, var(--ink-100) 8px); width:90%; opacity:0.4;"></div>
+              </div>
+              <div class="text-[10px] mt-0.5" style="color:var(--ink-500);">
+                Proyectado: mejora ~40–50% vs. Nivel 1 · Bayesiano con tus datos · Futuro
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ CHART: RITMO POR ZONA ══════════════════════════════════ -->
+        <div class="card p-5">
+          <div class="section-dash mb-3"><h3>Ritmo predicho vs zona de FC</h3></div>
+          <div class="relative" style="height:300px;">
+            <canvas id="chartMlZones"></canvas>
+          </div>
+        </div>
+
+        <!-- ══ DISCLAIMER ═════════════════════════════════════════════ -->
+        <div class="card p-4 flex items-start gap-3" style="background:var(--info-50);border:1px solid #c7d7e8;">
+          <i class="ph ph-info text-lg shrink-0" style="color:var(--info-600);"></i>
+          <div class="text-[11px] leading-relaxed" style="color:var(--info-700);">
+            <strong>Nota metodológica:</strong> Las estimaciones del Nivel 1 provienen de un modelo Ridge
+            entrenado con datos de Endomondo (Ni et al., 2019). La variable objetivo es <code>pace_min_km</code>.
+            El intervalo conformal tiene cobertura empírica del 80% (α=0.20).
+            Los Niveles 2 y 3 refinarán estas estimaciones con datos más cercanos al atleta.
+            <strong>Estos valores son orientativos, no prescripciones médicas.</strong>
+          </div>
+        </div>
+
+        </div><!-- fin template mlData -->
+        </template>
+
+      </div><!-- fin tab ML -->
 
       <!-- ════════════════ TAB: GLOSARIO ══════════════════════════════════ -->
       <div x-show="activeTab === 'glosario'" class="space-y-5">

@@ -121,6 +121,7 @@ let chartEff  = null;
 let chartZones = null;
 let chartCadence = null;
 let chartElev = null;
+let chartMlZones = null;
 
 // ─── Componente principal Alpine.js ───────────────────────────────────────
 function athleteApp() {
@@ -140,6 +141,9 @@ function athleteApp() {
     activities:   null,
     activitiesLoading: false,
     checkin:      null,
+    mlData:       null,
+    mlLoading:    false,
+    mlError:      null,
 
     // ── Inicialización ────────────────────────────────────────────────────
     init() {
@@ -159,6 +163,8 @@ function athleteApp() {
       this.coachContent = null;
       this.activities   = null;
       this.checkin      = null;
+      this.mlData       = null;
+      this.mlError      = null;
 
       try {
         // allSettled: si un endpoint falla, los demás siguen cargando
@@ -186,11 +192,12 @@ function athleteApp() {
 
         this.$nextTick(() => this._renderCharts());
 
-        // Cargar predicción, coach, actividades y checkin en paralelo
+        // Cargar predicción, coach, actividades, checkin y ML en paralelo
         this.fetchPrediction();
         this.fetchCoachContent();
         this.fetchActivities();
         this.fetchCheckin();
+        this.fetchMlHierarchy();
 
       } catch (e) {
         this.error = e.message;
@@ -292,6 +299,83 @@ function athleteApp() {
       } catch (e) {
         this.checkin = null;
       }
+    },
+
+    // ── Jerarquía ML ───────────────────────────────────────────────────────
+    async fetchMlHierarchy() {
+      this.mlLoading = true;
+      this.mlError   = null;
+      try {
+        this.mlData = await apiFetch(`/athletes/${this.cedula}/ml-hierarchy`);
+      } catch (e) {
+        this.mlData  = null;
+        this.mlError = e.message;
+      } finally {
+        this.mlLoading = false;
+      }
+    },
+
+    _renderMlChart() {
+      if (!this.mlData || !this.mlData.zones) return;
+      const ctx = document.getElementById('chartMlZones');
+      if (!ctx) return;
+      if (chartMlZones) { chartMlZones.destroy(); chartMlZones = null; }
+
+      const zones = this.mlData.zones;
+      const labels = zones.map(z => z.name.split('·')[0].trim());
+      const paces  = zones.map(z => z.nivel1.pace_min_km);
+      const colors = zones.map(z => z.color);
+
+      chartMlZones = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Nivel 1 — Ritmo (min/km)',
+            data: paces,
+            backgroundColor: colors.map(c => c + '40'),
+            borderColor: colors,
+            borderWidth: 2,
+            borderRadius: 6,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: 'y',
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label(ctx) {
+                  const v = ctx.raw;
+                  const m = Math.floor(v);
+                  const s = Math.round((v - m) * 60);
+                  return ` ${m}:${String(s).padStart(2, '0')} /km`;
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              title: { display: true, text: 'Ritmo (min/km)', font: { size: 11 } },
+              ticks: {
+                callback(v) {
+                  const m = Math.floor(v);
+                  const s = Math.round((v - m) * 60);
+                  return `${m}:${String(s).padStart(2, '0')}`;
+                },
+              },
+              min: Math.floor(Math.min(...paces) - 1),
+              max: Math.ceil(Math.max(...paces) + 0.5),
+            },
+            y: {
+              ticks: { font: { size: 11, weight: '600' } },
+              grid: { display: false },
+            },
+          },
+        },
+      });
     },
 
     // ── Predicción de rendimiento ─────────────────────────────────────────
@@ -1348,6 +1432,15 @@ function athleteApp() {
             this._renderStravaCharts();
           } else {
             [chartHr, chartEff, chartZones, chartCadence, chartElev].forEach(c => { if (c) c.resize(); });
+          }
+        });
+      }
+      if (tab === 'ml') {
+        this.$nextTick(() => {
+          if (!chartMlZones && this.mlData) {
+            this._renderMlChart();
+          } else if (chartMlZones) {
+            chartMlZones.resize();
           }
         });
       }
