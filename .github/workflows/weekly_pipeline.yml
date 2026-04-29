@@ -1,67 +1,98 @@
 # .github/workflows/weekly_pipeline.yml
 #
-# Sync semanal: llama al endpoint de Railway para actualizar todos los atletas.
+# Sync semanal: descubre automáticamente todos los atletas desde Railway/Supabase
+# y llama al endpoint de sync para cada uno.
+#
 # Se ejecuta cada LUNES a las 11:00 UTC (6:00am Bogotá, UTC-5).
-# Garantiza que el dashboard esté fresco aunque el atleta no haya subido actividades.
 #
-# El webhook de Strava cubre las actualizaciones en tiempo real (actividades nuevas).
-# Este schedule cubre el reset semanal (semana nueva, 0 km, plan actualizado).
+# No requiere secrets estáticos de cédulas — cualquier atleta que haya
+# completado el flujo OAuth de Strava queda automáticamente incluido.
 #
-# Secrets necesarios en GitHub → Settings → Secrets → Actions:
-#   RAILWAY_URL      (ej: https://runningcoaching-production.up.railway.app)
-#   API_KEY          (si está configurado en Railway; dejar vacío si no hay auth)
-#   CEDULA_DEFAULT   (cédula del atleta principal; default 1070982737)
-#   CEDULAS_EXTRA    (opcional: cédulas adicionales separadas por coma)
+# Secrets opcionales en GitHub → Settings → Secrets → Actions:
+#   RAILWAY_URL   (default: https://runningcoaching-production.up.railway.app)
+#   API_KEY       (si está configurado en Railway)
 
 name: Weekly Pipeline Sync
 
 on:
   schedule:
-    - cron: "0 11 * * 1"   # lunes 6:00am Bogotá
+    - cron: "0 11 * * 1"   # lunes 6:00am Bogotá (UTC-5 = 11:00 UTC)
   workflow_dispatch:
     inputs:
       cedula:
-        description: "Cédula específica (vacío = todas las configuradas)"
+        description: "Cédula específica (vacío = todos los atletas activos)"
         required: false
         default: ""
 
 jobs:
   sync:
-    name: Sync athletes via Railway API
+    name: Sync all athletes via Railway API
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
-      - name: Sync athletes
+      - name: Discover and sync athletes
         env:
-          RAILWAY_URL: ${{ secrets.RAILWAY_URL }}
-          API_KEY:     ${{ secrets.API_KEY }}
-          CEDULA_DEFAULT: ${{ secrets.CEDULA_DEFAULT }}
-          CEDULAS_EXTRA:  ${{ secrets.CEDULAS_EXTRA }}
-          INPUT_CEDULA:   ${{ github.event.inputs.cedula }}
+          RAILWAY_URL:   ${{ secrets.RAILWAY_URL }}
+          API_KEY:       ${{ secrets.API_KEY }}
+          INPUT_CEDULA:  ${{ github.event.inputs.cedula }}
         run: |
           BASE="${RAILWAY_URL:-https://runningcoaching-production.up.railway.app}"
-          MAIN="${INPUT_CEDULA:-${CEDULA_DEFAULT:-1070982737}}"
 
-          # Construir lista de cédulas: principal + extras
-          if [ -n "$CEDULAS_EXTRA" ]; then
-            CEDULAS="$MAIN,${CEDULAS_EXTRA}"
-          else
-            CEDULAS="$MAIN"
-          fi
-
-          # Header de autenticación (opcional)
-          AUTH_HEADER=""
+          # Header de autenticación (vacío si no hay API_KEY)
+          AUTH_ARGS=""
           if [ -n "$API_KEY" ]; then
-            AUTH_HEADER="-H 'X-API-Key: ${API_KEY}'"
+            AUTH_ARGS="-H \"X-API-Key: ${API_KEY}\""
           fi
 
-          # Sincronizar cada cédula
+          echo "🔍 Descubriendo atletas desde ${BASE}/athletes ..."
+
+          # Si se especificó una cédula manual, usar solo esa
+          if [ -n "$INPUT_CEDULA" ]; then
+            CEDULAS="$INPUT_CEDULA"
+            echo "   Modo manual: cedula=${INPUT_CEDULA}"
+          else
+            # Auto-descubrir todos los atletas registrados en Supabase
+            ATHLETES_JSON=$(curl -sf \
+              ${API_KEY:+-H "X-API-Key: ${API_KEY}"} \
+              "${BASE}/athletes")
+
+            if [ $? -ne 0 ] || [ -z "$ATHLETES_JSON" ]; then
+              echo "❌ No se pudo obtener la lista de atletas. Abortando."
+              exit 1
+            fi
+
+            CEDULAS=$(echo "$ATHLETES_JSON" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          athletes = data.get('athletes', [])
+          print(','.join(athletes))
+          print(f'   Total atletas: {len(athletes)}', file=sys.stderr)
+          ")
+            echo "   Atletas encontrados: $(echo $ATHLETES_JSON | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d[\"count\"])')"
+          fi
+
+          if [ -z "$CEDULAS" ]; then
+            echo "⚠️  Sin atletas para sincronizar."
+            exit 0
+          fi
+
+          # Contadores
+          SUCCESS=0
+          FAILED=0
+          FAILED_LIST=""
+
+          # Sincronizar cada atleta
           IFS=',' read -ra CEDULA_LIST <<< "$CEDULAS"
+          TOTAL=${#CEDULA_LIST[@]}
+          INDEX=0
+
           for CEDULA in "${CEDULA_LIST[@]}"; do
             CEDULA=$(echo "$CEDULA" | tr -d ' ')
-            echo "──────────────────────────────────────"
-            echo "Syncing cedula: $CEDULA"
+            INDEX=$((INDEX + 1))
+            echo ""
+            echo "[$INDEX/$TOTAL] Syncing cedula: $CEDULA ..."
+
             RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
               -X POST \
               -H "Content-Type: application/json" \
@@ -71,24 +102,47 @@ jobs:
             HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
             BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS")
 
-            echo "Status: $HTTP_STATUS"
-            echo "$BODY" | python3 -c "
+            PIPELINE_OK=$(echo "$BODY" | python3 -c "
           import sys, json
           try:
               d = json.load(sys.stdin)
-              print('  ok:', d.get('ok'))
-              print('  stages:', d.get('stages'))
-              print('  supabase ok:', (d.get('supabase') or {}).get('ok'))
-          except:
-              print(sys.stdin.read())
-          " 2>/dev/null || echo "$BODY"
+              stages = d.get('stages', {})
+              sb_ok = (d.get('supabase') or {}).get('ok', False)
+              print(f\"  stages: {stages}\")
+              print(f\"  supabase: {sb_ok}\")
+              print('OK' if d.get('ok') else 'FAIL')
+          except Exception as e:
+              print(f'PARSE_ERROR: {e}')
+          " 2>/dev/null)
 
-            if [ "$HTTP_STATUS" != "200" ]; then
-              echo "⚠️  Non-200 response for cedula $CEDULA — continuing"
+            if echo "$PIPELINE_OK" | grep -q "^OK$"; then
+              echo "  ✅ Sync completado"
+              SUCCESS=$((SUCCESS + 1))
             else
-              echo "✅ Sync ok: $CEDULA"
+              echo "  ❌ Sync falló (HTTP $HTTP_STATUS)"
+              echo "$BODY" | head -5
+              FAILED=$((FAILED + 1))
+              FAILED_LIST="${FAILED_LIST} ${CEDULA}"
+            fi
+
+            # Pausa entre atletas para no saturar la API de Strava
+            if [ $INDEX -lt $TOTAL ]; then
+              sleep 3
             fi
           done
 
-          echo "══════════════════════════════════════"
-          echo "Weekly sync complete."
+          # Resumen final
+          echo ""
+          echo "══════════════════════════════════════════"
+          echo "Weekly sync completo"
+          echo "  ✅ Exitosos : $SUCCESS / $TOTAL"
+          echo "  ❌ Fallidos : $FAILED / $TOTAL"
+          if [ -n "$FAILED_LIST" ]; then
+            echo "  Fallidos  :$FAILED_LIST"
+          fi
+          echo "══════════════════════════════════════════"
+
+          # Fallar el job si algún atleta falló
+          if [ $FAILED -gt 0 ]; then
+            exit 1
+          fi
