@@ -1,0 +1,61 @@
+{
+  "version": "v4",
+  "description": "Nivel 1 — Prior poblacional FC↔ritmo. Ridge alpha=1.0, feature set v4 (+dens_hr).",
+  "trained_on": "Endomondo FitRec — 20710 sesiones, 356 usuarios",
+  "features": [
+    "gender_bin",
+    "fcmax_obs",
+    "hr_mean",
+    "pct_fcmax",
+    "zona_num",
+    "hr_max_rel",
+    "log_duration",
+    "dens_hr"
+  ],
+  "coefs": [
+    -0.31159683,
+    -0.80448786,
+     0.65093851,
+    -1.13399642,
+     0.02877941,
+    -0.00124473,
+    -0.02539242,
+    -0.10388543
+  ],
+  "intercept": 5.432260096762721,
+  "scaler_mean": [
+    0.89782714,
+    198.81593400,
+    148.78419400,
+    75.16089680,
+    3.02071463,
+    0.84279506,
+    7.64848316,
+    0.19162541
+  ],
+  "scaler_scale": [
+    0.30287550,
+    14.86179749,
+    14.86155342,
+    8.50198900,
+    0.88749327,
+    0.08838219,
+    0.91433443,
+    0.12751841
+  ],
+  "conformal_q": 1.0605492948701531,
+  "mae_sec_km": 40.157287499449254,
+  "metrics": {
+    "cv_mae_sec_km": 40.16,
+    "r2": 0.188,
+    "conformal_coverage": 0.800,
+    "conformal_interval_min_km": 1.06
+  },
+  "notes": {
+    "target": "pace_min_km",
+    "cv": "GroupKFold K=10 agrupado por userId",
+    "conformal": "split 60/20/20 estratificado por atleta, alpha=0.20",
+    "speed_unit": "H2=km/h (NO H1=m/s — produce ritmos imposibles ~1.5 min/km)",
+    "fcmax_source": "FCmax_obs empirico desde sesiones (>=10 sesiones por usuario)"
+  }
+}

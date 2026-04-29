@@ -1185,23 +1185,25 @@ def get_ml_hierarchy(
     """
     import math
 
-    # ── Coeficientes del modelo Ridge embebidos ──────────────────────────────
-    # Extraídos de nivel1_prior_poblacional_FULL_v2.pkl para no depender del
-    # archivo .pkl en el servidor (Railway no tiene ml/notebooks/outputs/).
-    #
-    # Modelo: Ridge(alpha=1.0), features v4, target=pace_min_km
-    # Entrenado sobre FitRec/Endomondo, 20 710 sesiones, 356 usuarios.
-    RIDGE_COEFS = [-0.31159683, -0.80448786, 0.65093851, -1.13399642,
-                    0.02877941, -0.00124473, -0.02539242, -0.10388543]
-    RIDGE_INTERCEPT = 5.432260096762721
-    SCALER_MEAN  = [8.97827137e-01, 1.98815934e+02, 1.48784194e+02, 7.51608968e+01,
-                    3.02071463e+00, 8.42795057e-01, 7.64848316e+00, 1.91625406e-01]
-    SCALER_SCALE = [0.3028755, 14.86179749, 14.86155342, 8.501989,
-                    0.88749327, 0.08838219, 0.91433443, 0.12751841]
-    FEATURES     = ['gender_bin', 'fcmax_obs', 'hr_mean', 'pct_fcmax',
-                    'zona_num', 'hr_max_rel', 'log_duration', 'dens_hr']
-    CONFORMAL_Q  = 1.0605492948701531   # ± min/km (cobertura 80%)
-    MAE_SEC_KM   = 40.157287499449254
+    # ── Cargar modelo desde api/models/nivel1_ridge_v4.json ──────────────────
+    # El JSON está commiteado al repo → Railway siempre lo tiene.
+    # Para actualizar el modelo: reentrenar, exportar nuevo JSON, commitear.
+    _MODEL_PATH = Path(__file__).parent.parent / "models" / "nivel1_ridge_v4.json"
+    try:
+        _m = json.loads(_MODEL_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Modelo no encontrado: {_MODEL_PATH}. Asegúrate de commitear api/models/nivel1_ridge_v4.json",
+        )
+
+    RIDGE_COEFS     = _m["coefs"]
+    RIDGE_INTERCEPT = _m["intercept"]
+    SCALER_MEAN     = _m["scaler_mean"]
+    SCALER_SCALE    = _m["scaler_scale"]
+    FEATURES        = _m["features"]
+    CONFORMAL_Q     = _m["conformal_q"]
+    MAE_SEC_KM      = _m["mae_sec_km"]
 
     def _ridge_predict(X_raw: list[float]) -> float:
         """StandardScaler + Ridge predict sin sklearn."""
