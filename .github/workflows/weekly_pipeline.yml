@@ -33,90 +33,15 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
       - name: Sync athletes via Railway API
         env:
           RAILWAY_URL:  ${{ secrets.RAILWAY_URL }}
           API_KEY:      ${{ secrets.API_KEY }}
-          INPUT_CEDULA: ${{ github.event.inputs.cedula }}
         run: |
-          BASE="${RAILWAY_URL:-https://runningcoaching-production.up.railway.app}"
-          echo "Base URL: $BASE"
-
-          # ── Descubrir atletas ─────────────────────────────────────────────
-          if [ -n "$INPUT_CEDULA" ]; then
-            echo "Modo manual: cedula=$INPUT_CEDULA"
-            echo "$INPUT_CEDULA" > /tmp/athletes.txt
-          else
-            echo "Descubriendo atletas..."
-            AUTH_HEADER=""
-            [ -n "$API_KEY" ] && AUTH_HEADER="-H X-API-Key:$API_KEY"
-
-            curl -sf $AUTH_HEADER "$BASE/athletes" \
-              | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-athletes = data.get('athletes', [])
-print(f'Atletas encontrados: {len(athletes)}', file=sys.stderr)
-for a in athletes:
-    print(a)
-" > /tmp/athletes.txt
-
-            TOTAL=$(wc -l < /tmp/athletes.txt | tr -d ' ')
-            echo "Total: $TOTAL atletas"
-            cat /tmp/athletes.txt
-          fi
-
-          if [ ! -s /tmp/athletes.txt ]; then
-            echo "Sin atletas. Nada que hacer."
-            exit 0
-          fi
-
-          # ── Sincronizar cada atleta ───────────────────────────────────────
-          SUCCESS=0
-          FAILED=0
-          INDEX=0
-          TOTAL=$(wc -l < /tmp/athletes.txt | tr -d ' ')
-
-          while IFS= read -r CEDULA; do
-            [ -z "$CEDULA" ] && continue
-            INDEX=$((INDEX + 1))
-            echo ""
-            echo "[$INDEX/$TOTAL] cedula=$CEDULA"
-
-            AUTH_HEADER=""
-            [ -n "$API_KEY" ] && AUTH_HEADER="-H X-API-Key:$API_KEY"
-
-            HTTP_STATUS=$(curl -s -o /tmp/sync_out.json -w "%{http_code}" \
-              -X POST \
-              -H "Content-Type: application/json" \
-              $AUTH_HEADER \
-              "$BASE/athletes/$CEDULA/sync?steps=strava&steps=features&steps=plan&push_to_supabase=true")
-
-            if [ "$HTTP_STATUS" = "200" ]; then
-              echo "  ✅ OK"
-              SUCCESS=$((SUCCESS + 1))
-            else
-              echo "  ⚠️  HTTP $HTTP_STATUS"
-              head -2 /tmp/sync_out.json 2>/dev/null || true
-              FAILED=$((FAILED + 1))
-            fi
-
-            # Pausa entre atletas (evitar saturar la API de Strava)
-            [ $INDEX -lt $TOTAL ] && sleep 3
-
-          done < /tmp/athletes.txt
-
-          # ── Resumen ───────────────────────────────────────────────────────
-          echo ""
-          echo "════════════════════════════════"
-          echo "Sync completo"
-          echo "  ✅ Exitosos : $SUCCESS"
-          echo "  ⚠️  Con error: $FAILED"
-          echo "  Total      : $TOTAL"
-          echo "════════════════════════════════"
-
-          # Falla solo si ningún atleta se pudo sincronizar
-          if [ "$SUCCESS" -eq 0 ] && [ "$TOTAL" -gt 0 ]; then
-            echo "ERROR: ningún atleta sincronizado"
-            exit 1
-          fi
+          ARGS=""
+          CEDULA="${{ github.event.inputs.cedula }}"
+          [ -n "$CEDULA" ] && ARGS="--cedula $CEDULA"
+          python scripts/sync_all_athletes.py $ARGS
