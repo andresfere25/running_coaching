@@ -1,105 +1,94 @@
 # .github/workflows/weekly_pipeline.yml
 #
-# Pipeline semanal automatizado de Running Coaching.
-# Se ejecuta cada LUNES a las 6:00am (hora Bogotá, UTC-5 = 11:00 UTC).
-# También se puede lanzar manualmente desde GitHub → Actions → Run workflow.
+# Sync semanal: llama al endpoint de Railway para actualizar todos los atletas.
+# Se ejecuta cada LUNES a las 11:00 UTC (6:00am Bogotá, UTC-5).
+# Garantiza que el dashboard esté fresco aunque el atleta no haya subido actividades.
 #
-# NOTA SOBRE --all vs --cedula:
-#   El flag --all descubre atletas desde data/athletes/ local.
-#   En CI esa carpeta no existe (gitignoreada), por lo que --all falla en el runner.
-#   Solución: el workflow siempre usa --cedula con la cédula configurada.
-#   Para correr todos los atletas localmente: python run_pipeline.py --all
-#   Para agregar una cédula diferente en CI: ajustar CEDULA_DEFAULT en GitHub Secrets
-#   o usar el input manual de workflow_dispatch.
+# El webhook de Strava cubre las actualizaciones en tiempo real (actividades nuevas).
+# Este schedule cubre el reset semanal (semana nueva, 0 km, plan actualizado).
+#
+# Secrets necesarios en GitHub → Settings → Secrets → Actions:
+#   RAILWAY_URL      (ej: https://runningcoaching-production.up.railway.app)
+#   API_KEY          (si está configurado en Railway; dejar vacío si no hay auth)
+#   CEDULA_DEFAULT   (cédula del atleta principal; default 1070982737)
+#   CEDULAS_EXTRA    (opcional: cédulas adicionales separadas por coma)
 
-name: Running Coaching Pipeline
+name: Weekly Pipeline Sync
 
 on:
-  # schedule desactivado — pipeline legado (Google Sheets + PDF) reemplazado por flujo en tiempo real
-  # - cron: "0 11 * * 1"   # lunes 6:00am Bogotá (UTC-5 = 11:00 UTC)
+  schedule:
+    - cron: "0 11 * * 1"   # lunes 6:00am Bogotá
   workflow_dispatch:
     inputs:
       cedula:
-        description: "Cédula del atleta a procesar (deja vacío para usar CEDULA_DEFAULT)"
+        description: "Cédula específica (vacío = todas las configuradas)"
         required: false
         default: ""
-      skip_strava:
-        description: "Omitir sync de Strava"
-        type: boolean
-        default: false
 
 jobs:
-  pipeline:
-    name: Run Pipeline
+  sync:
+    name: Sync athletes via Railway API
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
 
     steps:
-      # 1. Checkout del código
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      # 2. Python 3.12
-      - name: Setup Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-
-      # 3. Instalar dependencias
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      # 4. Reconstruir el service account JSON desde GitHub Secret
-      - name: Reconstruct Google credentials
+      - name: Sync athletes
+        env:
+          RAILWAY_URL: ${{ secrets.RAILWAY_URL }}
+          API_KEY:     ${{ secrets.API_KEY }}
+          CEDULA_DEFAULT: ${{ secrets.CEDULA_DEFAULT }}
+          CEDULAS_EXTRA:  ${{ secrets.CEDULAS_EXTRA }}
+          INPUT_CEDULA:   ${{ github.event.inputs.cedula }}
         run: |
-          mkdir -p secrets
-          echo '${{ secrets.GOOGLE_SA_JSON }}' > secrets/google_service_account.json
+          BASE="${RAILWAY_URL:-https://runningcoaching-production.up.railway.app}"
+          MAIN="${INPUT_CEDULA:-${CEDULA_DEFAULT:-1070982737}}"
 
-      # 5. Crear .env desde secrets
-      - name: Create .env
-        run: |
-          cat > .env << EOF
-          SHEET_ID=${{ secrets.SHEET_ID }}
-          GOOGLE_SA_JSON=secrets/google_service_account.json
-          STRAVA_CLIENT_ID=${{ secrets.STRAVA_CLIENT_ID }}
-          STRAVA_CLIENT_SECRET=${{ secrets.STRAVA_CLIENT_SECRET }}
-          DATA_DIR=data/athletes
-          TIMEZONE=America/Bogota
-          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
-          EOF
-
-      # 6. Correr tests antes del pipeline
-      - name: Run tests
-        run: pytest tests/ -q --tb=short
-
-      # 7. Correr el pipeline
-      #    Resolución de cédula (en orden de prioridad):
-      #      1. Input manual de workflow_dispatch
-      #      2. Secret CEDULA_DEFAULT configurado en el repo
-      #      3. Fallback hardcodeado (atleta de prueba)
-      - name: Run pipeline
-        run: |
-          INPUT_CEDULA="${{ github.event.inputs.cedula }}"
-          DEFAULT_CEDULA="${{ secrets.CEDULA_DEFAULT }}"
-          CEDULA="${INPUT_CEDULA:-${DEFAULT_CEDULA:-1070982737}}"
-
-          CEDULA_FLAG="--cedula $CEDULA"
-
-          STRAVA_FLAG=""
-          if [ "${{ github.event.inputs.skip_strava }}" = "true" ]; then
-            STRAVA_FLAG="--skip-strava"
+          # Construir lista de cédulas: principal + extras
+          if [ -n "$CEDULAS_EXTRA" ]; then
+            CEDULAS="$MAIN,${CEDULAS_EXTRA}"
+          else
+            CEDULAS="$MAIN"
           fi
 
-          echo "Procesando cedula: $CEDULA"
-          python run_pipeline.py $CEDULA_FLAG $STRAVA_FLAG
+          # Header de autenticación (opcional)
+          AUTH_HEADER=""
+          if [ -n "$API_KEY" ]; then
+            AUTH_HEADER="-H 'X-API-Key: ${API_KEY}'"
+          fi
 
-      # 8. Subir PDFs generados como artefactos descargables
-      - name: Upload PDF reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coaching-reports-${{ github.run_number }}
-          path: data/athletes/*/outputs/*.pdf
-          retention-days: 30
-          if-no-files-found: warn
+          # Sincronizar cada cédula
+          IFS=',' read -ra CEDULA_LIST <<< "$CEDULAS"
+          for CEDULA in "${CEDULA_LIST[@]}"; do
+            CEDULA=$(echo "$CEDULA" | tr -d ' ')
+            echo "──────────────────────────────────────"
+            echo "Syncing cedula: $CEDULA"
+            RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+              -X POST \
+              -H "Content-Type: application/json" \
+              ${API_KEY:+-H "X-API-Key: ${API_KEY}"} \
+              "${BASE}/athletes/${CEDULA}/sync?steps=strava&steps=features&steps=plan&push_to_supabase=true")
+
+            HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
+            BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS")
+
+            echo "Status: $HTTP_STATUS"
+            echo "$BODY" | python3 -c "
+          import sys, json
+          try:
+              d = json.load(sys.stdin)
+              print('  ok:', d.get('ok'))
+              print('  stages:', d.get('stages'))
+              print('  supabase ok:', (d.get('supabase') or {}).get('ok'))
+          except:
+              print(sys.stdin.read())
+          " 2>/dev/null || echo "$BODY"
+
+            if [ "$HTTP_STATUS" != "200" ]; then
+              echo "⚠️  Non-200 response for cedula $CEDULA — continuing"
+            else
+              echo "✅ Sync ok: $CEDULA"
+            fi
+          done
+
+          echo "══════════════════════════════════════"
+          echo "Weekly sync complete."
