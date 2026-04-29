@@ -77,6 +77,23 @@ def _create_minimal_profile_from_supabase(cedula: str, data_dir: Path) -> bool:
         return False
 
 
+def _get_athlete_name(cedula: str, client) -> str | None:
+    """Lee el nombre del atleta desde la tabla athletes (lo pone el coach en el Portal)."""
+    try:
+        res = (
+            client.table("athletes")
+            .select("name")
+            .eq("cedula", cedula)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            return res.data[0].get("name") or None
+    except Exception:
+        pass
+    return None
+
+
 def _ingest_single_profile(cedula: str, data_dir: Path, client) -> None:
     """Ingesta de un solo perfil desde Supabase."""
     # 1. Intentar leer perfil completo de athlete_profiles
@@ -90,6 +107,18 @@ def _ingest_single_profile(cedula: str, data_dir: Path, client) -> None:
         )
         if res.data and res.data[0].get("raw"):
             profile = res.data[0]["raw"]
+
+            # Si el formulario no trajo nombre, tomarlo del registro del Portal
+            # (el coach lo ingresa manualmente al crear el invite en Panel Admin)
+            if not profile.get("name"):
+                name_from_portal = _get_athlete_name(cedula, client)
+                if name_from_portal:
+                    profile["name"] = name_from_portal
+                    print(f"[ingest] Nombre tomado del Portal para {cedula}: {name_from_portal}")
+
+            # Garantizar que cedula siempre esté en el perfil
+            profile.setdefault("cedula", cedula)
+
             paths = ensure_dirs(data_dir, cedula)
             profile_json_path = paths["meta"] / "profile.json"
             profile_json_path.write_text(
