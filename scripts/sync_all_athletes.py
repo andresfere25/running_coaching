@@ -66,7 +66,7 @@ def get_athletes() -> list[str]:
 def sync_athlete(cedula: str) -> bool:
     path = (
         f"/athletes/{cedula}/sync"
-        "?steps=strava&steps=features&steps=plan&push_to_supabase=true"
+        "?steps=ingest&steps=strava&steps=features&steps=plan&push_to_supabase=true"
     )
     status, data = _request("POST", path)
     if status == 200 and data.get("ok"):
