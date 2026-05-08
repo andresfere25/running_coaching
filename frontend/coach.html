@@ -1144,20 +1144,34 @@ function coachApp() {
 
     async cleanupAllNames() {
       if (this.cleanupRunning) return;
-      if (!confirm('Esto va a sincronizar todos los nombres legacy (cédula, "Atleta {cedula}") usando el formulario/portal. ¿Continuar?')) return;
+      if (!confirm('Esto va a:\n  1) Sincronizar todos los nombres legacy (cédula, "Atleta {cedula}") usando form/portal.\n  2) Limpiar entradas huérfanas en el Panel Admin (D1) de atletas que ya no existen.\n\n¿Continuar?')) return;
       this.cleanupRunning = true;
       try {
-        const res = await fetch('/athletes/diagnostics/cleanup-names', { method: 'POST' });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Error');
-        this.successMsg = `✓ Limpieza: ${data.fixed_count} corregidos · ${data.pending_count} sin nombre real (edítalos manualmente)`;
+        // 1. Limpiar nombres legacy
+        const namesRes  = await fetch('/athletes/diagnostics/cleanup-names', { method: 'POST' });
+        const namesData = await namesRes.json();
+        if (!namesRes.ok) throw new Error(namesData.detail || 'Error en cleanup-names');
+
+        // 2. Limpiar orphans en D1 (Panel Admin)
+        let orphansMsg = '';
+        try {
+          const orphRes = await fetch('/athletes/diagnostics/cleanup-orphans', { method: 'POST' });
+          const orphData = await orphRes.json();
+          if (orphRes.ok) {
+            orphansMsg = ` · ${orphData.deleted ?? 0} orphans del Panel Admin eliminados`;
+          } else if (orphRes.status === 503) {
+            orphansMsg = ` · (Worker no configurado: setea INTERNAL_SHARED_SECRET para limpiar D1)`;
+          }
+        } catch (_) {}
+
+        this.successMsg = `✓ ${namesData.fixed_count} nombres corregidos · ${namesData.pending_count} sin nombre real${orphansMsg}`;
+
         // Refrescar lista
         try {
           const listRes  = await fetch('/athletes');
           const listData = await listRes.json();
           this.athletes = listData.athletes || this.athletes;
         } catch (_) {}
-        // Recargar el atleta actual
         if (this.cedula) await this.loadDraft();
       } catch (e) {
         this.error = 'Error en limpieza: ' + e.message;

@@ -17,6 +17,7 @@ Endpoints:
 """
 
 import json
+import os
 from datetime import date, datetime
 from pathlib import Path
 from typing import Literal, Optional
@@ -2243,8 +2244,146 @@ def delete_athlete(
     else:
         results["local_files"] = "not found (ok)"
 
+    # 3. Worker D1 cleanup — propagar delete a Cloudflare D1
+    # Sin esto, el atleta queda como orphan en el Panel Admin.
+    worker_url = os.getenv("WORKER_URL", "https://app.arathleteslab.com").rstrip("/")
+    shared_secret = os.getenv("INTERNAL_SHARED_SECRET", "").strip()
+    if shared_secret:
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                f"{worker_url}/api/internal/athletes/by-cedula/{cedula}",
+                method="DELETE",
+                headers={"X-Internal-Secret": shared_secret},
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                resp_body = json.loads(resp.read().decode())
+                results["worker_d1"] = (
+                    "deleted" if resp_body.get("deleted_from_d1") else "not found in D1 (ok)"
+                )
+        except Exception as exc:
+            results["worker_d1"] = f"error: {exc}"
+    else:
+        results["worker_d1"] = "skipped (INTERNAL_SHARED_SECRET not configured)"
+
     return {
         "cedula": cedula,
         "status": "deleted",
         "details": results,
+    }
+
+
+# ─── Detección de orphans en D1 ──────────────────────────────────────────────
+
+
+def _compute_orphans() -> dict:
+    """Lógica pura para diff D1↔Supabase. Sin dependencias FastAPI."""
+    from src.storage.supabase_client import get_client
+
+    worker_url = os.getenv("WORKER_URL", "https://app.arathleteslab.com").rstrip("/")
+    shared_secret = os.getenv("INTERNAL_SHARED_SECRET", "").strip()
+    if not shared_secret:
+        raise HTTPException(
+            status_code=503,
+            detail="INTERNAL_SHARED_SECRET no configurado en Railway. No se puede consultar D1.",
+        )
+
+    # 1. Cedulas en D1
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            f"{worker_url}/api/internal/athletes/list-cedulas",
+            headers={"X-Internal-Secret": shared_secret},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            d1_data = json.loads(resp.read().decode())
+        d1_athletes = d1_data.get("athletes", [])
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Worker unreachable: {exc}")
+
+    d1_cedulas = {
+        str(a.get("external_athlete_id")): a
+        for a in d1_athletes
+        if a.get("external_athlete_id")
+    }
+
+    # 2. Cedulas en Supabase
+    client = get_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Supabase no disponible")
+    res = client.table("athletes").select("cedula,name").execute()
+    supabase_cedulas = {str(r["cedula"]): r for r in (res.data or []) if r.get("cedula")}
+
+    # 3. Diff
+    orphans_in_d1 = [
+        {"cedula": ced, **d1_cedulas[ced]}
+        for ced in (set(d1_cedulas.keys()) - set(supabase_cedulas.keys()))
+    ]
+    missing_in_d1 = [
+        supabase_cedulas[ced]
+        for ced in (set(supabase_cedulas.keys()) - set(d1_cedulas.keys()))
+    ]
+
+    return {
+        "d1_total":       len(d1_cedulas),
+        "supabase_total": len(supabase_cedulas),
+        "orphans_in_d1":  orphans_in_d1,
+        "missing_in_d1":  missing_in_d1,
+    }
+
+
+@router.get("/diagnostics/orphans")
+def diagnose_orphans(_: None = Depends(require_api_key)):
+    """
+    Compara el estado entre Cloudflare D1 (Panel Admin) y Supabase (Coach Panel).
+
+    Reporta:
+      - orphans_in_d1: atletas que existen en D1 pero NO en Supabase
+                       (entradas viejas que el Panel Admin sigue mostrando)
+      - missing_in_d1: atletas en Supabase pero no en D1 (raro, pipeline roto)
+
+    Útil para detectar inconsistencias entre los dos sistemas.
+    """
+    return _compute_orphans()
+
+
+@router.post("/diagnostics/cleanup-orphans")
+def cleanup_orphans(_: None = Depends(require_api_key)):
+    """
+    Borra de D1 todos los atletas que NO existen en Supabase.
+    Idempotente: corre cuantas veces quieras.
+    """
+    diag = _compute_orphans()
+    orphans = diag["orphans_in_d1"]
+
+    worker_url = os.getenv("WORKER_URL", "https://app.arathleteslab.com").rstrip("/")
+    shared_secret = os.getenv("INTERNAL_SHARED_SECRET", "").strip()
+
+    deleted = []
+    failed = []
+    import urllib.request
+    for orphan in orphans:
+        ced = orphan.get("cedula") or orphan.get("external_athlete_id")
+        if not ced:
+            continue
+        try:
+            req = urllib.request.Request(
+                f"{worker_url}/api/internal/athletes/by-cedula/{ced}",
+                method="DELETE",
+                headers={"X-Internal-Secret": shared_secret},
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                body = json.loads(resp.read().decode())
+                if body.get("ok"):
+                    deleted.append({"cedula": ced, "name": orphan.get("name")})
+                else:
+                    failed.append({"cedula": ced, "error": body})
+        except Exception as exc:
+            failed.append({"cedula": ced, "error": str(exc)})
+
+    return {
+        "found":   len(orphans),
+        "deleted": len(deleted),
+        "failed":  len(failed),
+        "details": {"deleted": deleted, "failed": failed},
     }
