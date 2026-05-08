@@ -2254,7 +2254,13 @@ def delete_athlete(
             req = urllib.request.Request(
                 f"{worker_url}/api/internal/athletes/by-cedula/{cedula}",
                 method="DELETE",
-                headers={"X-Internal-Secret": shared_secret},
+                headers={
+                    "X-Internal-Secret": shared_secret,
+                    # Cloudflare Bot Fight Mode bloquea Python-urllib/3.x.
+                    # Usar User-Agent estándar para que pase la WAF.
+                    "User-Agent": "running-coaching-backend/1.0 (+https://runningcoaching-production.up.railway.app)",
+                    "Accept": "application/json",
+                },
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
                 resp_body = json.loads(resp.read().decode())
@@ -2293,7 +2299,12 @@ def _compute_orphans() -> dict:
         import urllib.request
         req = urllib.request.Request(
             f"{worker_url}/api/internal/athletes/list-cedulas",
-            headers={"X-Internal-Secret": shared_secret},
+            headers={
+                "X-Internal-Secret": shared_secret,
+                # Cloudflare Bot Fight Mode bloquea Python-urllib/3.x → User-Agent normal
+                "User-Agent": "running-coaching-backend/1.0 (+https://runningcoaching-production.up.railway.app)",
+                "Accept": "application/json",
+            },
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
             d1_data = json.loads(resp.read().decode())
@@ -2362,6 +2373,11 @@ def cleanup_orphans(_: None = Depends(require_api_key)):
     deleted = []
     failed = []
     import urllib.request
+    common_headers = {
+        "X-Internal-Secret": shared_secret,
+        "User-Agent": "running-coaching-backend/1.0 (+https://runningcoaching-production.up.railway.app)",
+        "Accept": "application/json",
+    }
     for orphan in orphans:
         ced = orphan.get("cedula") or orphan.get("external_athlete_id")
         if not ced:
@@ -2370,7 +2386,7 @@ def cleanup_orphans(_: None = Depends(require_api_key)):
             req = urllib.request.Request(
                 f"{worker_url}/api/internal/athletes/by-cedula/{ced}",
                 method="DELETE",
-                headers={"X-Internal-Secret": shared_secret},
+                headers=common_headers,
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
                 body = json.loads(resp.read().decode())
