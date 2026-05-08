@@ -132,10 +132,50 @@ def list_athletes(_: None = Depends(require_api_key)):
         from src.storage.supabase_client import get_client
         client = get_client()
         if client:
-            res = client.table("athletes").select("cedula").order("cedula").execute()
+            # Una sola query: cedula + name desde la tabla athletes
+            res = (
+                client.table("athletes")
+                .select("cedula,name")
+                .order("cedula")
+                .execute()
+            )
             if res.data:
-                cedulas = [r["cedula"] for r in res.data if r.get("cedula")]
-                return {"athletes": cedulas, "count": len(cedulas)}
+                names_by_cedula: dict[str, str] = {}
+                cedulas: list[str] = []
+                for r in res.data:
+                    ced = r.get("cedula")
+                    if not ced:
+                        continue
+                    cedulas.append(ced)
+                    raw_name = (r.get("name") or "").strip()
+                    # Filtrar nombres autogenerados legacy "Atleta {cedula}"
+                    if raw_name and not raw_name.lower().startswith(f"atleta {ced}"):
+                        names_by_cedula[str(ced)] = raw_name
+
+                # Fallback: si no hay name en athletes, intentar athlete_profiles.raw->>name
+                missing = [c for c in cedulas if str(c) not in names_by_cedula]
+                if missing:
+                    try:
+                        prof_res = (
+                            client.table("athlete_profiles")
+                            .select("cedula,raw")
+                            .in_("cedula", missing)
+                            .execute()
+                        )
+                        for r in (prof_res.data or []):
+                            ced = r.get("cedula")
+                            raw = r.get("raw") or {}
+                            nm = (raw.get("name") or "").strip() if isinstance(raw, dict) else ""
+                            if ced and nm and not nm.lower().startswith(f"atleta {ced}"):
+                                names_by_cedula[str(ced)] = nm
+                    except Exception as exc:
+                        print(f"[athletes] athlete_profiles fallback read error: {exc}")
+
+                athletes_with_names = [
+                    {"cedula": ced, "name": names_by_cedula.get(str(ced)) or ced}
+                    for ced in cedulas
+                ]
+                return {"athletes": athletes_with_names, "count": len(athletes_with_names)}
     except Exception as exc:
         print(f"[athletes] Supabase list error: {exc}")
 
@@ -148,7 +188,19 @@ def list_athletes(_: None = Depends(require_api_key)):
         d.name for d in data_dir.iterdir()
         if d.is_dir() and d.name.isdigit()
     )
-    return {"athletes": cedulas, "count": len(cedulas)}
+    # Enriquecer con nombres desde profile.json local (best-effort)
+    athletes_with_names = []
+    for ced in cedulas:
+        name = ced
+        prof_path = data_dir / ced / "meta" / "profile.json"
+        if prof_path.exists():
+            try:
+                prof = json.loads(prof_path.read_text(encoding="utf-8"))
+                name = prof.get("name") or ced
+            except Exception:
+                pass
+        athletes_with_names.append({"cedula": ced, "name": name})
+    return {"athletes": athletes_with_names, "count": len(athletes_with_names)}
 
 
 # ─── Perfil ──────────────────────────────────────────────────────────────────
@@ -171,6 +223,67 @@ def get_profile(
             detail="Perfil no disponible. Ejecuta primero: POST /athletes/{cedula}/sync",
         )
     return data
+
+
+# ─── Actualizar perfil (nombre del atleta) ───────────────────────────────────
+
+
+class AthleteNameUpdate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+
+
+@router.patch("/{cedula}/profile/name")
+def update_athlete_name(
+    cedula: str,
+    body: AthleteNameUpdate,
+    _: None = Depends(require_api_key),
+):
+    """
+    Actualiza el nombre del atleta. Usado por el coach desde el panel cuando el
+    formulario o el portal no trajo nombre y quedó como "Atleta {cedula}" o vacío.
+
+    Persiste en: profile.json local + Supabase athlete_profiles + Supabase athletes.
+    """
+    from src.storage.supabase_client import get_client
+    from src.storage.writer import push_profile
+
+    new_name = body.name.strip()
+    if not new_name:
+        raise HTTPException(status_code=422, detail="El nombre no puede estar vacío")
+
+    athlete_dir = get_data_dir() / cedula
+    data = read_profile(cedula, athlete_dir if athlete_dir.exists() else None) or {}
+    data["name"] = new_name
+    data.setdefault("cedula", cedula)
+
+    # 1. Guardar localmente
+    meta_dir = athlete_dir / "meta"
+    meta_dir.mkdir(parents=True, exist_ok=True)
+    profile_path = meta_dir / "profile.json"
+    profile_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    # 2. Push a Supabase athlete_profiles (raw + columna name)
+    push_result = push_profile(cedula, athlete_dir)
+
+    # 3. También actualizar tabla athletes (para que list_athletes lo vea inmediato)
+    client = get_client()
+    if client:
+        try:
+            client.table("athletes").upsert(
+                {"cedula": cedula, "name": new_name}, on_conflict="cedula"
+            ).execute()
+        except Exception as exc:
+            print(f"[athletes] update name on athletes table failed: {exc}")
+
+    return {
+        "ok": True,
+        "cedula": cedula,
+        "name": new_name,
+        "supabase": push_result.get("detail"),
+    }
 
 
 # ─── Actualizar perfil (carrera objetivo) ────────────────────────────────────

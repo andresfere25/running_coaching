@@ -48,9 +48,12 @@ def _create_minimal_profile_from_supabase(cedula: str, data_dir: Path) -> bool:
             return False
 
         row = res.data[0]
+        # Si el portal no trae nombre, dejar None — el frontend muestra fallback amigable
+        # y el coach lo edita después desde el Panel del Coach. NUNCA generar "Atleta {cedula}"
+        # porque queda guardado y se vuelve permanente.
         profile = {
             "cedula": cedula,
-            "name": row.get("name") or f"Atleta {cedula}",
+            "name": row.get("name") or None,
             "source": "portal",
             "race_history": [],
         }
@@ -108,13 +111,21 @@ def _ingest_single_profile(cedula: str, data_dir: Path, client) -> None:
         if res.data and res.data[0].get("raw"):
             profile = res.data[0]["raw"]
 
-            # Si el formulario no trajo nombre, tomarlo del registro del Portal
-            # (el coach lo ingresa manualmente al crear el invite en Panel Admin)
-            if not profile.get("name"):
+            # Si el formulario no trajo nombre, o trajo el legacy autogenerado
+            # "Atleta {cedula}", tomarlo del registro del Portal (athletes.name,
+            # llenado por el coach en Panel Admin al crear el invite).
+            import re as _re
+            current_name = (profile.get("name") or "").strip()
+            is_legacy_auto = bool(_re.match(rf"^Atleta\s+{cedula}$", current_name))
+            if not current_name or is_legacy_auto:
                 name_from_portal = _get_athlete_name(cedula, client)
-                if name_from_portal:
-                    profile["name"] = name_from_portal
+                if name_from_portal and not _re.match(rf"^Atleta\s+{cedula}$", name_from_portal.strip()):
+                    profile["name"] = name_from_portal.strip()
                     print(f"[ingest] Nombre tomado del Portal para {cedula}: {name_from_portal}")
+                elif is_legacy_auto:
+                    # Limpiar el legacy si el portal tampoco tiene nombre real
+                    profile["name"] = None
+                    print(f"[ingest] Nombre legacy 'Atleta {cedula}' eliminado — pendiente de edición manual")
 
             # Garantizar que cedula siempre esté en el perfil
             profile.setdefault("cedula", cedula)

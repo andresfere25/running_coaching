@@ -413,7 +413,16 @@ function athleteApp() {
 
     // ── Objetivo y perfil ─────────────────────────────────────────────────
     get athleteName() {
-      return this.snapshot?.profile?.name || '—';
+      const raw = this.snapshot?.profile?.name;
+      if (!raw) return '—';
+      // Detectar nombres autogenerados legacy "Atleta {cedula}" → mostrar fallback amigable
+      if (/^Atleta\s+\d+$/.test(raw.trim())) return '—';
+      return raw;
+    },
+
+    get hasRealName() {
+      const raw = this.snapshot?.profile?.name;
+      return !!raw && !/^Atleta\s+\d+$/.test(raw.trim());
     },
 
     get profile() {

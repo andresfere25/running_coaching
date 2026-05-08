@@ -230,10 +230,11 @@
     <!-- Nombre del atleta en el header cuando ya cargó -->
     <template x-if="snapshot && !loading">
       <div class="flex items-center gap-2.5">
-        <span class="text-sm" style="color:var(--ink-500);" x-text="athleteName"></span>
+        <span class="text-sm" style="color:var(--ink-500);"
+              x-text="hasRealName ? athleteName : 'Mi dashboard'"></span>
         <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
              style="background:var(--ink-100);color:var(--ink-700);"
-             x-text="athleteName ? athleteName.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase() : 'AR'"></div>
+             x-text="hasRealName ? athleteName.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase() : 'AR'"></div>
       </div>
     </template>
   </header>
@@ -409,7 +410,7 @@
               </template>
               <h2 class="text-2xl font-bold leading-tight tracking-tight"
                   style="font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink-900);"
-                  x-text="athleteName"></h2>
+                  x-text="hasRealName ? athleteName : '¡Bienvenido/a!'"></h2>
               <p class="text-xs mt-1.5 flex items-center gap-1.5" style="color:var(--ink-500);">
                 <span x-text="profile.city_country || ''"></span>
                 <template x-if="profile.age">

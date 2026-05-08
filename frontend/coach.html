@@ -78,8 +78,9 @@
           <template x-if="athletes.length === 0">
             <option value="">Cargando atletas…</option>
           </template>
-          <template x-for="a in athletes" :key="a">
-            <option :value="a" x-text="a"></option>
+          <template x-for="a in athletes" :key="typeof a === 'object' ? a.cedula : a">
+            <option :value="typeof a === 'object' ? a.cedula : a"
+                    x-text="typeof a === 'object' ? ((a.name && a.name !== a.cedula) ? (a.name + ' · ' + a.cedula) : a.cedula) : a"></option>
           </template>
         </select>
         <button @click="loadDraft()" class="btn-ghost">↺</button>
@@ -389,6 +390,27 @@
       <!-- Columna derecha: contexto del atleta (1/3) -->
       <!-- ═══════════════════════════════════════════════════════════════ -->
       <div class="space-y-4">
+
+        <!-- ── Nombre del atleta ──────────────────────────────────── -->
+        <div class="card px-5 py-4">
+          <div class="flex items-center justify-between mb-2">
+            <div class="label">👤 Nombre del atleta</div>
+            <template x-if="athleteNameSaved">
+              <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">✓ Guardado</span>
+            </template>
+          </div>
+          <div class="flex gap-2">
+            <input x-model="athleteNameDraft" type="text"
+                   placeholder="Nombre completo del atleta"
+                   class="field flex-1 text-sm" />
+            <button @click="saveAthleteName()" :disabled="savingAthleteName || !athleteNameDraft?.trim()"
+                    class="btn-primary text-xs">
+              <span x-show="!savingAthleteName">Guardar</span>
+              <span x-show="savingAthleteName">…</span>
+            </button>
+          </div>
+          <p class="text-xs text-slate-400 mt-1.5">Aparece en el dashboard del atleta. Si está vacío o autogenerado, edítalo aquí.</p>
+        </div>
 
         <!-- ── Carrera objetivo ───────────────────────────────────── -->
         <div class="card px-5 py-4">
@@ -1093,7 +1115,8 @@ function coachApp() {
           const d = await r.json();
           this.athletes = d.athletes || [];
           if (this.athletes.length > 0) {
-            this.cedula = this.athletes[0];
+            const first = this.athletes[0];
+            this.cedula = typeof first === 'object' ? first.cedula : first;
             await this.loadDraft();
           }
         } catch (_) {}
@@ -1103,6 +1126,40 @@ function coachApp() {
         this.deleteConfirmInput = '';
       } finally {
         this.deleting = false;
+      }
+    },
+
+    // ── Nombre del atleta ─────────────────────────────────────────────────
+    athleteNameDraft:  '',
+    savingAthleteName: false,
+    athleteNameSaved:  false,
+
+    async saveAthleteName() {
+      if (!this.cedula) return;
+      const name = (this.athleteNameDraft || '').trim();
+      if (!name) return;
+      this.savingAthleteName = true;
+      this.athleteNameSaved  = false;
+      try {
+        const res = await fetch(`/athletes/${this.cedula}/profile/name`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || 'Error');
+        this.athleteNameSaved = true;
+        this.successMsg = `Nombre actualizado: ${name}`;
+        // Refrescar la lista para que el dropdown muestre el nuevo nombre
+        try {
+          const listRes  = await fetch('/athletes');
+          const listData = await listRes.json();
+          this.athletes = listData.athletes || this.athletes;
+        } catch (_) {}
+        setTimeout(() => { this.athleteNameSaved = false; this.successMsg = null; }, 3000);
+      } catch (e) {
+        this.error = 'Error al guardar nombre: ' + e.message;
+      } finally {
+        this.savingAthleteName = false;
       }
     },
 
@@ -1155,7 +1212,8 @@ function coachApp() {
         const data = await res.json();
         this.athletes = data.athletes || [];
         if (this.athletes.length > 0) {
-          this.cedula = this.athletes[0];
+          const first = this.athletes[0];
+          this.cedula = typeof first === 'object' ? first.cedula : first;
           await this.loadDraft();
         }
       } catch (e) {
@@ -1182,6 +1240,9 @@ function coachApp() {
         // Rellenar carrera objetivo desde el perfil
         if (profileRes?.ok) {
           const profile = await profileRes.json();
+          // Prerellenar nombre — descartar autogenerados "Atleta {cedula}"
+          const rawName = (profile.name || '').trim();
+          this.athleteNameDraft = /^Atleta\s+\d+$/.test(rawName) ? '' : rawName;
           this.raceGoal.race_name     = profile.race_name || '';
           this.raceGoal.race_distance = profile.race_distance || '';
           // Convertir race_date_raw (MM/DD/YYYY o YYYY-MM-DD) a YYYY-MM-DD para input type=date
