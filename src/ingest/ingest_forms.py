@@ -49,11 +49,19 @@ def _create_minimal_profile_from_supabase(cedula: str, data_dir: Path) -> bool:
 
         row = res.data[0]
         # Si el portal no trae nombre, dejar None — el frontend muestra fallback amigable
-        # y el coach lo edita después desde el Panel del Coach. NUNCA generar "Atleta {cedula}"
-        # porque queda guardado y se vuelve permanente.
+        # y el coach lo edita después desde el Panel del Coach. NUNCA generar
+        # "Atleta {cedula}" ni guardar la cédula como nombre (legacy contaminante).
+        raw_name = (row.get("name") or "").strip()
+        clean_name: "str | None"
+        if not raw_name or raw_name == str(cedula):
+            clean_name = None
+        elif raw_name.lower().startswith(f"atleta {cedula}"):
+            clean_name = None
+        else:
+            clean_name = raw_name
         profile = {
             "cedula": cedula,
-            "name": row.get("name") or None,
+            "name": clean_name,
             "source": "portal",
             "race_history": [],
         }
@@ -111,21 +119,35 @@ def _ingest_single_profile(cedula: str, data_dir: Path, client) -> None:
         if res.data and res.data[0].get("raw"):
             profile = res.data[0]["raw"]
 
-            # Si el formulario no trajo nombre, o trajo el legacy autogenerado
-            # "Atleta {cedula}", tomarlo del registro del Portal (athletes.name,
-            # llenado por el coach en Panel Admin al crear el invite).
+            # Si el formulario no trajo nombre, o trajo un legacy autogenerado
+            # ("Atleta {cedula}" o solo la cédula como string), tomarlo del
+            # registro del Portal (athletes.name, llenado por el coach en
+            # Panel Admin al crear el invite).
             import re as _re
+
+            def _is_legacy_name(n: str, ced: str) -> bool:
+                """Detecta nombres autogenerados que no son nombres reales."""
+                n = (n or "").strip()
+                if not n:
+                    return True
+                if n == str(ced):
+                    return True
+                if _re.match(rf"^Atleta\s+{ced}$", n):
+                    return True
+                return False
+
             current_name = (profile.get("name") or "").strip()
-            is_legacy_auto = bool(_re.match(rf"^Atleta\s+{cedula}$", current_name))
-            if not current_name or is_legacy_auto:
+            if _is_legacy_name(current_name, cedula):
                 name_from_portal = _get_athlete_name(cedula, client)
-                if name_from_portal and not _re.match(rf"^Atleta\s+{cedula}$", name_from_portal.strip()):
+                if name_from_portal and not _is_legacy_name(name_from_portal, cedula):
                     profile["name"] = name_from_portal.strip()
                     print(f"[ingest] Nombre tomado del Portal para {cedula}: {name_from_portal}")
-                elif is_legacy_auto:
-                    # Limpiar el legacy si el portal tampoco tiene nombre real
+                else:
+                    # Si no hay nombre real en ningún lado, dejar None
+                    # (el frontend muestra fallback amigable; el coach lo edita después)
                     profile["name"] = None
-                    print(f"[ingest] Nombre legacy 'Atleta {cedula}' eliminado — pendiente de edición manual")
+                    if current_name:
+                        print(f"[ingest] Nombre legacy '{current_name}' eliminado para {cedula}")
 
             # Garantizar que cedula siempre esté en el perfil
             profile.setdefault("cedula", cedula)

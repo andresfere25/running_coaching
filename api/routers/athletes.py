@@ -148,8 +148,15 @@ def list_athletes(_: None = Depends(require_api_key)):
                         continue
                     cedulas.append(ced)
                     raw_name = (r.get("name") or "").strip()
-                    # Filtrar nombres autogenerados legacy "Atleta {cedula}"
-                    if raw_name and not raw_name.lower().startswith(f"atleta {ced}"):
+                    # Filtrar nombres autogenerados legacy:
+                    # - "Atleta {cedula}"
+                    # - solo la cédula como string ("1070985513")
+                    # - vacío
+                    if (
+                        raw_name
+                        and raw_name != str(ced)
+                        and not raw_name.lower().startswith(f"atleta {ced}")
+                    ):
                         names_by_cedula[str(ced)] = raw_name
 
                 # Fallback: si no hay name en athletes, intentar athlete_profiles.raw->>name
@@ -166,7 +173,12 @@ def list_athletes(_: None = Depends(require_api_key)):
                             ced = r.get("cedula")
                             raw = r.get("raw") or {}
                             nm = (raw.get("name") or "").strip() if isinstance(raw, dict) else ""
-                            if ced and nm and not nm.lower().startswith(f"atleta {ced}"):
+                            if (
+                                ced
+                                and nm
+                                and nm != str(ced)
+                                and not nm.lower().startswith(f"atleta {ced}")
+                            ):
                                 names_by_cedula[str(ced)] = nm
                     except Exception as exc:
                         print(f"[athletes] athlete_profiles fallback read error: {exc}")
@@ -223,6 +235,190 @@ def get_profile(
             detail="Perfil no disponible. Ejecuta primero: POST /athletes/{cedula}/sync",
         )
     return data
+
+
+# ─── Diagnóstico de nombres de atletas ───────────────────────────────────────
+
+
+def _is_legacy_name(name: "str | None", cedula: str) -> bool:
+    """True si el nombre es autogenerado/inválido y no debería mostrarse."""
+    import re as _re
+    n = (name or "").strip()
+    if not n:
+        return True
+    if n == str(cedula):
+        return True
+    if _re.match(rf"^Atleta\s+{cedula}$", n):
+        return True
+    return False
+
+
+@router.get("/diagnostics/names")
+def diagnose_names(_: None = Depends(require_api_key)):
+    """
+    Reporte de nombres por atleta con flag de legacy/válido.
+    Útil para auditar quién necesita edición manual desde el panel.
+    """
+    from src.storage.supabase_client import get_client
+
+    client = get_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Supabase no disponible")
+
+    res = client.table("athletes").select("cedula,name").order("cedula").execute()
+    athletes = res.data or []
+
+    cedulas = [a["cedula"] for a in athletes if a.get("cedula")]
+    profiles_by_ced: dict[str, str] = {}
+    if cedulas:
+        try:
+            prof_res = (
+                client.table("athlete_profiles")
+                .select("cedula,raw")
+                .in_("cedula", cedulas)
+                .execute()
+            )
+            for r in (prof_res.data or []):
+                raw = r.get("raw") or {}
+                if isinstance(raw, dict):
+                    profiles_by_ced[str(r.get("cedula"))] = (raw.get("name") or "").strip()
+        except Exception as exc:
+            print(f"[diagnose] error: {exc}")
+
+    report = []
+    needs_fix = 0
+    for a in athletes:
+        ced = a.get("cedula")
+        portal_name = (a.get("name") or "").strip()
+        form_name = profiles_by_ced.get(str(ced), "")
+        portal_legacy = _is_legacy_name(portal_name, ced)
+        form_legacy = _is_legacy_name(form_name, ced)
+        # El "nombre efectivo" prioriza form > portal
+        effective = form_name if not form_legacy else (portal_name if not portal_legacy else None)
+        is_ok = effective is not None
+        if not is_ok:
+            needs_fix += 1
+        report.append({
+            "cedula":          ced,
+            "athletes_name":   portal_name or None,
+            "form_name":       form_name or None,
+            "effective_name":  effective,
+            "needs_fix":       not is_ok,
+            "source":          "form" if (effective and effective == form_name) else ("portal" if effective else None),
+        })
+
+    return {
+        "total":     len(report),
+        "needs_fix": needs_fix,
+        "ok":        len(report) - needs_fix,
+        "report":    report,
+    }
+
+
+@router.post("/diagnostics/cleanup-names")
+def cleanup_names(_: None = Depends(require_api_key)):
+    """
+    Pasa por todos los atletas y NORMALIZA los nombres legacy:
+    - Si el form tiene nombre real → ese gana (también baja a athletes.name).
+    - Si solo athletes.name tiene nombre real → ese se preserva.
+    - Si ambos son legacy → no toca nada (queda pendiente de edición coach).
+
+    NO modifica nombres que ya son válidos. Idempotente: corre cuantas veces quieras.
+    """
+    from src.storage.supabase_client import get_client
+
+    client = get_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Supabase no disponible")
+
+    res = client.table("athletes").select("cedula,name").execute()
+    athletes = res.data or []
+
+    fixed = []
+    pending = []
+
+    for a in athletes:
+        ced = a.get("cedula")
+        if not ced:
+            continue
+        portal_name = (a.get("name") or "").strip()
+
+        # Buscar form_name desde athlete_profiles
+        form_name = ""
+        try:
+            pr = (
+                client.table("athlete_profiles")
+                .select("raw")
+                .eq("cedula", ced)
+                .limit(1)
+                .execute()
+            )
+            if pr.data and pr.data[0].get("raw") and isinstance(pr.data[0]["raw"], dict):
+                form_name = (pr.data[0]["raw"].get("name") or "").strip()
+        except Exception:
+            pass
+
+        portal_legacy = _is_legacy_name(portal_name, ced)
+        form_legacy = _is_legacy_name(form_name, ced)
+
+        # Decisión
+        if not form_legacy:
+            real_name = form_name
+            source = "form"
+        elif not portal_legacy:
+            real_name = portal_name
+            source = "portal"
+        else:
+            pending.append({"cedula": ced, "reason": "no real name in form or portal"})
+            continue
+
+        # Sincronizar a TODOS los lugares
+        actions = []
+        if portal_name != real_name:
+            try:
+                client.table("athletes").update({"name": real_name}).eq("cedula", ced).execute()
+                actions.append("athletes.name")
+            except Exception as exc:
+                actions.append(f"athletes.name FAILED: {exc}")
+
+        # Si el form tiene legacy pero portal tiene real → propagar real al raw del profile
+        if form_legacy and source == "portal":
+            try:
+                pr2 = client.table("athlete_profiles").select("raw").eq("cedula", ced).limit(1).execute()
+                if pr2.data:
+                    raw = pr2.data[0].get("raw") or {}
+                    if isinstance(raw, dict):
+                        raw["name"] = real_name
+                        client.table("athlete_profiles").update({"raw": raw}).eq("cedula", ced).execute()
+                        actions.append("athlete_profiles.raw.name")
+            except Exception as exc:
+                actions.append(f"athlete_profiles FAILED: {exc}")
+
+        # Actualizar snapshot también
+        try:
+            sr = client.table("athlete_snapshots").select("raw").eq("cedula", ced).limit(1).execute()
+            if sr.data and sr.data[0].get("raw") and isinstance(sr.data[0]["raw"], dict):
+                snap = sr.data[0]["raw"]
+                prof = snap.get("profile") or {}
+                if prof.get("name") != real_name:
+                    prof["name"] = real_name
+                    snap["profile"] = prof
+                    client.table("athlete_snapshots").upsert(
+                        {"cedula": ced, "raw": snap}, on_conflict="cedula"
+                    ).execute()
+                    actions.append("athlete_snapshots.raw.profile.name")
+        except Exception as exc:
+            actions.append(f"snapshot FAILED: {exc}")
+
+        if actions:
+            fixed.append({"cedula": ced, "name": real_name, "source": source, "actions": actions})
+
+    return {
+        "fixed_count":   len(fixed),
+        "pending_count": len(pending),
+        "fixed":         fixed,
+        "pending":       pending,
+    }
 
 
 # ─── Actualizar perfil (nombre del atleta) ───────────────────────────────────

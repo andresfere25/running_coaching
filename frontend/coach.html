@@ -83,7 +83,14 @@
                     x-text="typeof a === 'object' ? ((a.name && a.name !== a.cedula) ? (a.name + ' · ' + a.cedula) : a.cedula) : a"></option>
           </template>
         </select>
-        <button @click="loadDraft()" class="btn-ghost">↺</button>
+        <button @click="loadDraft()" class="btn-ghost" title="Recargar atleta">↺</button>
+        <button @click="cleanupAllNames()"
+                :disabled="cleanupRunning"
+                class="text-xs text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 px-2 py-1.5 rounded-md transition-colors"
+                :title="'Limpia los nombres legacy (cédula, &quot;Atleta {cedula}&quot;) usando el form/portal'">
+          <span x-show="!cleanupRunning">🧹</span>
+          <span x-show="cleanupRunning">⌛</span>
+        </button>
         <button @click="confirmDelete = true"
                 :disabled="!cedula"
                 class="text-xs text-red-400 hover:text-red-600 hover:bg-red-50 px-2 py-1.5 rounded-md transition-colors"
@@ -1133,6 +1140,31 @@ function coachApp() {
     athleteNameDraft:  '',
     savingAthleteName: false,
     athleteNameSaved:  false,
+    cleanupRunning:    false,
+
+    async cleanupAllNames() {
+      if (this.cleanupRunning) return;
+      if (!confirm('Esto va a sincronizar todos los nombres legacy (cédula, "Atleta {cedula}") usando el formulario/portal. ¿Continuar?')) return;
+      this.cleanupRunning = true;
+      try {
+        const res = await fetch('/athletes/diagnostics/cleanup-names', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error');
+        this.successMsg = `✓ Limpieza: ${data.fixed_count} corregidos · ${data.pending_count} sin nombre real (edítalos manualmente)`;
+        // Refrescar lista
+        try {
+          const listRes  = await fetch('/athletes');
+          const listData = await listRes.json();
+          this.athletes = listData.athletes || this.athletes;
+        } catch (_) {}
+        // Recargar el atleta actual
+        if (this.cedula) await this.loadDraft();
+      } catch (e) {
+        this.error = 'Error en limpieza: ' + e.message;
+      } finally {
+        this.cleanupRunning = false;
+      }
+    },
 
     async saveAthleteName() {
       if (!this.cedula) return;
@@ -1219,6 +1251,18 @@ function coachApp() {
       } catch (e) {
         this.error = 'No se pudo cargar la lista de atletas: ' + e.message;
       }
+
+      // Auto-refresh silencioso de la lista cada 30s — para que aparezcan/desaparezcan
+      // atletas en vivo cuando completan onboarding o se eliminan, sin recargar página.
+      setInterval(async () => {
+        try {
+          const r = await fetch('/athletes');
+          const d = await r.json();
+          if (Array.isArray(d.athletes)) {
+            this.athletes = d.athletes;
+          }
+        } catch (_) { /* silent */ }
+      }, 30000);
     },
 
     // ── Cargar draft + published ────────────────────────────────────────
