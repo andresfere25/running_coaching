@@ -126,6 +126,23 @@ def root():
     }
 
 
+# ─── Cache-Control para assets estáticos ─────────────────────────────────────
+# Evita que el navegador sirva HTML/JS/CSS viejo después de un deploy.
+# Estrategia: el navegador SÍ cachea, pero SIEMPRE revalida con el servidor
+# (304 Not Modified si no cambió, 200 con archivo nuevo si cambió).
+# Resultado: cargas instantáneas si no cambió, sin cache hell tras un deploy.
+
+@app.middleware("http")
+async def no_stale_cache_for_frontend(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    # Aplicar a todo lo servido bajo /app (HTML, JS, CSS, JSON, etc.)
+    if path.startswith("/app"):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
+
 # ─── Frontend estático ────────────────────────────────────────────────────────
 # Montado AL FINAL para que los routers de la API tengan prioridad.
 # Acceso: https://<dominio>/app  (o http://localhost:8000/app en dev)
