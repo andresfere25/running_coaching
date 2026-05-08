@@ -242,7 +242,12 @@ def update_athlete_name(
     Actualiza el nombre del atleta. Usado por el coach desde el panel cuando el
     formulario o el portal no trajo nombre y quedó como "Atleta {cedula}" o vacío.
 
-    Persiste en: profile.json local + Supabase athlete_profiles + Supabase athletes.
+    Persiste en TODOS los lugares de lectura del dashboard, en una sola operación:
+      - profile.json local
+      - Supabase athlete_profiles.raw.name
+      - Supabase athletes.name
+      - Supabase athlete_snapshots.raw.profile.name  (← crítico: el dashboard lee de aquí)
+      - features/athlete_snapshot.json local
     """
     from src.storage.supabase_client import get_client
     from src.storage.writer import push_profile
@@ -256,7 +261,7 @@ def update_athlete_name(
     data["name"] = new_name
     data.setdefault("cedula", cedula)
 
-    # 1. Guardar localmente
+    # 1. Guardar profile.json localmente
     meta_dir = athlete_dir / "meta"
     meta_dir.mkdir(parents=True, exist_ok=True)
     profile_path = meta_dir / "profile.json"
@@ -268,20 +273,67 @@ def update_athlete_name(
     # 2. Push a Supabase athlete_profiles (raw + columna name)
     push_result = push_profile(cedula, athlete_dir)
 
-    # 3. También actualizar tabla athletes (para que list_athletes lo vea inmediato)
+    # 3. Actualizar tabla athletes (list_athletes lo lee desde aquí)
     client = get_client()
+    updates_done = ["profile.json"]
+    if push_result.get("ok"):
+        updates_done.append("athlete_profiles")
+
     if client:
         try:
             client.table("athletes").upsert(
                 {"cedula": cedula, "name": new_name}, on_conflict="cedula"
             ).execute()
+            updates_done.append("athletes")
         except Exception as exc:
             print(f"[athletes] update name on athletes table failed: {exc}")
+
+        # 4. CRÍTICO: actualizar athlete_snapshots.raw.profile.name
+        # El dashboard del atleta lee desde aquí — sin esto, el cambio no se ve
+        # hasta que corra el pipeline.
+        try:
+            snap_res = (
+                client.table("athlete_snapshots")
+                .select("raw")
+                .eq("cedula", cedula)
+                .limit(1)
+                .execute()
+            )
+            if snap_res.data and snap_res.data[0].get("raw"):
+                snap_raw = snap_res.data[0]["raw"]
+                if isinstance(snap_raw, dict):
+                    prof = snap_raw.get("profile") or {}
+                    prof["name"] = new_name
+                    snap_raw["profile"] = prof
+                    client.table("athlete_snapshots").upsert(
+                        {"cedula": cedula, "raw": snap_raw}, on_conflict="cedula"
+                    ).execute()
+                    updates_done.append("athlete_snapshots")
+        except Exception as exc:
+            print(f"[athletes] update name on athlete_snapshots failed: {exc}")
+
+    # 5. Actualizar snapshot local también (si existe)
+    local_snap_path = athlete_dir / "features" / "athlete_snapshot.json"
+    if local_snap_path.exists():
+        try:
+            snap_local = json.loads(local_snap_path.read_text(encoding="utf-8"))
+            if isinstance(snap_local, dict):
+                prof = snap_local.get("profile") or {}
+                prof["name"] = new_name
+                snap_local["profile"] = prof
+                local_snap_path.write_text(
+                    json.dumps(snap_local, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+                updates_done.append("athlete_snapshot.json")
+        except Exception as exc:
+            print(f"[athletes] update local snapshot failed: {exc}")
 
     return {
         "ok": True,
         "cedula": cedula,
         "name": new_name,
+        "updated": updates_done,
         "supabase": push_result.get("detail"),
     }
 
