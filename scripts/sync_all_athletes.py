@@ -58,9 +58,18 @@ def get_athletes() -> list[str]:
     if status != 200:
         print(f"  ERROR al obtener atletas: HTTP {status} — {data}")
         sys.exit(1)
-    athletes = data.get("athletes", [])
-    print(f"  Total: {len(athletes)} atletas")
-    return athletes
+    raw = data.get("athletes", [])
+    # Compat: el endpoint puede devolver list[str] (legacy) o list[{cedula, name}].
+    cedulas: list[str] = []
+    for item in raw:
+        if isinstance(item, dict):
+            ced = item.get("cedula")
+            if ced:
+                cedulas.append(str(ced))
+        elif isinstance(item, str):
+            cedulas.append(item)
+    print(f"  Total: {len(cedulas)} atletas")
+    return cedulas
 
 
 def sync_athlete(cedula: str) -> bool:
