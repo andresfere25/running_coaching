@@ -700,14 +700,21 @@ def create_onboarding_profile(
     Recibe el perfil completo de onboarding y lo persiste.
     Merge: los campos enviados como None no sobreescriben valores existentes.
     Escribe en profile.json local y sincroniza a Supabase.
+
+    Garantía FK: hace upsert en athletes (tabla maestra) ANTES de
+    insertar en athlete_profiles para evitar violación de FK constraint.
     """
-    from src.storage.writer import push_profile
+    from src.storage.writer import push_profile, push_athlete
 
     if body.cedula != cedula:
         raise HTTPException(
             status_code=400,
             detail="La cédula en el body no coincide con la URL",
         )
+
+    # 0. Garantizar fila en tabla athletes (FK parent de athlete_profiles)
+    #    Upsert idempotente — si ya existe, solo actualiza el nombre.
+    push_athlete(cedula, body.name)
 
     # 1. Leer perfil existente (si hay)
     athlete_dir = get_data_dir() / cedula
