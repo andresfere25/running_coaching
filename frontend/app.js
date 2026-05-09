@@ -234,9 +234,10 @@ function athleteApp() {
     async fetchActivities() {
       this.activitiesLoading = true;
       try {
-        // Sin filtro de sport_type: traemos todas para separar en getters
+        // Límite 200 para cubrir atletas multi-deporte donde runs son minoría
+        // (ej: 31 runs entre 279 actividades — con limit=30 no se capturaban)
         this.activities = await apiFetch(
-          `/athletes/${this.cedula}/activities?limit=30`
+          `/athletes/${this.cedula}/activities?limit=200`
         );
       } catch (e) {
         this.activities = { data: [], count: 0, error: e.message };

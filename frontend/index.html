@@ -1738,11 +1738,11 @@
               <p class="text-[10px] mt-0.5" style="color:var(--ink-400,#9CA3AF);">Distribución por zona · FCmax est. <span x-text="estimatedFCmax"></span> bpm</p>
             </div>
           </div>
-          <template x-if="hrZoneDistribution.total > 0">
+          <template x-if="hrZoneDistribution && hrZoneDistribution.total > 0">
             <div class="h-56 flex items-center justify-center"><canvas id="chartHrZones"></canvas></div>
           </template>
-          <template x-if="hrZoneDistribution.total === 0">
-            <p class="text-xs text-slate-400 text-center py-8">Sin datos de frecuencia cardíaca disponibles.</p>
+          <template x-if="!hrZoneDistribution || hrZoneDistribution.total === 0">
+            <p class="text-xs text-slate-400 text-center py-8">Sin carreras recientes con FC registrada. Las zonas se calculan a partir de actividades de tipo <em>Run</em> con monitor cardíaco.</p>
           </template>
         </div>
 

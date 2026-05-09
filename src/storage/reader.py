@@ -17,7 +17,7 @@ Funciones públicas:
 Schema canónico de actividad (read_activities siempre devuelve este shape):
   activity_id, cedula, name, sport_type, activity_date,
   distance_m, distance_km, duration_sec, elevation_m,
-  pace_sec_per_km, average_heartrate, average_cadence
+  pace_sec_per_km, average_heartrate, max_heartrate, average_cadence
 """
 
 import json
@@ -54,6 +54,7 @@ def _normalize_activity(row: dict, source: str) -> dict:
             "elevation_m":       row.get("elevation_m"),
             "pace_sec_per_km":   row.get("avg_pace_sec_km"),
             "average_heartrate": raw.get("average_heartrate"),
+            "max_heartrate":     raw.get("max_heartrate"),
             "average_cadence":   raw.get("average_cadence"),
         }
     else:  # local parquet
@@ -69,6 +70,7 @@ def _normalize_activity(row: dict, source: str) -> dict:
             "elevation_m":       row.get("total_elevation_gain_m"),
             "pace_sec_per_km":   row.get("pace_sec_per_km"),
             "average_heartrate": row.get("average_heartrate"),
+            "max_heartrate":     row.get("max_heartrate"),
             "average_cadence":   row.get("average_cadence"),
         }
 
