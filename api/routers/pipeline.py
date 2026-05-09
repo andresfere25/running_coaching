@@ -7,7 +7,10 @@ Los resultados estarán disponibles en GET /athletes/{cedula}/snapshot
 una vez que el pipeline termine (~30-90 segundos según pasos).
 
 Endpoints:
-  POST /athletes/{cedula}/pipeline   → dispara pipeline en background
+  POST /athletes/{cedula}/pipeline   → dispara pipeline en background (1 atleta)
+  POST /pipeline/bulk                → actualiza múltiples atletas en SECUENCIA
+                                       sin saturar el servidor (usar en lugar de
+                                       disparar N requests independientes)
 """
 
 import os
@@ -115,5 +118,64 @@ def trigger_pipeline(
         "message": (
             "Pipeline iniciado en background. "
             f"Consulta GET /athletes/{cedula}/snapshot en ~30-90s para ver resultados."
+        ),
+    }
+
+
+# ─── Endpoint bulk (secuencial) ──────────────────────────────────────────────
+
+@router.post("/bulk", tags=["pipeline"])
+def trigger_bulk_pipeline(
+    background_tasks: BackgroundTasks,
+    cedulas: list[str],
+    steps: Annotated[
+        list[str],
+        Query(description="Pasos a ejecutar. Default: strava+features+plan.")
+    ] = ["strava", "features", "plan"],
+    skip_strava: bool = Query(default=False, description="Omitir sync de Strava"),
+    _: None = Depends(require_api_key),
+):
+    """
+    Actualiza múltiples atletas en SECUENCIA (uno tras otro) en un único
+    BackgroundTask. Usar en lugar de disparar N requests de /pipeline
+    independientes para evitar saturar el servidor.
+
+    Body: lista de cédulas  → ["1070982737", "1003567622", ...]
+    Responde inmediatamente con la lista encolada.
+    Los pipelines corren uno a uno respetando el semáforo global.
+    """
+    invalid_steps = [s for s in steps if s not in VALID_STEPS]
+    if invalid_steps:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Steps inválidos: {invalid_steps}. Válidos: {VALID_STEPS}",
+        )
+    if not cedulas:
+        raise HTTPException(status_code=422, detail="Se requiere al menos una cédula.")
+    if len(cedulas) > 100:
+        raise HTTPException(status_code=422, detail="Máximo 100 cédulas por llamada.")
+
+    def _run_all_sequentially():
+        ok, err = [], []
+        for ced in cedulas:
+            try:
+                _run_pipeline_subprocess(ced, steps, skip_strava)
+                ok.append(ced)
+            except Exception as e:
+                print(f"[pipeline/bulk] ERROR cedula={ced}: {e}")
+                err.append(ced)
+        print(f"[pipeline/bulk] Completado: {len(ok)} OK, {len(err)} errores")
+
+    background_tasks.add_task(_run_all_sequentially)
+
+    return {
+        "status":      "bulk_queued",
+        "total":       len(cedulas),
+        "cedulas":     cedulas,
+        "steps":       steps,
+        "skip_strava": skip_strava,
+        "message": (
+            f"{len(cedulas)} atletas encolados para actualización secuencial. "
+            "Los pipelines corren uno a uno. Consulta /snapshot por atleta para ver resultados."
         ),
     }
