@@ -1146,8 +1146,8 @@ function athleteApp() {
     },
 
     // ── FC promedio por semana (para tabla historial) ──────────────────────
-    // El pipeline usa W-MON (semana termina lunes → empieza martes)
-    // Así que week_start en features es un martes. Alineamos aquí.
+    // El pipeline usa W-SUN (ISO week: lunes → domingo).
+    // week_start en features es el LUNES de cada semana. Alineamos aquí.
     get weeklyAvgHR() {
       const runs = (this.activities?.data || [])
         .filter(a => (a.sport_type || '').toLowerCase().includes('run') && a.average_heartrate > 0);
@@ -1155,13 +1155,12 @@ function athleteApp() {
       const byWeek = {};
       for (const a of runs) {
         const d = new Date((a.activity_date || '').slice(0, 10) + 'T00:00:00');
-        // Alinear al martes (día 2): retroceder hasta el martes anterior
-        const tue = new Date(d);
+        // Retroceder hasta el lunes de esa semana ISO
+        const mon = new Date(d);
         const dayOfWeek = d.getDay(); // 0=Dom, 1=Lun, 2=Mar, ...
-        // Offset para llegar al martes de esa semana (W-MON)
-        const offset = (dayOfWeek + 5) % 7; // Mar=0, Mié=1, ..., Lun=6
-        tue.setDate(d.getDate() - offset);
-        const key = tue.toISOString().slice(0, 10);
+        const offset = (dayOfWeek + 6) % 7; // Lun=0, Mar=1, ..., Dom=6
+        mon.setDate(d.getDate() - offset);
+        const key = mon.toISOString().slice(0, 10);
         if (!byWeek[key]) byWeek[key] = [];
         byWeek[key].push(a.average_heartrate);
       }
