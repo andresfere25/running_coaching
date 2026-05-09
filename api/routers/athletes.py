@@ -322,6 +322,7 @@ def cleanup_names(_: None = Depends(require_api_key)):
     Pasa por todos los atletas y NORMALIZA los nombres legacy:
     - Si el form tiene nombre real → ese gana (también baja a athletes.name).
     - Si solo athletes.name tiene nombre real → ese se preserva.
+    - Si Supabase no tiene name pero D1 (Panel Admin) sí → propagar de D1.
     - Si ambos son legacy → no toca nada (queda pendiente de edición coach).
 
     NO modifica nombres que ya son válidos. Idempotente: corre cuantas veces quieras.
@@ -331,6 +332,31 @@ def cleanup_names(_: None = Depends(require_api_key)):
     client = get_client()
     if not client:
         raise HTTPException(status_code=503, detail="Supabase no disponible")
+
+    # Pre-fetch nombres en D1 para auto-corrección desde el Panel Admin
+    d1_names_by_cedula: dict[str, str] = {}
+    worker_url = os.getenv("WORKER_URL", "https://app.arathleteslab.com").rstrip("/")
+    shared_secret = os.getenv("INTERNAL_SHARED_SECRET", "").strip()
+    if shared_secret:
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                f"{worker_url}/api/internal/athletes/list-cedulas",
+                headers={
+                    "X-Internal-Secret": shared_secret,
+                    "User-Agent": "running-coaching-backend/1.0 (+https://runningcoaching-production.up.railway.app)",
+                    "Accept": "application/json",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                d1_data = json.loads(resp.read().decode())
+            for a in d1_data.get("athletes", []):
+                ced = str(a.get("external_athlete_id") or "")
+                nm = (a.get("name") or "").strip()
+                if ced and nm and not _is_legacy_name(nm, ced):
+                    d1_names_by_cedula[ced] = nm
+        except Exception as exc:
+            print(f"[cleanup-names] D1 fetch failed: {exc}")
 
     res = client.table("athletes").select("cedula,name").execute()
     athletes = res.data or []
@@ -361,16 +387,20 @@ def cleanup_names(_: None = Depends(require_api_key)):
 
         portal_legacy = _is_legacy_name(portal_name, ced)
         form_legacy = _is_legacy_name(form_name, ced)
+        d1_name = d1_names_by_cedula.get(str(ced), "")
 
-        # Decisión
+        # Decisión: prioridad form > portal Supabase > D1 (Panel Admin) > pendiente
         if not form_legacy:
             real_name = form_name
             source = "form"
         elif not portal_legacy:
             real_name = portal_name
             source = "portal"
+        elif d1_name:
+            real_name = d1_name
+            source = "d1"
         else:
-            pending.append({"cedula": ced, "reason": "no real name in form or portal"})
+            pending.append({"cedula": ced, "reason": "no real name in form, portal, or D1"})
             continue
 
         # Sincronizar a TODOS los lugares
@@ -382,8 +412,9 @@ def cleanup_names(_: None = Depends(require_api_key)):
             except Exception as exc:
                 actions.append(f"athletes.name FAILED: {exc}")
 
-        # Si el form tiene legacy pero portal tiene real → propagar real al raw del profile
-        if form_legacy and source == "portal":
+        # Si el form tiene legacy pero hay un name real (portal o D1) → propagarlo
+        # también al raw del profile (que es lo que lee el snapshot generation).
+        if form_legacy and source in ("portal", "d1"):
             try:
                 pr2 = client.table("athlete_profiles").select("raw").eq("cedula", ced).limit(1).execute()
                 if pr2.data:
