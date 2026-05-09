@@ -1942,19 +1942,27 @@ def store_strava_token(
         f"expires_at={body.expires_at} (margen={(body.expires_at - int(time.time()))}s) | "
         f"access_token=…{body.access_token[-6:]} | refresh_token=…{body.refresh_token[-6:]}"
     )
-    from src.storage.writer import push_strava_tokens
+    from src.storage.writer import push_strava_tokens, push_athlete
+
+    # Garantizar fila maestra en athletes ANTES de escribir tokens.
+    # push_strava_tokens hace upsert sobre athletes, pero si Supabase tiene
+    # RLS activo o la fila no existe aún, el upsert puede fallar.
+    # push_athlete es idempotente y resuelve el FK constraint en cascada.
+    athlete_row = push_athlete(cedula, name=None)
+    print(f"[/strava/token] push_athlete result: {athlete_row}")
+
     result = push_strava_tokens(cedula, body.access_token, body.refresh_token, body.expires_at)
     print(f"[/strava/token] push_strava_tokens result: {result}")
     if not result.get("ok"):
         raise HTTPException(status_code=500, detail=result.get("detail", "Error writing tokens"))
 
-    # Auto-trigger pipeline en background: ingest → strava → features → plan → push Supabase
-    # ingest es necesario para que athlete_profiles se llene desde Google Sheets
+    # Auto-trigger pipeline: strava → features → plan
+    # (sin ingest — atletas del portal tienen perfil vía /profile/onboarding)
     from api.routers.sync import _run_pipeline_and_push
     background.add_task(
         _run_pipeline_and_push,
         cedula,
-        ["ingest", "strava", "features", "plan"],
+        ["strava", "features", "plan"],
         False,   # skip_strava=False
         True,    # push_to_supabase=True
     )
