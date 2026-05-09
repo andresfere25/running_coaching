@@ -13,6 +13,7 @@ Endpoints:
 import os
 import sys
 import subprocess
+import threading
 from pathlib import Path
 from typing import Annotated
 
@@ -28,12 +29,18 @@ VALID_STEPS = ["ingest", "strava", "features", "plan", "pdf"]
 # Raíz del proyecto (api/ está un nivel abajo del root)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
+# ── Semáforo global: máx 3 pipelines simultáneos ────────────────────────────
+# Evita que "Actualizar todos" con muchos atletas sature el container de Railway.
+# Con 3 slots: 3 pipelines corren en paralelo, los demás esperan en cola.
+_PIPELINE_SEMAPHORE = threading.Semaphore(3)
+
 
 def _run_pipeline_subprocess(cedula: str, steps: list[str], skip_strava: bool) -> None:
     """
     Corre run_pipeline.py como subproceso desde la raíz del proyecto.
     Diseñado para ser llamado desde BackgroundTasks.
     Los logs van a stdout/stderr del proceso del servidor.
+    Usa semáforo global para limitar la concurrencia a 3 pipelines simultáneos.
     """
     cmd = [
         sys.executable,
@@ -49,14 +56,15 @@ def _run_pipeline_subprocess(cedula: str, steps: list[str], skip_strava: bool) -
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
 
-    print(f"[pipeline] Iniciando para cedula={cedula} steps={steps}")
-    result = subprocess.run(
-        cmd,
-        cwd=str(PROJECT_ROOT),
-        capture_output=False,  # logs van al stdout del servidor
-        text=True,
-        env=env,
-    )
+    with _PIPELINE_SEMAPHORE:
+        print(f"[pipeline] Iniciando para cedula={cedula} steps={steps}")
+        result = subprocess.run(
+            cmd,
+            cwd=str(PROJECT_ROOT),
+            capture_output=False,  # logs van al stdout del servidor
+            text=True,
+            env=env,
+        )
     if result.returncode != 0:
         print(f"[pipeline] ERROR para cedula={cedula} (exit code {result.returncode})")
     else:
