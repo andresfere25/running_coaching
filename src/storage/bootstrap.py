@@ -52,28 +52,37 @@ def bootstrap_parquet_from_supabase(cedula: str) -> int:
     flat = []
     for r in rows:
         raw = r.get("raw") or {}
+        distance_m = r.get("distance_m")
+        moving_time_s = r.get("duration_sec")
         record = {
-            "activity_id":            r.get("strava_id"),
             "cedula":                 r.get("cedula"),
+            "activity_id":            r.get("strava_id"),
             "name":                   r.get("name"),
             "sport_type":             r.get("sport_type"),
+            "start_date":             raw.get("start_date") or r.get("activity_date"),
             "start_date_local":       r.get("activity_date"),
-            "distance_m":             r.get("distance_m"),
-            "moving_time_s":          r.get("duration_sec"),
+            "distance_m":             distance_m,
+            "distance_km":            (distance_m / 1000.0) if distance_m else None,
+            "moving_time_s":          moving_time_s,
+            "moving_time_min":        (moving_time_s / 60.0) if moving_time_s else None,
+            "elapsed_time_s":         raw.get("elapsed_time"),
             "total_elevation_gain_m": r.get("elevation_m"),
-            "pace_sec_per_km":        r.get("avg_pace_sec_km"),
-            # campos derivados que el pipeline espera
-            "distance_km":            (r.get("distance_m") or 0) / 1000 if r.get("distance_m") else None,
-            # extraer del JSONB raw los campos que features necesita
+            "average_speed_m_s":      raw.get("average_speed"),
+            "max_speed_m_s":          raw.get("max_speed"),
             "average_heartrate":      raw.get("average_heartrate"),
             "max_heartrate":          raw.get("max_heartrate"),
             "average_cadence":        raw.get("average_cadence"),
+            "pace_sec_per_km":        r.get("avg_pace_sec_km"),
         }
         flat.append(record)
 
     df = pd.DataFrame(flat)
     if df.empty:
         return 0
+
+    # activity_id como Int64 (mismo tipo que normalize_activities en sync_strava)
+    if "activity_id" in df.columns:
+        df["activity_id"] = pd.to_numeric(df["activity_id"], errors="coerce").astype("Int64")
 
     # Asegurar el directorio y escribir parquet
     data_dir = get_data_dir() / cedula / "silver"
