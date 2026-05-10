@@ -54,13 +54,27 @@ def bootstrap_parquet_from_supabase(cedula: str) -> int:
         raw = r.get("raw") or {}
         distance_m = r.get("distance_m")
         moving_time_s = r.get("duration_sec")
+
+        # CRÍTICO: start_date_local debe ser tz-naive (formato Strava original).
+        # build_features.py usa pd.to_period("W-SUN") que CRASHEA con tz-aware
+        # datetimes. La columna activity_date en Supabase es TIMESTAMPTZ (con
+        # timezone), por lo que NO se puede usar directamente. Preferimos
+        # raw.start_date_local (naive ISO) y como fallback strip de la zona.
+        start_date_local = raw.get("start_date_local")
+        if not start_date_local:
+            # Fallback: tomar activity_date y eliminar la zona horaria
+            adate = r.get("activity_date") or ""
+            # "2026-05-06T16:07:58+00:00" → "2026-05-06T16:07:58"
+            if adate:
+                start_date_local = adate.split("+")[0].rstrip("Z")
+
         record = {
             "cedula":                 r.get("cedula"),
             "activity_id":            r.get("strava_id"),
             "name":                   r.get("name"),
             "sport_type":             r.get("sport_type"),
             "start_date":             raw.get("start_date") or r.get("activity_date"),
-            "start_date_local":       r.get("activity_date"),
+            "start_date_local":       start_date_local,
             "distance_m":             distance_m,
             "distance_km":            (distance_m / 1000.0) if distance_m else None,
             "moving_time_s":          moving_time_s,
