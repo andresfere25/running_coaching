@@ -76,12 +76,12 @@ app.include_router(webhooks.router,                     tags=["webhooks"])
 @app.on_event("startup")
 async def _startup_rehydrate():
     """
-    Railway tiene disco efímero: cada deploy borra archivos locales.
-    Los datos viven en Supabase, pero el pipeline genera archivos locales
-    que algunos pasos necesitan. Al arrancar, disparamos pipelines para
-    todos los atletas registrados en background.
+    Railway tiene disco efímero: cada deploy borra archivos locales (parquets).
+    Los datos viven en Supabase. Al arrancar, reconstruimos el parquet local
+    de cada atleta directamente desde la tabla activities de Supabase
+    (sin llamar a Strava — ahorra rate limit) y luego corremos features+plan
+    para regenerar weekly_features y el snapshot.
     """
-    import asyncio
     import threading
 
     def _run_all_pipelines():
@@ -97,10 +97,16 @@ async def _startup_rehydrate():
             cedulas = [r["cedula"] for r in (res.data or []) if r.get("cedula")]
             logger.info("[startup] Rehydrating %d athletes...", len(cedulas))
 
+            from src.storage.bootstrap import bootstrap_parquet_from_supabase
+            from api.routers.pipeline import _run_pipeline_subprocess
+
             for ced in cedulas:
                 try:
-                    from api.routers.pipeline import _run_pipeline_subprocess
-                    _run_pipeline_subprocess(ced, ["ingest", "features", "plan"], skip_strava=True)
+                    # 1) Reconstruir parquet desde Supabase (sin Strava API)
+                    n = bootstrap_parquet_from_supabase(ced)
+                    logger.info("[startup] Bootstrap %s: %d activities restored", ced, n)
+                    # 2) Recompute features+plan a partir del parquet completo
+                    _run_pipeline_subprocess(ced, ["features", "plan"], skip_strava=True)
                     logger.info("[startup] Pipeline OK: %s", ced)
                 except Exception as exc:
                     logger.warning("[startup] Pipeline failed for %s: %s", ced, exc)

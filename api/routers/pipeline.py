@@ -122,6 +122,43 @@ def trigger_pipeline(
     }
 
 
+# ─── Endpoint: bootstrap parquet desde Supabase + recompute features ────────
+
+@router.post("/{cedula}/rehydrate", tags=["pipeline"])
+def rehydrate_athlete(
+    cedula: str,
+    background_tasks: BackgroundTasks,
+    _: None = Depends(require_api_key),
+):
+    """
+    Reconstruye el parquet local del atleta desde Supabase y recomputa
+    features+plan. Usar cuando:
+    - El parquet local quedó desincronizado tras un restart de Railway
+    - Las actividades en Supabase son más completas que el parquet local
+    - El dashboard muestra menos datos de los esperados (1 sem vs N)
+
+    No llama a Strava API — solo lee de Supabase. Rápido (~5s).
+    """
+    from src.storage.bootstrap import bootstrap_parquet_from_supabase
+
+    n = bootstrap_parquet_from_supabase(cedula)
+    if n == 0:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No hay actividades en Supabase para cedula={cedula}. Corre primero el step 'strava'.",
+        )
+
+    # Recompute features+plan en background
+    background_tasks.add_task(_run_pipeline_subprocess, cedula, ["features", "plan"], True)
+
+    return {
+        "status": "rehydrated",
+        "cedula": cedula,
+        "activities_restored": n,
+        "message": "Parquet reconstruido. features+plan corriendo en background (~30s).",
+    }
+
+
 # ─── Endpoint bulk (secuencial) ──────────────────────────────────────────────
 
 @router.post("/bulk", tags=["pipeline"])
