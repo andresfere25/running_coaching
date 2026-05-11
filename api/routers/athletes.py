@@ -1377,29 +1377,48 @@ def get_athlete_stats(
         activity_dates = {a["activity_date"][:10] for a in activities}
         strava_pending = len(activity_dates - snap_dates)
 
-        # 4. Todas las actividades (all-time) con raw para HR — para feature flags
-        all_runs = (
+        # 4a. weeks_span — solo necesitamos primera y última fecha (2 filas, sin raw)
+        first_run = (
             sb.table("activities")
-            .select("activity_date,sport_type,raw")
+            .select("activity_date")
             .eq("cedula", cedula)
             .in_("sport_type", ["Run", "TrailRun"])
             .order("activity_date", desc=False)
+            .limit(1)
+            .execute()
+        ).data or []
+        last_run = (
+            sb.table("activities")
+            .select("activity_date")
+            .eq("cedula", cedula)
+            .in_("sport_type", ["Run", "TrailRun"])
+            .order("activity_date", desc=True)
+            .limit(1)
             .execute()
         ).data or []
 
-        runs_with_hr = sum(
-            1 for a in all_runs
-            if (a.get("raw") or {}).get("average_heartrate") not in (None, 0)
-        )
-
-        # weeks_span: semanas entre primera y última carrera
         weeks_span = 0
-        if len(all_runs) >= 2:
+        if first_run and last_run:
             from datetime import date
-            d0 = all_runs[0]["activity_date"][:10]
-            d1 = all_runs[-1]["activity_date"][:10]
+            d0 = first_run[0]["activity_date"][:10]
+            d1 = last_run[0]["activity_date"][:10]
             delta = date.fromisoformat(d1) - date.fromisoformat(d0)
             weeks_span = max(1, delta.days // 7)
+
+        # 4b. runs_with_hr — filtramos en Supabase para no traer JSONB vacío
+        # not_.is_("raw", "null") descarta filas sin columna raw → mucho menos datos
+        hr_candidates = (
+            sb.table("activities")
+            .select("raw")
+            .eq("cedula", cedula)
+            .in_("sport_type", ["Run", "TrailRun"])
+            .not_.is_("raw", "null")
+            .execute()
+        ).data or []
+        runs_with_hr = sum(
+            1 for a in hr_candidates
+            if (a.get("raw") or {}).get("average_heartrate") not in (None, 0)
+        )
 
         # 5. Perfil (age/sex) — señala si el onboarding llegó a Supabase
         profile_rows = (
