@@ -181,13 +181,13 @@ def _sync_athlete_core(
     """
     new_refresh = refresh_token_in  # se retorna para que el llamador actualice si rotó
 
-    # 2) Ventana incremental
-    # Si el parquet local no existe (primer sync o redeploy limpió el disco),
-    # ignorar last_sync_dt y pedir los últimos 365 días completos.
+    # 2) Ventana de sync
+    # Si es el primer sync (sin last_sync_dt) o el parquet local no existe,
+    # pedir TODO el historial desde el inicio de Strava (2009).
     silver_path_check = data_dir / cedula / "silver" / "activities.parquet"
     local_data_exists = silver_path_check.exists()
     if last_sync_dt is None or not local_data_exists:
-        after_dt = now - timedelta(days=365)
+        after_dt = datetime(2009, 1, 1)   # historial completo — Strava existe desde 2009
     else:
         after_dt = last_sync_dt - timedelta(days=2)
     before_dt = now + timedelta(days=1)

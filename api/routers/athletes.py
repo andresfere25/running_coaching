@@ -1235,6 +1235,79 @@ def get_training_data(
     }
 
 
+# ─── Borrar datos de entrenamiento (mantiene perfil/registro) ────────────────
+
+@router.delete("/{cedula}/data")
+def delete_athlete_data(
+    cedula: str,
+    _: None = Depends(require_api_key),
+):
+    """
+    Borra todos los datos de entrenamiento del atleta.
+    Mantiene intactos: athletes (tokens Strava) y athlete_profiles (formulario).
+
+    Elimina:
+      - activities          → historial Strava
+      - weekly_features     → CTL/ATL/TSB/ACWR calculado
+      - athlete_snapshots   → estado actual del dashboard
+      - weekly_plans        → planes semanales generados
+      - training_snapshots  → datos históricos para modelo ML
+      - checkins            → check-ins semanales
+      - coach_content       → contenido publicado por el coach
+
+    También:
+      - Resetea strava_last_sync_at → próximo sync re-descarga historial completo
+      - Borra archivos locales (parquet) si existen en el disco de Railway
+    """
+    import shutil
+    from src.storage.supabase_client import get_client
+
+    sb = get_client()
+    if not sb:
+        return {"cedula": cedula, "error": "Supabase no disponible"}
+
+    TABLES = [
+        "activities",
+        "weekly_features",
+        "athlete_snapshots",
+        "weekly_plans",
+        "training_snapshots",
+        "checkins",
+        "coach_content",
+    ]
+
+    deleted: dict = {}
+    errors:  dict = {}
+
+    for table in TABLES:
+        try:
+            result = sb.table(table).delete().eq("cedula", cedula).execute()
+            deleted[table] = len(result.data or [])
+        except Exception as e:
+            errors[table] = str(e)
+            print(f"[delete_data] ERROR en tabla {table} para cedula={cedula}: {e}")
+
+    # Resetear last_sync_at para que próximo sync sea historial completo
+    try:
+        sb.table("athletes").update({"strava_last_sync_at": None}).eq("cedula", cedula).execute()
+        deleted["strava_last_sync_at"] = "reset"
+    except Exception as e:
+        errors["reset_sync"] = str(e)
+
+    # Borrar archivos locales si existen (Railway ephemeral disk)
+    athlete_dir = Path(os.getenv("DATA_DIR", "data/athletes")) / cedula
+    if athlete_dir.exists():
+        shutil.rmtree(athlete_dir, ignore_errors=True)
+        deleted["local_dir"] = str(athlete_dir)
+
+    return {
+        "status":  "deleted",
+        "cedula":  cedula,
+        "deleted": deleted,
+        "errors":  errors,
+    }
+
+
 # ─── Stats resumen por atleta (para panel del coach) ─────────────────────────
 
 @router.get("/{cedula}/stats")

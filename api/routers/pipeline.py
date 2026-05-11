@@ -122,6 +122,45 @@ def trigger_pipeline(
     }
 
 
+# ─── Endpoint: resync histórico completo ────────────────────────────────────
+
+@router.post("/{cedula}/resync")
+def resync_full_history(
+    cedula: str,
+    background_tasks: BackgroundTasks,
+    _: None = Depends(require_api_key),
+):
+    """
+    Fuerza un re-sync completo del historial de Strava para el atleta.
+
+    1. Resetea strava_last_sync_at = NULL en Supabase → el sync pide TODO
+       el historial desde 2009 (sin límite de 365 días)
+    2. Dispara pipeline strava+features+plan en background (~90s)
+
+    Usar cuando:
+    - Atleta activó HR en Garmin/Apple Watch → actividades viejas ahora tienen HR
+    - Atleta cambió privacidad en Strava → más actividades visibles
+    - Dashboard tiene menos datos de los esperados
+    - Se quiere recalcular todo desde cero con datos frescos
+    """
+    from src.storage.supabase_client import get_client
+    sb = get_client()
+    if sb:
+        try:
+            sb.table("athletes").update({"strava_last_sync_at": None}).eq("cedula", cedula).execute()
+            print(f"[resync] strava_last_sync_at reseteado para cedula={cedula}")
+        except Exception as e:
+            print(f"[resync] advertencia: no se pudo resetear last_sync_at: {e}")
+
+    background_tasks.add_task(_run_pipeline_subprocess, cedula, ["strava", "features", "plan"], False)
+
+    return {
+        "status":  "queued",
+        "cedula":  cedula,
+        "message": "strava_last_sync_at reseteado. Pipeline strava+features+plan iniciado con historial completo (~90s).",
+    }
+
+
 # ─── Endpoint: bootstrap parquet desde Supabase + recompute features ────────
 
 @router.post("/{cedula}/rehydrate", tags=["pipeline"])
