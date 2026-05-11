@@ -198,6 +198,106 @@ def rehydrate_athlete(
     }
 
 
+# ─── Endpoint: bulk resync historial completo ────────────────────────────────
+
+@router.post("/bulk-resync", tags=["pipeline"])
+def bulk_resync_history(
+    background_tasks: BackgroundTasks,
+    cedulas: list[str] | None = None,
+    _: None = Depends(require_api_key),
+):
+    """
+    Re-sync historial completo para múltiples atletas en SECUENCIA ESTRICTA.
+
+    1. Resetea strava_last_sync_at = NULL para cada atleta en Supabase.
+       Esto fuerza al sync a pedir historial desde 2009 en lugar de incremental.
+    2. Procesa UN atleta a la vez (semáforo=1 para este endpoint) con 5s de
+       pausa entre cada uno para respetar el rate limit de Strava
+       (100 req / 15 min, 1000 req / día por app).
+
+    Body: lista de cédulas ["1070982737", ...]
+    Si no se envía body, usa todos los atletas con strava_refresh_token en Supabase.
+
+    Estimado de tiempo:
+      - 44 atletas × ~90s por sync = ~66 minutos total en background
+      - Railway NO se satura porque es 1 subproceso a la vez
+      - Strava NO se satura porque hay pausa entre atletas
+
+    Responde inmediatamente (pipeline corre en background).
+    """
+    import time
+
+    from src.storage.supabase_client import get_client
+
+    sb = get_client()
+    if not sb:
+        raise HTTPException(status_code=503, detail="Supabase no disponible")
+
+    # Si no se envían cédulas, obtener todos con token Strava
+    if not cedulas:
+        res = (
+            sb.table("athletes")
+            .select("cedula")
+            .not_.is_("strava_refresh_token", "null")
+            .execute()
+        )
+        cedulas = [r["cedula"] for r in (res.data or []) if r.get("cedula")]
+
+    if not cedulas:
+        raise HTTPException(status_code=404, detail="No hay atletas con token Strava en Supabase.")
+
+    if len(cedulas) > 100:
+        raise HTTPException(status_code=422, detail="Máximo 100 cédulas por llamada.")
+
+    # Resetear last_sync_at para todos antes de iniciar
+    reset_ok, reset_err = [], []
+    for ced in cedulas:
+        try:
+            sb.table("athletes").update({"strava_last_sync_at": None}).eq("cedula", ced).execute()
+            reset_ok.append(ced)
+        except Exception as e:
+            reset_err.append(ced)
+            print(f"[bulk-resync] WARNING: no se pudo resetear last_sync_at para {ced}: {e}")
+
+    print(f"[bulk-resync] strava_last_sync_at reseteado: {len(reset_ok)} OK, {len(reset_err)} errores")
+
+    def _run_all_with_delay():
+        ok, err = [], []
+        for i, ced in enumerate(cedulas, 1):
+            print(f"[bulk-resync] ── Atleta {i}/{len(cedulas)}: {ced} ──")
+            try:
+                _run_pipeline_subprocess(ced, ["strava", "features", "plan"], False)
+                ok.append(ced)
+                print(f"[bulk-resync] ✅ {ced} completado ({i}/{len(cedulas)})")
+            except Exception as e:
+                err.append(ced)
+                print(f"[bulk-resync] ❌ {ced} error: {e}")
+            # Pausa entre atletas para respetar rate limits de Strava
+            if i < len(cedulas):
+                print(f"[bulk-resync] ⏸  Pausa 5s antes del siguiente atleta…")
+                time.sleep(5)
+
+        print(f"[bulk-resync] ══ COMPLETADO: {len(ok)} OK · {len(err)} errores ══")
+        if err:
+            print(f"[bulk-resync] Atletas con error: {err}")
+
+    background_tasks.add_task(_run_all_with_delay)
+
+    return {
+        "status":          "bulk_resync_queued",
+        "total":           len(cedulas),
+        "cedulas":         cedulas,
+        "reset_ok":        len(reset_ok),
+        "reset_err":       len(reset_err),
+        "estimated_min":   round(len(cedulas) * 1.5),   # ~90s por atleta
+        "message": (
+            f"{len(cedulas)} atletas encolados para re-sync histórico completo. "
+            f"Procesando 1 a la vez con pausa de 5s entre cada uno. "
+            f"Estimado: ~{round(len(cedulas) * 1.5)} minutos en total."
+        ),
+    }
+
+
 # ─── Endpoint bulk (secuencial) ──────────────────────────────────────────────
 
 @router.post("/bulk", tags=["pipeline"])
