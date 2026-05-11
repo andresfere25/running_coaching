@@ -1287,7 +1287,7 @@ def get_athlete_stats(
 
         last_checkin = checkins[0]["checkin_date"] if checkins else None
 
-        # 3. Actividades Strava desde inicio del proyecto
+        # 3. Actividades Strava desde inicio del proyecto (para métricas de participación)
         activities = (
             sb.table("activities")
             .select("activity_date,sport_type")
@@ -1304,18 +1304,89 @@ def get_athlete_stats(
         activity_dates = {a["activity_date"][:10] for a in activities}
         strava_pending = len(activity_dates - snap_dates)
 
+        # 4. Todas las actividades (all-time) con raw para HR — para feature flags
+        all_runs = (
+            sb.table("activities")
+            .select("activity_date,sport_type,raw")
+            .eq("cedula", cedula)
+            .in_("sport_type", ["Run", "TrailRun"])
+            .order("activity_date", desc=False)
+            .execute()
+        ).data or []
+
+        runs_with_hr = sum(
+            1 for a in all_runs
+            if (a.get("raw") or {}).get("average_heartrate") not in (None, 0)
+        )
+
+        # weeks_span: semanas entre primera y última carrera
+        weeks_span = 0
+        if len(all_runs) >= 2:
+            from datetime import date
+            d0 = all_runs[0]["activity_date"][:10]
+            d1 = all_runs[-1]["activity_date"][:10]
+            delta = date.fromisoformat(d1) - date.fromisoformat(d0)
+            weeks_span = max(1, delta.days // 7)
+
+        # 5. Perfil (age/sex) — señala si el onboarding llegó a Supabase
+        profile_rows = (
+            sb.table("athlete_profiles")
+            .select("cedula")
+            .eq("cedula", cedula)
+            .limit(1)
+            .execute()
+        ).data or []
+        has_profile = len(profile_rows) > 0
+
+        # 6. Snapshot — confirma que el pipeline corrió exitosamente
+        snap_rows = (
+            sb.table("athlete_snapshots")
+            .select("cedula")
+            .eq("cedula", cedula)
+            .limit(1)
+            .execute()
+        ).data or []
+        has_snapshot = len(snap_rows) > 0
+
+        # 7. Plan semanal generado
+        plan_rows = (
+            sb.table("weekly_plans")
+            .select("cedula")
+            .eq("cedula", cedula)
+            .limit(1)
+            .execute()
+        ).data or []
+        has_plan = len(plan_rows) > 0
+
+        # ── Feature flags ─────────────────────────────────────────────────────
+        features = {
+            "prediccion_n1":    has_profile,
+            "dashboard_activo": has_snapshot,
+            "plan_semanal":     has_plan,
+            "carga_training":   strava_runs > 0,
+            "zonas_hr":         runs_with_hr >= 10,
+            "elegible_n2":      weeks_span >= 8 and runs_with_hr >= 10,
+        }
+
         return {
-            "cedula":        cedula,
-            "ml_snapshots":  len(snaps),
-            "ml_manual":     snap_manual,
-            "ml_strava":     snap_strava,
-            "checkins_total": len(checkins),
-            "last_checkin":  last_checkin,
-            "strava_runs":   strava_runs,
-            "strava_pending": strava_pending,
-            "last_activity": last_activity,
+            "cedula":          cedula,
+            "ml_snapshots":    len(snaps),
+            "ml_manual":       snap_manual,
+            "ml_strava":       snap_strava,
+            "checkins_total":  len(checkins),
+            "last_checkin":    last_checkin,
+            "strava_runs":     strava_runs,
+            "strava_pending":  strava_pending,
+            "last_activity":   last_activity,
+            # Feature flags para el panel del coach y el portal
+            "runs_with_hr":    runs_with_hr,
+            "weeks_span":      weeks_span,
+            "has_profile":     has_profile,
+            "has_snapshot":    has_snapshot,
+            "has_plan":        has_plan,
+            "features":        features,
             # Compatibilidad con campo antiguo
-            "n_rows":        len(snaps),
+            "n_rows":          len(snaps),
         }
 
     except Exception as e:
