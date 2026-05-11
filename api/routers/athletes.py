@@ -1946,6 +1946,129 @@ def get_ml_hierarchy(
 
 # ─── Predicción de rendimiento ───────────────────────────────────────────────
 
+def _fmt_pace_local(sec_per_km: float) -> str:
+    """Formatea seg/km como 'M:SS'. Ej: 322.0 → '5:22'."""
+    import math
+    if not sec_per_km or sec_per_km <= 0 or math.isnan(sec_per_km):
+        return "--"
+    mins, secs = divmod(int(round(sec_per_km)), 60)
+    return f"{mins}:{secs:02d}"
+
+
+def _virtual_pr_prediction(
+    cedula: str,
+    target_distance: str,
+    age: "float | None",
+    gender: "str | None",
+) -> "dict | None":
+    """
+    Deriva un PR virtual desde los mejores esfuerzos de entrenamiento recientes
+    (últimos 180 días) cuando el atleta no tiene marcas personales declaradas.
+
+    Estrategia:
+    1. Busca en Supabase carreras (Run/TrailRun) en el rango de distancia esperado
+       para cada distancia estándar (5K±40%, 10K±40%, 21K±40%, 42K±30%).
+    2. Usa el mejor ritmo observado como PR virtual para esa distancia.
+    3. Si no hay esfuerzos cercanos al target, prueba distancias más cortas.
+    4. Ajusta la incertidumbre ×1.5 y fija confianza = BAJA.
+
+    Returns:
+        dict con predicción enriquecida, o None si no hay datos suficientes.
+    """
+    from datetime import date, timedelta
+    from src.storage.supabase_client import get_client
+    from src.ml.predictor import predict_race_time_range
+    from src.ml.riegel import PR_KEYS, DISTANCES as DIST_KM
+
+    sb = get_client()
+    if not sb:
+        return None
+
+    cutoff = (date.today() - timedelta(days=180)).isoformat()
+
+    # Rangos de distancia (km) aceptables para cada distancia estándar
+    SEARCH_RANGES: dict[str, tuple[float, float]] = {
+        "5K":  (3.0,  7.0),
+        "10K": (7.0,  14.0),
+        "21K": (14.0, 27.0),
+        "42K": (30.0, 50.0),
+    }
+
+    # Orden de búsqueda: target primero, luego más cortas (más datos disponibles)
+    FALLBACK_ORDER: dict[str, list[str]] = {
+        "5K":  ["5K"],
+        "10K": ["10K", "5K"],
+        "21K": ["21K", "10K", "5K"],
+        "42K": ["42K", "21K", "10K", "5K"],
+    }
+
+    best_pace: "float | None" = None
+    best_dist_key: "str | None" = None
+
+    for dist_key in FALLBACK_ORDER.get(target_distance, [target_distance]):
+        lo_km, hi_km = SEARCH_RANGES[dist_key]
+        try:
+            res = (
+                sb.table("activities")
+                .select("distance_m,duration_sec,pace_sec_per_km")
+                .eq("cedula", cedula)
+                .in_("sport_type", ["Run", "TrailRun"])
+                .gte("activity_date", cutoff)
+                .gte("distance_m", lo_km * 1000)
+                .lte("distance_m", hi_km * 1000)
+                .execute()
+            )
+            rows = [
+                r for r in (res.data or [])
+                if r.get("pace_sec_per_km") and r["pace_sec_per_km"] > 60  # >1 min/km sanity
+            ]
+        except Exception:
+            rows = []
+
+        if rows:
+            best_row = min(rows, key=lambda r: r["pace_sec_per_km"])
+            best_pace    = best_row["pace_sec_per_km"]
+            best_dist_key = dist_key
+            break
+
+    if best_pace is None or best_dist_key is None:
+        return None
+
+    # Construir perfil virtual con el PR implícito
+    virtual_pr_sec = best_pace * DIST_KM[best_dist_key]
+    virtual_profile = {PR_KEYS[best_dist_key]: virtual_pr_sec}
+
+    result = predict_race_time_range(
+        profile=virtual_profile,
+        target_distance=target_distance,
+        age=float(age) if age else None,
+        gender=gender,
+    )
+    if result.get("error"):
+        return None
+
+    # Inflar incertidumbre ×1.5 (ritmo de entrenamiento ≠ ritmo de competencia)
+    uf = result.get("uncertainty_fraction", 0.044)
+    result["uncertainty_fraction"] = round(max(uf * 1.5, 0.06), 4)
+
+    # Anular confianza a BAJA y documentar fuente
+    result["confidence"]        = "BAJA"
+    result["confidence_reason"] = (
+        f"PR virtual desde mejor esfuerzo de {best_dist_key} en entrenamiento "
+        f"({_fmt_pace_local(best_pace)} min/km, últimos 6 meses)"
+    )
+    result["virtual_pr"]           = True
+    result["virtual_pr_dist"]      = best_dist_key
+    result["virtual_pr_pace_fmt"]  = _fmt_pace_local(best_pace)
+    result["virtual_pr_sec"]       = round(virtual_pr_sec)
+    result["virtual_pr_note"] = (
+        "No hay marcas de carrera declaradas. "
+        "Predicción basada en mejor ritmo de entrenamiento reciente — "
+        "puede diferir del rendimiento en competencia."
+    )
+    return result
+
+
 @router.get("/{cedula}/prediction")
 def get_prediction(
     cedula: str,
@@ -1958,6 +2081,10 @@ def get_prediction(
     Integra Capas 0 (selección PR) + 1 (Riegel calibrado) + 2 (corrección
     demográfica) del sistema de predicción. Los PRs se leen desde profile.json.
 
+    Cuando el atleta no tiene PRs declarados, intenta derivar un PR virtual
+    desde sus mejores esfuerzos de entrenamiento en Strava (últimos 180 días).
+    En ese caso: confidence=BAJA y virtual_pr=true en la respuesta.
+
     Parámetros:
     - target: distancia objetivo (default 42K)
 
@@ -1965,10 +2092,11 @@ def get_prediction(
     - pace_range_fmt:  rango de ritmo, p.ej. "5:11 – 5:29 min/km"
     - time_range_fmt:  rango de tiempo total, p.ej. "3:38:50 – 3:52:10"
     - confidence:      ALTA / MEDIA / MEDIA-BAJA / BAJA
+    - virtual_pr:      true si la predicción usa ritmo de entrenamiento (sin PR declarado)
     - layers_active:   lista de capas aplicadas (Capa0, Capa1, Capa2)
     - source_pr:       distancia del PR usado como fuente
     - empirical_support: nivel de soporte empírico para esta distancia
-    - error: 'SIN_PR' si no hay marcas personales disponibles
+    - error: 'SIN_PR' | 'SIN_DATOS' si no hay marcas ni actividades disponibles
     """
     if target not in ("5K", "10K", "21K", "42K"):
         raise HTTPException(
@@ -1995,6 +2123,24 @@ def get_prediction(
         age=float(age) if age else None,
         gender=gender,
     )
+
+    # Si no hay PRs declarados, intentar Virtual PR desde actividades Strava
+    if result.get("error") == "SIN_PR":
+        virtual = _virtual_pr_prediction(
+            cedula=cedula,
+            target_distance=target,
+            age=float(age) if age else None,
+            gender=gender,
+        )
+        if virtual:
+            return sanitize_json(virtual)
+        # Sin PRs ni actividades → error informativo
+        result["error"] = "SIN_DATOS"
+        result["message"] = (
+            "No hay marcas personales declaradas ni actividades recientes en Strava. "
+            "Conecta Strava o registra al menos un tiempo de carrera (5K, 10K, 21K o 42K)."
+        )
+
     return sanitize_json(result)
 
 
