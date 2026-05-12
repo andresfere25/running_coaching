@@ -106,6 +106,9 @@ def run_for_athlete(cedula: str, steps: list[str], skip_strava: bool, strava_ran
         "pdf":      lambda: step_generate_pdf(cedula),
     }
 
+    ran_features = False
+    ran_plan     = False
+
     for step in steps:
         try:
             if step == "ingest":
@@ -127,11 +130,34 @@ def run_for_athlete(cedula: str, steps: list[str], skip_strava: bool, strava_ran
 
             if step in step_fns:
                 step_fns[step]()
+                if step == "features":
+                    ran_features = True
+                if step == "plan":
+                    ran_plan = True
 
             log.info(f"  ✅  {step}")
 
         except Exception as e:
             log.error(f"  ❌  {step}: {e}")
+            success = False
+
+    # ── Push a Supabase al final del pipeline ─────────────────────────────────
+    # build_features y plan_builder solo escriben archivos locales (ephemeral en Railway).
+    # Este paso sube snapshot + weekly_features + plan a Supabase para persistirlos.
+    if ran_features or ran_plan:
+        try:
+            from pathlib import Path as _Path
+            from src.storage.writer import push_all as _push_all
+            athlete_dir = _Path("data") / "athletes" / cedula
+            result = _push_all(cedula, athlete_dir)
+            pushed = [k for k, v in result.items() if isinstance(v, dict) and v.get("ok")]
+            skipped = [k for k, v in result.items() if isinstance(v, dict) and not v.get("ok")]
+            if pushed:
+                log.info(f"  ✅  push_all → Supabase: {', '.join(pushed)}")
+            if skipped:
+                log.info(f"  ⚠️  push_all skipped (sin datos locales): {', '.join(skipped)}")
+        except Exception as exc:
+            log.error(f"  ❌  push_all: {exc}")
             success = False
 
     elapsed = time.time() - t0
