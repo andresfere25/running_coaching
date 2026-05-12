@@ -2426,9 +2426,11 @@ def strava_token_status(cedula: str, _: None = Depends(require_api_key)):
 # ─── Strava token ingestion (called by ar-athletes-portal after OAuth) ────────
 
 class StravaTokenBody(BaseModel):
-    access_token:  str
-    refresh_token: str
-    expires_at:    int  # unix timestamp
+    access_token:       str
+    refresh_token:      str
+    expires_at:         int              # unix timestamp
+    strava_athlete_id:  str | None = None  # ID numérico del atleta en Strava
+    name:               str | None = None  # nombre del atleta (para push_athlete)
 
 
 @router.post("/{cedula}/strava/token")
@@ -2458,10 +2460,13 @@ def store_strava_token(
     # push_strava_tokens hace upsert sobre athletes, pero si Supabase tiene
     # RLS activo o la fila no existe aún, el upsert puede fallar.
     # push_athlete es idempotente y resuelve el FK constraint en cascada.
-    athlete_row = push_athlete(cedula, name=None)
+    athlete_row = push_athlete(cedula, name=body.name)  # name=None → no sobreescribe
     print(f"[/strava/token] push_athlete result: {athlete_row}")
 
-    result = push_strava_tokens(cedula, body.access_token, body.refresh_token, body.expires_at)
+    result = push_strava_tokens(
+        cedula, body.access_token, body.refresh_token, body.expires_at,
+        strava_athlete_id=body.strava_athlete_id,
+    )
     print(f"[/strava/token] push_strava_tokens result: {result}")
     if not result.get("ok"):
         raise HTTPException(status_code=500, detail=result.get("detail", "Error writing tokens"))

@@ -72,12 +72,17 @@ def _read_json(path: Path) -> dict | None:
 # ─── Funciones por tabla ──────────────────────────────────────────────────────
 
 def push_athlete(cedula: str, name: str | None = None) -> dict:
-    """Upsert tabla athletes (registro maestro)."""
+    """Upsert tabla athletes (registro maestro).
+    Solo incluye 'name' si no es None — evita sobrescribir el nombre existente
+    cuando se llama desde push_strava_tokens o recuperaciones con name=None.
+    """
     client = get_client()
     if not client:
         return _skipped()
     try:
-        row = _clean({"cedula": cedula, "name": name})
+        row: dict = {"cedula": cedula}
+        if name is not None:
+            row["name"] = name
         client.table("athletes").upsert(row, on_conflict="cedula").execute()
         return _ok("athletes upserted")
     except Exception as exc:
@@ -89,6 +94,7 @@ def push_strava_tokens(
     access_token: str,
     refresh_token: str,
     expires_at: int,
+    strava_athlete_id: str | None = None,
 ) -> dict:
     """
     Persiste los tokens de Strava para un atleta en Supabase.
@@ -100,15 +106,15 @@ def push_strava_tokens(
     if not client:
         return _skipped()
     try:
-        client.table("athletes").upsert(
-            {
-                "cedula":                  cedula,
-                "strava_access_token":     access_token,
-                "strava_refresh_token":    refresh_token,
-                "strava_token_expires_at": expires_at,
-            },
-            on_conflict="cedula",
-        ).execute()
+        row: dict = {
+            "cedula":                  cedula,
+            "strava_access_token":     access_token,
+            "strava_refresh_token":    refresh_token,
+            "strava_token_expires_at": expires_at,
+        }
+        if strava_athlete_id is not None:
+            row["strava_athlete_id"] = strava_athlete_id
+        client.table("athletes").upsert(row, on_conflict="cedula").execute()
         return _ok(f"athletes.strava_tokens updated for cedula={cedula}")
     except Exception as exc:
         return _err(f"athletes.strava_tokens: {exc}")
