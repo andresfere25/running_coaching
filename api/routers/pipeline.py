@@ -32,10 +32,12 @@ VALID_STEPS = ["ingest", "strava", "features", "plan", "pdf"]
 # Raíz del proyecto (api/ está un nivel abajo del root)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
-# ── Semáforo global: máx 3 pipelines simultáneos ────────────────────────────
-# Evita que "Actualizar todos" con muchos atletas sature el container de Railway.
-# Con 3 slots: 3 pipelines corren en paralelo, los demás esperan en cola.
-_PIPELINE_SEMAPHORE = threading.Semaphore(3)
+# ── Semáforo global: máx 1 pipeline a la vez ────────────────────────────────
+# CRÍTICO: Railway free tier (0.5 vCPU compartido) no soporta múltiples
+# pipelines paralelos. Con 3 simultáneos, los HTTP requests (/stats, /snapshot,
+# dashboard) hacen timeout porque no queda CPU para servirlos.
+# Bajado de 3 → 1 hasta migrar a Railway Pro o reducir build_features cost.
+_PIPELINE_SEMAPHORE = threading.Semaphore(1)
 
 
 def _run_pipeline_subprocess(cedula: str, steps: list[str], skip_strava: bool) -> None:
