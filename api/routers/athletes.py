@@ -1333,12 +1333,18 @@ def bulk_stats(_: None = Depends(require_api_key)):
     if not all_ceds:
         return {}
 
+    # LÍMITE EXPLÍCITO en todas las queries que bajan filas.
+    # supabase-py usa PostgREST cuyo default es 1000 filas. Con 91 atletas × ~200 acts
+    # = ~18K filas, sin límite explícito se trunca y weeks_span / hr_count quedan mal.
+    _BIG = 200_000  # suficiente para cualquier cohorte razonable
+
     # 2. Runs desde PROJECT_START (para strava_runs + last_activity)
     runs_res = (
         sb.table("activities")
         .select("cedula,activity_date")
         .in_("sport_type", ["Run", "TrailRun"])
         .gte("activity_date", PROJECT_START)
+        .limit(_BIG)
         .execute()
     ).data or []
 
@@ -1356,6 +1362,7 @@ def bulk_stats(_: None = Depends(require_api_key)):
         sb.table("activities")
         .select("cedula,activity_date")
         .in_("sport_type", ["Run", "TrailRun"])
+        .limit(_BIG)
         .execute()
     ).data or []
 
@@ -1375,21 +1382,23 @@ def bulk_stats(_: None = Depends(require_api_key)):
         .select("cedula")
         .in_("sport_type", ["Run", "TrailRun"])
         .not_.is_("raw->>average_heartrate", "null")
+        .limit(_BIG)
         .execute()
     ).data or []
     hr_count: dict = defaultdict(int)
     for row in hr_runs:
         hr_count[row["cedula"]] += 1
 
-    # 5. Perfiles, snapshots y planes — solo existencia
-    profiles_set  = {r["cedula"] for r in (sb.table("athlete_profiles") .select("cedula").execute().data or [])}
-    snapshots_set = {r["cedula"] for r in (sb.table("athlete_snapshots").select("cedula").execute().data or [])}
-    plans_set     = {r["cedula"] for r in (sb.table("weekly_plans")     .select("cedula").execute().data or [])}
+    # 5. Perfiles, snapshots y planes — solo existencia (filas pequeñas, no necesitan _BIG)
+    profiles_set  = {r["cedula"] for r in (sb.table("athlete_profiles") .select("cedula").limit(5000).execute().data or [])}
+    snapshots_set = {r["cedula"] for r in (sb.table("athlete_snapshots").select("cedula").limit(5000).execute().data or [])}
+    plans_set     = {r["cedula"] for r in (sb.table("weekly_plans")     .select("cedula").limit(5000).execute().data or [])}
 
     # 6. Check-ins (count + última fecha)
     checkins_res = (
         sb.table("checkins")
         .select("cedula,checkin_date")
+        .limit(50_000)
         .execute()
     ).data or []
     checkins_count: dict = defaultdict(int)
@@ -1405,12 +1414,14 @@ def bulk_stats(_: None = Depends(require_api_key)):
     ml_all = (
         sb.table("training_snapshots")
         .select("cedula")
+        .limit(50_000)
         .execute()
     ).data or []
     ml_manual_rows = (
         sb.table("training_snapshots")
         .select("cedula")
         .filter("data->>source", "eq", "app_race")
+        .limit(50_000)
         .execute()
     ).data or []
     ml_count: dict  = defaultdict(int)
