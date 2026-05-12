@@ -1405,22 +1405,21 @@ def get_athlete_stats(
             delta = date.fromisoformat(d1) - date.fromisoformat(d0)
             weeks_span = max(1, delta.days // 7)
 
-        # 4b. runs_with_hr — count server-side (sin traer JSONB pesado)
-        # Usamos select("activity_id", count="exact") + filtro JSONB para contar
-        # en Supabase sin descargar cientos de filas. Para atletas con 300-600 runs,
-        # traer todos los raw era la causa del timeout de 15s en el Worker.
-        # Nota: filtramos raw->>'average_heartrate' > '0' en PostgREST
-        # que equivale a: raw IS NOT NULL AND average_heartrate presente y > 0.
+        # 4b. runs_with_hr — count server-side con filtro JSONB correcto.
+        # PostgREST soporta path filters sobre JSONB:
+        #   raw->>average_heartrate=not.is.null
+        # → cuenta solo runs donde average_heartrate existe en el raw de Strava.
+        # Esto es semánticamente correcto (atletas sin sensor HR tienen raw pero sin
+        # el campo average_heartrate) y es rápido: COUNT server-side, cero transferencia.
+        # Validado: 592 para Forero, 0 para Johan Castro (sin sensor HR).
         hr_count_res = (
             sb.table("activities")
             .select("activity_id", count="exact")
             .eq("cedula", cedula)
             .in_("sport_type", ["Run", "TrailRun"])
-            .not_.is_("raw", "null")
+            .not_.is_("raw->>average_heartrate", "null")
             .execute()
         )
-        # Refinamos con RPC si hay muchos candidatos; aquí basta la conteo como proxy
-        # (raw IS NOT NULL casi siempre implica average_heartrate presente)
         runs_with_hr = hr_count_res.count or 0
 
         # 5. Perfil (age/sex) — señala si el onboarding llegó a Supabase
