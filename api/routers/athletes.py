@@ -1337,28 +1337,44 @@ def get_athlete_stats(
         return {"cedula": cedula, "error": "Supabase no disponible"}
 
     try:
-        # 1. Training snapshots — fuente y conteo
-        snaps = (
+        # 1. Training snapshots — COUNT server-side por fuente (sin descargar JSONB pesado).
+        # Antes: SELECT race_date,data → descargaba toda la columna data JSONB por atleta.
+        # Ahora: 3 queries COUNT + 1 query de fechas (sin JSONB) → dramáticamente más rápido.
+        snap_total_res = (
             sb.table("training_snapshots")
-            .select("race_date,data")
+            .select("race_date", count="exact")
             .eq("cedula", cedula)
             .execute()
-        ).data or []
+        )
+        snap_manual_res = (
+            sb.table("training_snapshots")
+            .select("race_date", count="exact")
+            .eq("cedula", cedula)
+            .filter("data->>source", "eq", "app_race")
+            .execute()
+        )
+        ml_snapshots = snap_total_res.count or 0
+        snap_manual  = snap_manual_res.count or 0
+        snap_strava  = ml_snapshots - snap_manual
+        snap_dates   = {s["race_date"] for s in (snap_total_res.data or [])}
 
-        snap_manual = sum(1 for s in snaps if (s.get("data") or {}).get("source") == "app_race")
-        snap_strava = sum(1 for s in snaps if (s.get("data") or {}).get("source") == "coach_from_strava")
-        snap_dates  = {s["race_date"] for s in snaps}
-
-        # 2. Check-ins manuales
-        checkins = (
+        # 2. Check-ins — COUNT + última fecha sin descargar raw JSONB.
+        checkins_res = (
             sb.table("checkins")
-            .select("checkin_date,raw")
+            .select("checkin_date", count="exact")
+            .eq("cedula", cedula)
+            .execute()
+        )
+        last_checkin_res = (
+            sb.table("checkins")
+            .select("checkin_date")
             .eq("cedula", cedula)
             .order("checkin_date", desc=True)
+            .limit(1)
             .execute()
-        ).data or []
-
-        last_checkin = checkins[0]["checkin_date"] if checkins else None
+        )
+        checkins_total = checkins_res.count or 0
+        last_checkin   = last_checkin_res.data[0]["checkin_date"] if last_checkin_res.data else None
 
         # 3. Actividades Strava desde inicio del proyecto (para métricas de participación)
         activities = (
@@ -1464,10 +1480,10 @@ def get_athlete_stats(
 
         return {
             "cedula":          cedula,
-            "ml_snapshots":    len(snaps),
+            "ml_snapshots":    ml_snapshots,
             "ml_manual":       snap_manual,
             "ml_strava":       snap_strava,
-            "checkins_total":  len(checkins),
+            "checkins_total":  checkins_total,
             "last_checkin":    last_checkin,
             "strava_runs":     strava_runs,
             "strava_pending":  strava_pending,
@@ -1480,7 +1496,7 @@ def get_athlete_stats(
             "has_plan":        has_plan,
             "features":        features,
             # Compatibilidad con campo antiguo
-            "n_rows":          len(snaps),
+            "n_rows":          ml_snapshots,
         }
 
     except Exception as e:
