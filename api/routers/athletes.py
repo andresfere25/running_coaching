@@ -1414,7 +1414,7 @@ def get_athlete_stats(
         # Validado: 592 para Forero, 0 para Johan Castro (sin sensor HR).
         hr_count_res = (
             sb.table("activities")
-            .select("activity_id", count="exact")
+            .select("strava_id", count="exact")
             .eq("cedula", cedula)
             .in_("sport_type", ["Run", "TrailRun"])
             .not_.is_("raw->>average_heartrate", "null")
