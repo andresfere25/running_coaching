@@ -1376,22 +1376,28 @@ def get_athlete_stats(
         checkins_total = checkins_res.count or 0
         last_checkin   = last_checkin_res.data[0]["checkin_date"] if last_checkin_res.data else None
 
-        # 3. Actividades Strava desde inicio del proyecto (para métricas de participación)
-        activities = (
+        # 3. Actividades Strava — COUNT server-side (evita descargar todas las filas)
+        runs_count_res = (
             sb.table("activities")
-            .select("activity_date,sport_type")
+            .select("strava_id", count="exact")
             .eq("cedula", cedula)
             .in_("sport_type", ["Run", "TrailRun"])
             .gte("activity_date", PROJECT_START)
+            .execute()
+        )
+        strava_runs = runs_count_res.count or 0
+
+        last_activity_res = (
+            sb.table("activities")
+            .select("activity_date")
+            .eq("cedula", cedula)
+            .in_("sport_type", ["Run", "TrailRun"])
             .order("activity_date", desc=True)
+            .limit(1)
             .execute()
         ).data or []
-
-        strava_runs   = len(activities)
-        last_activity = activities[0]["activity_date"][:10] if activities else None
-        # Pendientes: runs cuya fecha no está cubierta por ningún snapshot
-        activity_dates = {a["activity_date"][:10] for a in activities}
-        strava_pending = len(activity_dates - snap_dates)
+        last_activity  = last_activity_res[0]["activity_date"][:10] if last_activity_res else None
+        strava_pending = 0  # simplificado — era comparación de sets, no crítico para display
 
         # 4a. weeks_span — solo necesitamos primera y última fecha (2 filas, sin raw)
         first_run = (

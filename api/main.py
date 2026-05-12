@@ -95,23 +95,29 @@ async def _startup_rehydrate():
                 return
             res = client.table("athletes").select("cedula").execute()
             cedulas = [r["cedula"] for r in (res.data or []) if r.get("cedula")]
-            logger.info("[startup] Rehydrating %d athletes...", len(cedulas))
+            logger.info("[startup] Bootstrap-only rehydration for %d athletes...", len(cedulas))
 
             from src.storage.bootstrap import bootstrap_parquet_from_supabase
-            from api.routers.pipeline import _run_pipeline_subprocess
 
+            # Solo reconstruimos el parquet local desde Supabase (lectura pura, sin subprocesos).
+            # NO corremos features/plan aquí: esos pasos spawnan subprocesos Python que consumen
+            # ~300 MB cada uno. Con 90+ atletas el servidor se queda sin memoria (OOM en Railway).
+            # Los datos de snapshot/plan/features SE LEEN DESDE SUPABASE directamente en los
+            # endpoints GET, así que el dashboard funciona aunque no haya parquet local.
+            # El parquet local solo es necesario para los pipeline steps que lo requieren
+            # (features, plan) — esos se disparan on-demand vía POST /athletes/{cedula}/pipeline.
+            ok = err = 0
             for ced in cedulas:
                 try:
-                    # 1) Reconstruir parquet desde Supabase (sin Strava API)
                     n = bootstrap_parquet_from_supabase(ced)
-                    logger.info("[startup] Bootstrap %s: %d activities restored", ced, n)
-                    # 2) Recompute features+plan a partir del parquet completo
-                    _run_pipeline_subprocess(ced, ["features", "plan"], skip_strava=True)
-                    logger.info("[startup] Pipeline OK: %s", ced)
+                    if n > 0:
+                        logger.info("[startup] Bootstrap %s: %d activities", ced, n)
+                    ok += 1
                 except Exception as exc:
-                    logger.warning("[startup] Pipeline failed for %s: %s", ced, exc)
+                    logger.warning("[startup] Bootstrap failed for %s: %s", ced, exc)
+                    err += 1
 
-            logger.info("[startup] Rehydration complete for %d athletes", len(cedulas))
+            logger.info("[startup] Bootstrap complete: %d OK / %d errores", ok, err)
         except Exception as exc:
             logger.error("[startup] Rehydration error: %s", exc)
 
