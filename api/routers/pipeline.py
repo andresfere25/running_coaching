@@ -32,11 +32,13 @@ VALID_STEPS = ["ingest", "strava", "features", "plan", "pdf"]
 # Raíz del proyecto (api/ está un nivel abajo del root)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
-# ── Semáforo global: máx 3 pipelines simultáneos ────────────────────────────
-# Con Railway Pro (24 vCPU / 24 GB RAM por replica) podemos correr 3 pipelines
-# en paralelo sin saturar el CPU. Los HTTP requests (/stats, /snapshot, dashboard)
-# siguen respondiendo rápido porque hay headroom de sobra.
-_PIPELINE_SEMAPHORE = threading.Semaphore(3)
+# ── Semáforo global: máx 1 pipeline simultáneo ───────────────────────────────
+# Strava tiene límite de 100 req/15min para TODA la aplicación (no por atleta).
+# Con 3 pipelines simultáneos cada uno hace ~3 llamadas Strava = 9 req en segundos
+# → rate limit 429 con >5 atletas en cola. Con semáforo=1 el máximo es ~3 req/90s
+# = ~30 req/15min, bien por debajo del límite.
+# Railway Pro (24 vCPU / 24 GB) no tiene problema corriendo 1 pipeline a la vez.
+_PIPELINE_SEMAPHORE = threading.Semaphore(1)
 
 
 def _run_pipeline_subprocess(cedula: str, steps: list[str], skip_strava: bool) -> None:
