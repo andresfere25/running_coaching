@@ -1308,6 +1308,169 @@ def delete_athlete_data(
     }
 
 
+# ─── Stats bulk (panel del coach — carga toda la cohorte en ~8 queries) ────────
+
+@router.get("/stats/bulk")
+def bulk_stats(_: None = Depends(require_api_key)):
+    """
+    Retorna estadísticas de participación para TODOS los atletas en ~8 queries de Supabase.
+    Reemplaza el patron anterior: 91 atletas × 10 queries/atleta = 910 queries → ~20s.
+    Con este endpoint: 8 queries de agregación en Python → ~2s.
+
+    Responde: dict keyed by cedula → mismo schema que /{cedula}/stats.
+    """
+    from collections import defaultdict
+    from datetime import date as _date
+    from src.storage.supabase_client import get_client
+
+    PROJECT_START = "2026-02-01"
+    sb = get_client()
+    if not sb:
+        raise HTTPException(503, "Supabase no disponible")
+
+    # 1. Todos los cedulas registrados
+    all_ceds = [r["cedula"] for r in (sb.table("athletes").select("cedula").execute().data or [])]
+    if not all_ceds:
+        return {}
+
+    # 2. Runs desde PROJECT_START (para strava_runs + last_activity)
+    runs_res = (
+        sb.table("activities")
+        .select("cedula,activity_date")
+        .in_("sport_type", ["Run", "TrailRun"])
+        .gte("activity_date", PROJECT_START)
+        .execute()
+    ).data or []
+
+    runs_count: dict = defaultdict(int)
+    last_act: dict   = {}
+    for row in runs_res:
+        ced = row["cedula"]
+        runs_count[ced] += 1
+        d = row["activity_date"][:10]
+        if ced not in last_act or d > last_act[ced]:
+            last_act[ced] = d
+
+    # 3. TODAS las fechas de runs (para weeks_span — sin filtro PROJECT_START)
+    all_runs_dates = (
+        sb.table("activities")
+        .select("cedula,activity_date")
+        .in_("sport_type", ["Run", "TrailRun"])
+        .execute()
+    ).data or []
+
+    first_run: dict = {}
+    last_run_all: dict = {}
+    for row in all_runs_dates:
+        ced = row["cedula"]
+        d = row["activity_date"][:10]
+        if ced not in first_run or d < first_run[ced]:
+            first_run[ced] = d
+        if ced not in last_run_all or d > last_run_all[ced]:
+            last_run_all[ced] = d
+
+    # 4. Runs con HR (solo cedula — filtro JSONB server-side)
+    hr_runs = (
+        sb.table("activities")
+        .select("cedula")
+        .in_("sport_type", ["Run", "TrailRun"])
+        .not_.is_("raw->>average_heartrate", "null")
+        .execute()
+    ).data or []
+    hr_count: dict = defaultdict(int)
+    for row in hr_runs:
+        hr_count[row["cedula"]] += 1
+
+    # 5. Perfiles, snapshots y planes — solo existencia
+    profiles_set  = {r["cedula"] for r in (sb.table("athlete_profiles") .select("cedula").execute().data or [])}
+    snapshots_set = {r["cedula"] for r in (sb.table("athlete_snapshots").select("cedula").execute().data or [])}
+    plans_set     = {r["cedula"] for r in (sb.table("weekly_plans")     .select("cedula").execute().data or [])}
+
+    # 6. Check-ins (count + última fecha)
+    checkins_res = (
+        sb.table("checkins")
+        .select("cedula,checkin_date")
+        .execute()
+    ).data or []
+    checkins_count: dict = defaultdict(int)
+    last_checkin: dict   = {}
+    for row in checkins_res:
+        ced = row["cedula"]
+        checkins_count[ced] += 1
+        d = row["checkin_date"]
+        if ced not in last_checkin or d > last_checkin[ced]:
+            last_checkin[ced] = d
+
+    # 7. Training snapshots — total + manual (source=app_race)
+    ml_all = (
+        sb.table("training_snapshots")
+        .select("cedula")
+        .execute()
+    ).data or []
+    ml_manual_rows = (
+        sb.table("training_snapshots")
+        .select("cedula")
+        .filter("data->>source", "eq", "app_race")
+        .execute()
+    ).data or []
+    ml_count: dict  = defaultdict(int)
+    ml_manual: dict = defaultdict(int)
+    for row in ml_all:
+        ml_count[row["cedula"]] += 1
+    for row in ml_manual_rows:
+        ml_manual[row["cedula"]] += 1
+
+    # ── Construir respuesta ───────────────────────────────────────────────────
+    result = {}
+    for ced in all_ceds:
+        runs      = runs_count[ced]
+        hr        = hr_count[ced]
+        ml        = ml_count[ced]
+        ml_m      = ml_manual[ced]
+        has_prof  = ced in profiles_set
+        has_snap  = ced in snapshots_set
+        has_plan  = ced in plans_set
+
+        # weeks_span: días entre primera y última carrera all-time
+        weeks_span = 0
+        if ced in first_run and ced in last_run_all:
+            d0 = _date.fromisoformat(first_run[ced])
+            d1 = _date.fromisoformat(last_run_all[ced])
+            weeks_span = max(1, (d1 - d0).days // 7)
+
+        # last_activity: más reciente de runs since PROJECT_START o all-time
+        last_activity = last_act.get(ced) or last_run_all.get(ced)
+
+        features = {
+            "prediccion_n1":    has_prof,
+            "dashboard_activo": has_snap,
+            "plan_semanal":     has_plan,
+            "carga_training":   runs > 0,
+            "zonas_hr":         hr >= 10,
+            "elegible_n2":      weeks_span >= 8 and hr >= 10,
+        }
+
+        result[ced] = {
+            "ml_snapshots":  ml,
+            "ml_manual":     ml_m,
+            "ml_strava":     ml - ml_m,
+            "checkins_total": checkins_count[ced],
+            "last_checkin":  last_checkin.get(ced),
+            "strava_runs":   runs,
+            "strava_pending": 0,
+            "last_activity": last_activity,
+            "runs_with_hr":  hr,
+            "weeks_span":    weeks_span,
+            "has_profile":   has_prof,
+            "has_snapshot":  has_snap,
+            "has_plan":      has_plan,
+            "features":      features,
+            "n_rows":        ml,
+        }
+
+    return result
+
+
 # ─── Stats resumen por atleta (para panel del coach) ─────────────────────────
 
 @router.get("/{cedula}/stats")
@@ -1376,10 +1539,13 @@ def get_athlete_stats(
         checkins_total = checkins_res.count or 0
         last_checkin   = last_checkin_res.data[0]["checkin_date"] if last_checkin_res.data else None
 
-        # 3. Actividades Strava — COUNT server-side (evita descargar todas las filas)
+        # 3. Actividades Strava — HEAD + count=exact (sin descargar filas)
+        # head=True → HTTP HEAD request: PostgREST devuelve solo Content-Range con el conteo,
+        # sin body. Más confiable que select("strava_id", count="exact") que puede retornar
+        # count=None si el SDK no parsea el header correctamente.
         runs_count_res = (
             sb.table("activities")
-            .select("strava_id", count="exact")
+            .select("*", count="exact", head=True)
             .eq("cedula", cedula)
             .in_("sport_type", ["Run", "TrailRun"])
             .gte("activity_date", PROJECT_START)
@@ -1436,7 +1602,7 @@ def get_athlete_stats(
         # Validado: 592 para Forero, 0 para Johan Castro (sin sensor HR).
         hr_count_res = (
             sb.table("activities")
-            .select("strava_id", count="exact")
+            .select("*", count="exact", head=True)
             .eq("cedula", cedula)
             .in_("sport_type", ["Run", "TrailRun"])
             .not_.is_("raw->>average_heartrate", "null")
