@@ -201,34 +201,43 @@ def rehydrate_athlete(
     }
 
 
-# ─── Endpoint: bulk resync historial completo ────────────────────────────────
+# ─── Endpoint: bulk resync con ventana de tiempo configurable ───────────────
 
 @router.post("/bulk-resync", tags=["pipeline"])
 def bulk_resync_history(
     background_tasks: BackgroundTasks,
     cedulas: list[str] | None = None,
+    months: int = Query(
+        default=0,
+        description=(
+            "Ventana de historial a sincronizar:\n"
+            "  0  = desde 2009 (historial completo)\n"
+            "  36 = últimos 3 años  (recomendado para ML N2)\n"
+            "  1  = último mes      (mantenimiento semanal)\n"
+            "  0  con skip_3d=True  = sólo los últimos 3 días (equivale a bulk normal)"
+        ),
+        ge=0, le=120,
+    ),
     _: None = Depends(require_api_key),
 ):
     """
-    Re-sync historial completo para múltiples atletas en SECUENCIA ESTRICTA.
+    Re-sync histórico para múltiples atletas en SECUENCIA ESTRICTA.
 
-    1. Resetea strava_last_sync_at = NULL para cada atleta en Supabase.
-       Esto fuerza al sync a pedir historial desde 2009 en lugar de incremental.
-    2. Procesa UN atleta a la vez (semáforo=1 para este endpoint) con 5s de
-       pausa entre cada uno para respetar el rate limit de Strava
-       (100 req / 15 min, 1000 req / día por app).
+    Flujo por atleta:
+      1. Fija strava_last_sync_at según la ventana elegida:
+           months=0  → NULL          (desde 2009, historial completo)
+           months=N  → now - N meses (p.ej. months=36 = últimos 3 años)
+      2. Corre pipeline strava + features + plan (1 a la vez, semáforo=1).
+      3. Verifica actividades guardadas en Supabase y las loggea.
 
-    Body: lista de cédulas ["1070982737", ...]
-    Si no se envía body, usa todos los atletas con strava_refresh_token en Supabase.
+    Body: { "cedulas": ["1070982737", ...] }   (vacío = todos los atletas con token)
 
-    Estimado de tiempo:
-      - 44 atletas × ~90s por sync = ~66 minutos total en background
-      - Railway NO se satura porque es 1 subproceso a la vez
-      - Strava NO se satura porque hay pausa entre atletas
-
-    Responde inmediatamente (pipeline corre en background).
+    Límites Strava: 100 req/15min · 1000 req/día
+      - months=36: ~4 llamadas/atleta × 30 atletas = 120 total → ~3 llamadas/min (OK)
+      - months=0 : hasta 10+ llamadas/atleta para atletas con >2000 actividades
     """
     import time
+    from datetime import datetime, timezone, timedelta
 
     from src.storage.supabase_client import get_client
 
@@ -252,51 +261,76 @@ def bulk_resync_history(
     if len(cedulas) > 100:
         raise HTTPException(status_code=422, detail="Máximo 100 cédulas por llamada.")
 
+    # Calcular el timestamp de reset según la ventana pedida
+    if months == 0:
+        sync_since = None          # NULL → Strava sync desde 2009
+        window_label = "historial completo (desde 2009)"
+    else:
+        sync_since = (datetime.now(timezone.utc) - timedelta(days=months * 30)).isoformat()
+        window_label = f"últimos {months} meses"
+
     # Resetear last_sync_at para todos antes de iniciar
     reset_ok, reset_err = [], []
     for ced in cedulas:
         try:
-            sb.table("athletes").update({"strava_last_sync_at": None}).eq("cedula", ced).execute()
+            sb.table("athletes").update({"strava_last_sync_at": sync_since}).eq("cedula", ced).execute()
             reset_ok.append(ced)
         except Exception as e:
             reset_err.append(ced)
             print(f"[bulk-resync] WARNING: no se pudo resetear last_sync_at para {ced}: {e}")
 
-    print(f"[bulk-resync] strava_last_sync_at reseteado: {len(reset_ok)} OK, {len(reset_err)} errores")
+    print(f"[bulk-resync] strava_last_sync_at → {sync_since or 'NULL'} ({window_label})")
+    print(f"[bulk-resync] Reset: {len(reset_ok)} OK, {len(reset_err)} errores")
 
     def _run_all_with_delay():
         ok, err = [], []
         for i, ced in enumerate(cedulas, 1):
-            print(f"[bulk-resync] ── Atleta {i}/{len(cedulas)}: {ced} ──")
+            print(f"[bulk-resync] ── Atleta {i}/{len(cedulas)}: {ced} ({window_label}) ──")
             try:
                 _run_pipeline_subprocess(ced, ["strava", "features", "plan"], False)
+
+                # Validación: contar actividades en Supabase post-sync
+                try:
+                    count_res = (
+                        sb.table("activities")
+                        .select("strava_id", count="exact")
+                        .eq("cedula", ced)
+                        .execute()
+                    )
+                    n_acts = count_res.count or 0
+                    print(f"[bulk-resync] ✅ {ced} completado — {n_acts} actividades en Supabase ({i}/{len(cedulas)})")
+                except Exception:
+                    print(f"[bulk-resync] ✅ {ced} completado ({i}/{len(cedulas)})")
+
                 ok.append(ced)
-                print(f"[bulk-resync] ✅ {ced} completado ({i}/{len(cedulas)})")
             except Exception as e:
                 err.append(ced)
                 print(f"[bulk-resync] ❌ {ced} error: {e}")
+
             # Pausa entre atletas para respetar rate limits de Strava
             if i < len(cedulas):
                 print(f"[bulk-resync] ⏸  Pausa 5s antes del siguiente atleta…")
                 time.sleep(5)
 
-        print(f"[bulk-resync] ══ COMPLETADO: {len(ok)} OK · {len(err)} errores ══")
+        print(f"[bulk-resync] ══ COMPLETADO ({window_label}): {len(ok)} OK · {len(err)} errores ══")
         if err:
             print(f"[bulk-resync] Atletas con error: {err}")
 
     background_tasks.add_task(_run_all_with_delay)
 
     return {
-        "status":          "bulk_resync_queued",
-        "total":           len(cedulas),
-        "cedulas":         cedulas,
-        "reset_ok":        len(reset_ok),
-        "reset_err":       len(reset_err),
-        "estimated_min":   round(len(cedulas) * 1.5),   # ~90s por atleta
+        "status":        "bulk_resync_queued",
+        "total":         len(cedulas),
+        "cedulas":       cedulas,
+        "window":        window_label,
+        "sync_since":    sync_since,
+        "reset_ok":      len(reset_ok),
+        "reset_err":     len(reset_err),
+        "estimated_min": round(len(cedulas) * 1.5),
         "message": (
-            f"{len(cedulas)} atletas encolados para re-sync histórico completo. "
-            f"Procesando 1 a la vez con pausa de 5s entre cada uno. "
-            f"Estimado: ~{round(len(cedulas) * 1.5)} minutos en total."
+            f"{len(cedulas)} atletas encolados ({window_label}). "
+            f"Procesando 1 a la vez con pausa de 5s. "
+            f"Estimado: ~{round(len(cedulas) * 1.5)} minutos."
         ),
     }
 
