@@ -1342,13 +1342,16 @@ def bulk_stats(_: None = Depends(require_api_key)):
     _PAGE = 1000
 
     def _paginate_activities(columns: str, extra_filters=None) -> list:
-        """Descarga todas las actividades Run/TrailRun paginando de a 1000 filas."""
+        """Descarga todas las actividades Run/TrailRun paginando de a 1000 filas.
+        ORDER BY strava_id garantiza orden estable entre páginas (sin duplicados ni gaps).
+        """
         rows, offset = [], 0
         while True:
             q = (
                 sb.table("activities")
                 .select(columns)
                 .in_("sport_type", ["Run", "TrailRun"])
+                .order("strava_id")   # orden estable = paginación sin solapamiento
             )
             if extra_filters:
                 q = extra_filters(q)
