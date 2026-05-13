@@ -1320,10 +1320,12 @@ def bulk_stats(_: None = Depends(require_api_key)):
     Responde: dict keyed by cedula → mismo schema que /{cedula}/stats.
     """
     from collections import defaultdict
-    from datetime import date as _date
+    from datetime import date as _date, timedelta as _td
     from src.storage.supabase_client import get_client
 
-    PROJECT_START = "2026-02-01"
+    # Ventana rodante 90 días — "activo en el programa" = corrió en los últimos 3 meses.
+    # Era hardcodeado ("2026-02-01") lo que hacía el KPI obsoleto con el tiempo.
+    PROJECT_START = (_date.today() - _td(days=90)).isoformat()
     sb = get_client()
     if not sb:
         raise HTTPException(503, "Supabase no disponible")
@@ -1452,13 +1454,18 @@ def bulk_stats(_: None = Depends(require_api_key)):
         # last_activity: más reciente de runs since PROJECT_START o all-time
         last_activity = last_act.get(ced) or last_run_all.get(ced)
 
+        # N2 eligibility: ≥5 runs con HR + ≥4 semanas de historial.
+        # Criterio relajado (antes ≥10/≥8) para capturar toda la cohorte útil.
+        # Nota: la validación final del modelo usa LOAO-CV → el umbral aquí es
+        # solo para decidir qué atletas entran al entrenamiento, no para garantizar
+        # suficientes datos de entrenamiento (eso lo controla el propio fold de CV).
         features = {
             "prediccion_n1":    has_prof,
             "dashboard_activo": has_snap,
             "plan_semanal":     has_plan,
             "carga_training":   runs > 0,
-            "zonas_hr":         hr >= 10,
-            "elegible_n2":      weeks_span >= 8 and hr >= 10,
+            "zonas_hr":         hr >= 5,
+            "elegible_n2":      weeks_span >= 4 and hr >= 5,
         }
 
         result[ced] = {
@@ -1503,8 +1510,9 @@ def get_athlete_stats(
       - last_checkin:     fecha del último check-in
       - last_activity:    fecha de la última actividad Strava
     """
+    from datetime import date as _date2, timedelta as _td2
     from src.storage.supabase_client import get_client
-    PROJECT_START = "2026-02-01"
+    PROJECT_START = (_date2.today() - _td2(days=90)).isoformat()  # ventana rodante 90 días
 
     sb = get_client()
     if not sb:
@@ -1652,13 +1660,14 @@ def get_athlete_stats(
         has_plan = len(plan_rows) > 0
 
         # ── Feature flags ─────────────────────────────────────────────────────
+        # N2 eligibility: criterio relajado (≥5 HR runs, ≥4 semanas) — ver bulk stats.
         features = {
             "prediccion_n1":    has_profile,
             "dashboard_activo": has_snapshot,
             "plan_semanal":     has_plan,
             "carga_training":   strava_runs > 0,
-            "zonas_hr":         runs_with_hr >= 10,
-            "elegible_n2":      weeks_span >= 8 and runs_with_hr >= 10,
+            "zonas_hr":         runs_with_hr >= 5,
+            "elegible_n2":      weeks_span >= 4 and runs_with_hr >= 5,
         }
 
         return {
