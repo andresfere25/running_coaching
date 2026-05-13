@@ -1335,20 +1335,35 @@ def bulk_stats(_: None = Depends(require_api_key)):
     if not all_ceds:
         return {}
 
-    # LÍMITE EXPLÍCITO en todas las queries que bajan filas.
-    # supabase-py usa PostgREST cuyo default es 1000 filas. Con 91 atletas × ~200 acts
-    # = ~18K filas, sin límite explícito se trunca y weeks_span / hr_count quedan mal.
-    _BIG = 200_000  # suficiente para cualquier cohorte razonable
+    # ── Paginación robusta ────────────────────────────────────────────────────
+    # Supabase PostgREST tiene max_rows=1000 por defecto (no lo cambia .limit(_BIG)).
+    # Con 76 atletas y 20K+ actividades, una sola query trunca y los atletas más
+    # activos desaparecen del panel. Solución: paginar en chunks de 1000.
+    _PAGE = 1000
+
+    def _paginate_activities(columns: str, extra_filters=None) -> list:
+        """Descarga todas las actividades Run/TrailRun paginando de a 1000 filas."""
+        rows, offset = [], 0
+        while True:
+            q = (
+                sb.table("activities")
+                .select(columns)
+                .in_("sport_type", ["Run", "TrailRun"])
+            )
+            if extra_filters:
+                q = extra_filters(q)
+            batch = q.range(offset, offset + _PAGE - 1).execute().data or []
+            rows.extend(batch)
+            if len(batch) < _PAGE:
+                break
+            offset += _PAGE
+        return rows
 
     # 2. Runs desde PROJECT_START (para strava_runs + last_activity)
-    runs_res = (
-        sb.table("activities")
-        .select("cedula,activity_date")
-        .in_("sport_type", ["Run", "TrailRun"])
-        .gte("activity_date", PROJECT_START)
-        .limit(_BIG)
-        .execute()
-    ).data or []
+    runs_res = _paginate_activities(
+        "cedula,activity_date",
+        lambda q: q.gte("activity_date", PROJECT_START),
+    )
 
     runs_count: dict = defaultdict(int)
     last_act: dict   = {}
@@ -1359,14 +1374,8 @@ def bulk_stats(_: None = Depends(require_api_key)):
         if ced not in last_act or d > last_act[ced]:
             last_act[ced] = d
 
-    # 3. TODAS las fechas de runs (para weeks_span — sin filtro PROJECT_START)
-    all_runs_dates = (
-        sb.table("activities")
-        .select("cedula,activity_date")
-        .in_("sport_type", ["Run", "TrailRun"])
-        .limit(_BIG)
-        .execute()
-    ).data or []
+    # 3. TODAS las fechas de runs (para weeks_span — all-time, sin filtro PROJECT_START)
+    all_runs_dates = _paginate_activities("cedula,activity_date")
 
     first_run: dict = {}
     last_run_all: dict = {}
@@ -1379,14 +1388,11 @@ def bulk_stats(_: None = Depends(require_api_key)):
             last_run_all[ced] = d
 
     # 4. Runs con HR (solo cedula — filtro JSONB server-side)
-    hr_runs = (
-        sb.table("activities")
-        .select("cedula")
-        .in_("sport_type", ["Run", "TrailRun"])
-        .not_.is_("raw->>average_heartrate", "null")
-        .limit(_BIG)
-        .execute()
-    ).data or []
+    # PostgREST: raw->>average_heartrate filtra clave en el JSONB de Strava.
+    hr_runs = _paginate_activities(
+        "cedula",
+        lambda q: q.not_.is_("raw->>average_heartrate", "null"),
+    )
     hr_count: dict = defaultdict(int)
     for row in hr_runs:
         hr_count[row["cedula"]] += 1
