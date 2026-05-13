@@ -182,12 +182,13 @@ def _sync_athlete_core(
     new_refresh = refresh_token_in  # se retorna para que el llamador actualice si rotó
 
     # 2) Ventana de sync
-    # Si es el primer sync (sin last_sync_dt) o el parquet local no existe,
-    # pedir TODO el historial desde el inicio de Strava (2009).
-    silver_path_check = data_dir / cedula / "silver" / "activities.parquet"
-    local_data_exists = silver_path_check.exists()
-    if last_sync_dt is None or not local_data_exists:
-        after_dt = datetime(2009, 1, 1)   # historial completo — Strava existe desde 2009
+    # - Si last_sync_dt está seteado (por bulk-resync o sync previo) → usar esa fecha
+    # - Si last_sync_dt es None (primer sync) → máximo 3 años atrás
+    # No usar la existencia del parquet local como criterio: en Railway el disco es
+    # efímero y el parquet desaparece con cada deploy. La fuente de verdad es Supabase.
+    MAX_HISTORY = timedelta(days=3 * 365)  # 3 años máximo
+    if last_sync_dt is None:
+        after_dt = now - MAX_HISTORY
     else:
         after_dt = last_sync_dt - timedelta(days=2)
     before_dt = now + timedelta(days=1)
