@@ -1,9 +1,9 @@
 {
-  "version": "v1b",
+  "version": "v1c",
   "nb": "NB13b",
   "description": "Nivel 2 — Prior de cohorte RUNA. Lasso LOAO-CV. Eligibility relajada (>=3 HR runs, >=2 semanas). Usa pred_nivel1 como stacking feature (Wolpert 1992). dens_hr corregido: (avg_hr/fcmax)/log(dur_min).",
-  "trained_on": "Cohorte RUNA — 9926 sesiones, 42 atletas",
-  "trained_at": "2026-05-13T20:00:00.000000",
+  "trained_on": "Cohorte RUNA — 10049 sesiones, 48 atletas",
+  "trained_at": "2026-05-13T22:52:07.830294",
   "note_pkl": "Coefs/scaler en este JSON son de referencia. El modelo activo esta en nivel2_v1.pkl (Pipeline sklearn StandardScaler+Lasso retrenado con dens_hr correcto).",
   "features": [
     "pred_nivel1",
@@ -76,18 +76,18 @@
     0.7076897,
     0.70242353
   ],
-  "mae_loao_cv_sec_km": 46.67,
-  "mae_std_sec_km": 15.74,
-  "mae_median_sec_km": 42.82,
+  "mae_loao_cv_sec_km": 47.59,
+  "mae_std_sec_km": 20.3,
+  "mae_median_sec_km": 47.59,
   "vdot_median_imputed": 42.9,
-  "n1_baseline_mae_sec_km": 61.97,
-  "mejora_vs_n1_pct": 24.69,
+  "n1_baseline_mae_sec_km": 62.4,
+  "mejora_vs_n1_pct": 23.71,
   "n2_thresholds": {
     "min_hr_runs": 3,
     "min_weeks": 2
   },
   "friedman": {
-    "chi2": 61.6429,
+    "chi2": 65.96,
     "p_value": 0.0
   },
   "notes": {

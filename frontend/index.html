@@ -2060,21 +2060,42 @@
                        x-text="z.hr_min + '–' + z.hr_max + ' bpm · ' + z.pct_fcmax_range"></div>
                 </div>
 
-                <!-- Pace bar -->
-                <div class="flex-1 relative h-9 rounded-lg overflow-hidden"
-                     style="background:var(--ink-100);">
-                  <div class="absolute inset-y-0 left-0 rounded-lg transition-all duration-500 flex items-center justify-end pr-3"
-                       :style="'background:' + z.color + '20; border-left:3px solid ' + z.color + '; width:' + Math.max(20, Math.min(95, (12 - z.nivel1.pace_min_km) / 10 * 100)) + '%;'">
-                    <span class="font-mono text-xs font-bold" :style="'color:' + z.color"
-                          x-text="z.nivel1.pace_fmt"></span>
+                <!-- Pace bars N1 + N2 -->
+                <div class="flex-1 flex flex-col gap-1">
+                  <!-- N1 bar -->
+                  <div class="relative h-8 rounded-lg overflow-hidden" style="background:var(--ink-100);">
+                    <div class="absolute inset-y-0 left-0 rounded-lg transition-all duration-500 flex items-center justify-end pr-3"
+                         :style="'background:' + z.color + '20; border-left:3px solid ' + z.color + '; width:' + Math.max(20, Math.min(95, (12 - z.nivel1.pace_min_km) / 10 * 100)) + '%;'">
+                      <span class="font-mono text-xs font-bold" :style="'color:' + z.color"
+                            x-text="z.nivel1.pace_fmt"></span>
+                    </div>
+                    <span class="absolute left-2 top-1 text-[8px] font-semibold" style="color:var(--ink-300);">N1</span>
                   </div>
+                  <!-- N2 bar (solo si disponible) -->
+                  <template x-if="z.nivel2">
+                    <div class="relative h-8 rounded-lg overflow-hidden" style="background:var(--ink-100);">
+                      <div class="absolute inset-y-0 left-0 rounded-lg transition-all duration-500 flex items-center justify-end pr-3"
+                           :style="'background:#7c3aed20; border-left:3px solid #7c3aed; width:' + Math.max(20, Math.min(95, (12 - z.nivel2.pace_min_km) / 10 * 100)) + '%;'">
+                        <span class="font-mono text-xs font-bold" style="color:#7c3aed"
+                              x-text="z.nivel2.pace_fmt"></span>
+                      </div>
+                      <span class="absolute left-2 top-1 text-[8px] font-semibold" style="color:#7c3aed;">N2</span>
+                    </div>
+                  </template>
                 </div>
 
-                <!-- Conformal interval -->
+                <!-- Interval -->
                 <div class="w-28 text-right shrink-0">
                   <span class="text-[10px] font-mono" style="color:var(--ink-500);"
                         x-text="z.nivel1.interval_lower_fmt + ' – ' + z.nivel1.interval_upper_fmt"></span>
-                  <div class="text-[9px]" style="color:var(--ink-300);">intervalo 80%</div>
+                  <div class="text-[9px]" style="color:var(--ink-300);">N1 intervalo 80%</div>
+                  <template x-if="z.nivel2">
+                    <div>
+                      <span class="text-[10px] font-mono" style="color:#7c3aed;"
+                            x-text="z.nivel2.ci_lo_fmt + ' – ' + z.nivel2.ci_hi_fmt"></span>
+                      <div class="text-[9px]" style="color:#7c3aed;">N2 ±MAE</div>
+                    </div>
+                  </template>
                 </div>
               </div>
             </template>
@@ -2083,9 +2104,9 @@
           <!-- Legend -->
           <div class="px-5 py-3 flex items-center gap-4 text-[10px]"
                style="background:var(--bone-100);border-top:1px solid var(--ink-200);color:var(--ink-500);">
-            <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:var(--carmine-600);"></span> Nivel 1 — Prior poblacional (activo)</span>
-            <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:var(--warning-600);"></span> Nivel 2 — Cohorte RUNA (próximamente)</span>
-            <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:var(--ink-300);"></span> Nivel 3 — Individual (futuro)</span>
+            <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:var(--carmine-600);"></span> N1 — Prior poblacional (Endomondo, 356 usuarios)</span>
+            <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:#7c3aed;"></span> N2 — Cohorte RUNA (48 atletas, MAE 47.6 s/km)</span>
+            <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:var(--ink-300);"></span> N3 — Individual (futuro)</span>
           </div>
         </div>
 
@@ -2128,9 +2149,20 @@
                             x-text="z.nivel1.pace_fmt"></span>
                     </td>
                     <td class="text-center px-3 py-3">
-                      <span class="chip chip-warning text-[10px]">
-                        <i class="ph ph-clock-countdown"></i> Próximo
-                      </span>
+                      <template x-if="z.nivel2">
+                        <div>
+                          <span class="font-mono font-bold" style="color:#7c3aed;"
+                                x-text="z.nivel2.pace_fmt"></span>
+                          <div class="text-[9px]" style="color:#7c3aed;">
+                            <span x-text="z.nivel2.ci_lo_fmt + ' – ' + z.nivel2.ci_hi_fmt"></span>
+                          </div>
+                        </div>
+                      </template>
+                      <template x-if="!z.nivel2">
+                        <span class="chip chip-warning text-[10px]">
+                          <i class="ph ph-clock-countdown"></i> Pendiente
+                        </span>
+                      </template>
                     </td>
                     <td class="text-center px-3 py-3">
                       <span class="chip chip-neutral text-[10px]">

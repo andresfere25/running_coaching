@@ -2030,6 +2030,43 @@ def get_ml_hierarchy(
         else:
             fcmax_obs = 190
 
+    # ── 2b. N2 — Cohorte RUNA: elegibilidad + predicción por zona ───────────
+    n2_zones_map: dict = {}
+    n2_active = False
+    n2_n_hr_runs = 0
+    try:
+        from src.ml.nivel2 import predict_n2_zones as _n2_zones
+        from datetime import datetime as _dt
+
+        if acts:
+            hr_acts = [
+                a for a in acts
+                if float(
+                    (a.get("average_heartrate") or (a.get("raw") or {}).get("average_heartrate") or 0)
+                ) > 0
+            ]
+            n2_n_hr_runs = len(hr_acts)
+            if n2_n_hr_runs >= 3:
+                dates = []
+                for a in hr_acts:
+                    d = a.get("activity_date") or a.get("start_date")
+                    if d:
+                        try:
+                            dates.append(_dt.fromisoformat(str(d)[:19]))
+                        except Exception:
+                            pass
+                if dates and (max(dates) - min(dates)).days / 7 >= 2:
+                    n2_preds = _n2_zones(
+                        age=float(age) if age else 35.0,
+                        sex_bin=gender_bin,
+                        fcmax_obs=fcmax_obs if fcmax_source == "strava" else None,
+                        vdot=None,
+                    )
+                    n2_zones_map = {p["zona"]: p for p in n2_preds}
+                    n2_active = True
+    except Exception as _n2_exc:
+        print(f"[ml_hierarchy] N2 skipped for {cedula}: {_n2_exc}")
+
     # ── 3. Definir zonas y predecir ritmo por zona ───────────────────────────
     zone_defs = [
         {"zone": 1, "name": "Z1 · Recuperación",   "pct_min": 0.00, "pct_max": 0.60, "color": "#3B82F6"},
@@ -2078,7 +2115,16 @@ def get_ml_hierarchy(
                 "interval_upper_fmt": f"{int(pred_upper)}:{int((pred_upper % 1) * 60):02d}",
                 "conformal_width_sec": round(CONFORMAL_Q * 60, 0),
             },
-            "nivel2": None,
+            "nivel2": ({
+                "pace_sec_km":  round(_nz["pace_sec_km"], 1),
+                "pace_min_km":  round(_nz["pace_sec_km"] / 60, 2),
+                "pace_fmt":     f"{int(_nz['pace_sec_km']//60)}:{int(_nz['pace_sec_km']%60):02d} /km",
+                "ci_lo_fmt":    f"{int(_nz['ci_lo_sec_km']//60)}:{int(_nz['ci_lo_sec_km']%60):02d}",
+                "ci_hi_fmt":    f"{int(_nz['ci_hi_sec_km']//60)}:{int(_nz['ci_hi_sec_km']%60):02d}",
+                "mae_sec_km":   47.6,
+                "vdot_used":    _nz["vdot_used"],
+                "vdot_source":  _nz["vdot_source"],
+            } if (_nz := n2_zones_map.get(z)) else None),
             "nivel3": None,
         })
 
@@ -2135,10 +2181,14 @@ def get_ml_hierarchy(
         {
             "level": 2,
             "name": "Cohorte RUNA",
-            "status": "pending",
-            "description": "AutoML + LOAO-CV sobre la cohorte de atletas RUNA (en desarrollo)",
+            "status": "active" if n2_active else "pending",
+            "description": (
+                f"Lasso LOAO-CV — 48 atletas, 10 049 sesiones RUNA (requirió {n2_n_hr_runs} runs con FC)"
+                if n2_active else
+                f"Requiere ≥3 runs con FC + ≥2 semanas de historial (tienes {n2_n_hr_runs} runs con FC)"
+            ),
             "icon": "users-three",
-            "accuracy": "Pendiente — se espera mejorar MAE en ~15–25%",
+            "accuracy": "MAE = 47.6 seg/km (+23.7% sobre N1)" if n2_active else "Pendiente",
         },
         {
             "level": 3,
