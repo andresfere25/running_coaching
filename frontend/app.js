@@ -7,13 +7,28 @@
 
 const API_BASE = '';  // mismo origen: frontend y backend en localhost:8000
 
-async function apiFetch(path) {
-  const res = await fetch(`${API_BASE}${path}`);
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail || `Error ${res.status}: ${res.statusText}`);
+const API_TIMEOUT_MS = 12000;  // 12 s — si Railway no responde en este tiempo, error claro
+
+async function apiFetch(path, timeoutMs = API_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || `Error ${res.status}: ${res.statusText}`);
+    }
+    return res.json();
+  } catch (e) {
+    clearTimeout(timer);
+    if (e.name === 'AbortError') {
+      const err = new Error('El servidor tardó demasiado en responder. Puede estar reiniciando.');
+      err.isTimeout = true;
+      throw err;
+    }
+    throw e;
   }
-  return res.json();
 }
 
 // ─── Colores del semáforo ──────────────────────────────────────────────────
@@ -132,6 +147,8 @@ function athleteApp() {
     loading:      false,
     error:             null,
     isPipelinePending: false,
+    isTimeout:         false,
+    rehydrating:       false,
     snapshot:     null,
     plan:         null,
     features:     null,
@@ -156,6 +173,7 @@ function athleteApp() {
       this.loading    = true;
       this.error      = null;
       this.isPipelinePending = false;
+      this.isTimeout  = false;
       this.snapshot     = null;
       this.plan         = null;
       this.features     = null;
@@ -177,6 +195,16 @@ function athleteApp() {
         this.snapshot = snapRes.status === 'fulfilled' ? snapRes.value : null;
         this.plan     = planRes.status === 'fulfilled' ? planRes.value : null;
         this.features = featRes.status === 'fulfilled' ? featRes.value : null;
+
+        // Detectar timeout en cualquier resultado
+        const timedOut = [snapRes, planRes, featRes].some(
+          r => r.status === 'rejected' && r.reason?.isTimeout
+        );
+        if (timedOut) {
+          this.isTimeout = true;
+          this.error = 'timeout';
+          return;
+        }
 
         // Si ninguno tiene datos, mostrar mensaje de pipeline pendiente
         if (!this.snapshot && !this.plan && !this.features) {
@@ -291,6 +319,25 @@ function athleteApp() {
       const m = Math.floor((s % 3600) / 60);
       if (h > 0) return `${h}h ${m}min`;
       return `${m} min`;
+    },
+
+    // ── Reactivar dashboard (Railway sleeping / ephemeral disk) ──────────
+    // Estrategia: hacer ping al health check (sin auth) para despertar Railway,
+    // esperar 3 s y reintentar search(). Cubre el 90% de los casos (sleep).
+    // Si el parquet está ausente después del ping, el coach debe disparar
+    // el pipeline manualmente desde el panel de administración.
+    async rehydrateDashboard() {
+      this.rehydrating = true;
+      this.error       = null;
+      this.isTimeout   = false;
+      try {
+        // Ping sin auth — despierta el servidor si está durmiendo
+        await apiFetch('/', 8000);
+      } catch (_) { /* ignorar — el objetivo era solo hacer el request */ }
+      // Darle 3 s al servidor para que termine de arrancar
+      await new Promise(r => setTimeout(r, 3000));
+      this.rehydrating = false;
+      await this.search();
     },
 
     // ── Último check-in ───────────────────────────────────────────────────

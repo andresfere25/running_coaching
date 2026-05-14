@@ -10,75 +10,75 @@
     "min_hr_runs": 5,
     "min_weeks": 4
   },
-  "n1_baseline_mae_sec_km": 945.28,
-  "ridge_n2_mae_sec_km": 38.11,
+  "n1_baseline_mae_sec_km": 61.97,
+  "ridge_n2_mae_sec_km": 47.04,
   "models": {
     "Ridge": {
-      "mae_global": 38.11,
-      "mae_std": 13.23,
-      "mae_min": 21.13,
-      "mae_max": 77.76,
-      "mae_median": 34.62,
-      "friedman_rank": 2.833
+      "mae_global": 47.04,
+      "mae_std": 16.04,
+      "mae_min": 22.24,
+      "mae_max": 89.1,
+      "mae_median": 43.02,
+      "friedman_rank": 3.381
     },
     "Lasso": {
-      "mae_global": 33.85,
-      "mae_std": 12.49,
-      "mae_min": 14.37,
-      "mae_max": 71.41,
-      "mae_median": 32.74,
-      "friedman_rank": 1.786
+      "mae_global": 46.67,
+      "mae_std": 15.74,
+      "mae_min": 21.81,
+      "mae_max": 89.13,
+      "mae_median": 42.82,
+      "friedman_rank": 2.976
     },
     "ElasticNet": {
-      "mae_global": 45.25,
-      "mae_std": 16.21,
-      "mae_min": 23.47,
-      "mae_max": 97.49,
-      "mae_median": 42.71,
-      "friedman_rank": 4.238
+      "mae_global": 47.23,
+      "mae_std": 16.87,
+      "mae_min": 21.78,
+      "mae_max": 101.29,
+      "mae_median": 43.58,
+      "friedman_rank": 3.429
     },
     "GradBoost": {
-      "mae_global": 44.76,
-      "mae_std": 19.0,
-      "mae_min": 21.34,
-      "mae_max": 107.51,
-      "mae_median": 38.46,
-      "friedman_rank": 3.714
+      "mae_global": 46.83,
+      "mae_std": 17.43,
+      "mae_min": 24.33,
+      "mae_max": 85.87,
+      "mae_median": 42.08,
+      "friedman_rank": 3.595
     },
     "RandomForest": {
-      "mae_global": 46.27,
-      "mae_std": 18.08,
-      "mae_min": 17.4,
-      "mae_max": 92.51,
-      "mae_median": 41.29,
-      "friedman_rank": 4.262
+      "mae_global": 47.76,
+      "mae_std": 18.14,
+      "mae_min": 17.46,
+      "mae_max": 97.43,
+      "mae_median": 45.46,
+      "friedman_rank": 3.905
     },
     "LinearSVR": {
-      "mae_global": 92.74,
-      "mae_std": 49.03,
-      "mae_min": 26.82,
-      "mae_max": 244.13,
-      "mae_median": 78.92,
-      "friedman_rank": 6.333
+      "mae_global": 94.75,
+      "mae_std": 53.24,
+      "mae_min": 33.69,
+      "mae_max": 276.27,
+      "mae_median": 79.97,
+      "friedman_rank": 6.143
     },
     "KNeighbors": {
-      "mae_global": 50.25,
-      "mae_std": 21.97,
-      "mae_min": 24.91,
-      "mae_max": 116.95,
-      "mae_median": 43.17,
-      "friedman_rank": 4.833
+      "mae_global": 51.58,
+      "mae_std": 22.84,
+      "mae_min": 28.33,
+      "mae_max": 119.94,
+      "mae_median": 43.63,
+      "friedman_rank": 4.571
     }
   },
   "friedman": {
-    "chi2": 113.4898,
+    "chi2": 61.6429,
     "p_value": 0.0
   },
   "winner": {
     "model_name": "Lasso",
-    "mae_sec_km": 33.85,
-    "mae_std_sec_km": 12.49,
-    "mejora_vs_n1_pct": 96.42
+    "mae_sec_km": 46.67,
+    "mae_std_sec_km": 15.74,
+    "mejora_vs_n1_pct": 24.69
   },
   "features": [
     "pred_nivel1",

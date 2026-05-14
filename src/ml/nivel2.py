@@ -6,11 +6,12 @@ Inferencia del modelo N2 — Prior de cohorte RUNA.
 Nivel 2 aprende de sesiones reales de la cohorte propia y usa pred_nivel1
 como stacking feature (Wolpert 1992). Modelo: Lasso + StandardScaler.
 
-MAE LOAO-CV: 33.9 sec/km | Atletas: 42 | Sesiones: 9,926
+MAE LOAO-CV: 46.7 sec/km | Atletas: 42 | Sesiones: 9,926
+  (mejora +24.7% sobre N1 OOD en RUNA: 62.0 → 46.7 sec/km)
 
-dens_hr = (avg_hr / fcmax) / log(duration_min)  — igual que NB12 (Endomondo).
-  Bug original (NB13b v2): avg_hr / log(duration_sec) → ~17 en RUNA (debería ser ~0.19).
-  Corregido en NB13b v2 fixed antes de reentrenar.
+dens_hr = (avg_hr / fcmax) / log(duration_min)
+  Formula correcta — equivalente al ~0.19 muestras/s de Endomondo.
+  pred_nivel1 resultante: ~280-350 sec/km (plausible).
 
 Uso:
     from src.ml.nivel2 import predict_n2_zones, predict_n2_session

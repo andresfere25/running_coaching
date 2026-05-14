@@ -261,14 +261,51 @@
       </div>
     </div>
 
+    <!-- Error: timeout / Railway dormido -->
+    <div x-show="isTimeout && !loading" x-transition
+         class="rounded-xl px-6 py-5 flex items-start gap-4 mt-4"
+         style="background:#f0f9ff;border:1px solid #bae6fd;color:#0369a1;">
+      <i class="ph ph-wifi-slash text-2xl mt-0.5 shrink-0" style="color:#0284c7;"></i>
+      <div class="flex-1">
+        <p class="font-semibold text-base">El servidor tardó demasiado en responder</p>
+        <p class="text-sm mt-1" style="color:#0369a1;">
+          Railway puede estar reiniciando o cargando los datos del atleta desde cero.
+          Esto suele resolverse en 30-60 segundos.
+        </p>
+        <div class="flex gap-2 mt-3 flex-wrap">
+          <button @click="search()"
+                  class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
+                  style="background:rgba(2,132,199,0.12);color:#0284c7;">
+            <i class="ph ph-arrow-clockwise mr-1"></i>Reintentar
+          </button>
+          <button @click="rehydrateDashboard()"
+                  :disabled="rehydrating"
+                  class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
+                  style="background:#0284c7;color:white;"
+                  :style="rehydrating ? 'opacity:0.6;cursor:not-allowed' : ''">
+            <span x-show="!rehydrating"><i class="ph ph-database mr-1"></i>Reactivar dashboard</span>
+            <span x-show="rehydrating"><i class="ph ph-circle-notch animate-spin mr-1"></i>Reactivando...</span>
+          </button>
+        </div>
+        <p class="text-xs mt-2" style="color:#7dd3fc;">
+          "Reactivar" reconstruye los datos del atleta desde la base de datos y puede tardar ~30 s.
+        </p>
+      </div>
+    </div>
+
     <!-- Error: fallo real -->
-    <div x-show="error && !isPipelinePending" x-transition
+    <div x-show="error && !isPipelinePending && !isTimeout" x-transition
          class="rounded-xl px-6 py-4 flex items-start gap-3 mt-4"
          style="background:var(--carmine-50);border:1px solid var(--carmine-100);color:var(--carmine-700);">
       <i class="ph ph-warning text-xl mt-0.5 shrink-0"></i>
       <div>
         <p class="font-semibold">No se pudo cargar el atleta</p>
         <p class="text-sm mt-1" x-text="error" style="color:var(--carmine-600);"></p>
+        <button @click="search()"
+                class="mt-2 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
+                style="background:rgba(185,28,28,0.1);color:var(--carmine-700);">
+          <i class="ph ph-arrow-clockwise mr-1"></i>Reintentar
+        </button>
       </div>
     </div>
 
@@ -277,6 +314,7 @@
       <div class="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin"
            style="border-color:var(--carmine-600);border-top-color:transparent;"></div>
       <p class="text-sm" style="color:var(--ink-500);">Cargando datos del atleta...</p>
+      <p class="text-xs" style="color:var(--ink-400);">Si tarda más de 15 s, el servidor puede estar reiniciando.</p>
     </div>
 
     <!-- ── DASHBOARD ──────────────────────────────────────────────────── -->
