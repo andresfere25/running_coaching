@@ -8,10 +8,9 @@ como stacking feature (Wolpert 1992). Modelo: Lasso + StandardScaler.
 
 MAE LOAO-CV: 33.9 sec/km | Atletas: 42 | Sesiones: 9,926
 
-NOTA sobre dens_hr:
-  N2 fue entrenado con pred_nivel1 calculado usando dens_hr = avg_hr / log(duration_sec)
-  (fórmula con bug de unidades). Para inferencia consistente se usa la MISMA formula.
-  Pendiente: fix dens_hr -> reentrenar NB13b -> actualizar pkl y json.
+dens_hr = (avg_hr / fcmax) / log(duration_min)  — igual que NB12 (Endomondo).
+  Bug original (NB13b v2): avg_hr / log(duration_sec) → ~17 en RUNA (debería ser ~0.19).
+  Corregido en NB13b v2 fixed antes de reentrenar.
 
 Uso:
     from src.ml.nivel2 import predict_n2_zones, predict_n2_session
@@ -103,7 +102,8 @@ def _predict_n1_sec_km(
     Aplica N1 (Ridge, Endomondo) y devuelve pred en SEC/KM.
     Usa dens_hr = avg_hr / log_duration (formula identica a la del entrenamiento de N2).
     """
-    dens_hr = avg_hr / log_duration  # misma formula que en NB13b (bug intencional para consistencia)
+    duration_min = math.exp(log_duration) / 60.0          # revertir log para obtener minutos
+    dens_hr = (avg_hr / fcmax) / math.log(max(duration_min, 1.0))  # formula correcta: igual a NB12
 
     feat_vec = [
         float(sex_bin),
