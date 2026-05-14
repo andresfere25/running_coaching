@@ -2030,40 +2030,22 @@ def get_ml_hierarchy(
         else:
             fcmax_obs = 190
 
-    # ── 2b. N2 — Cohorte RUNA: elegibilidad + predicción por zona ───────────
+    # ── 2b. N2 — Cohorte RUNA: predicción para cualquier atleta con perfil ──
+    # Nota: los >=3 HR runs / >=2 semanas son criterios de ENTRENAMIENTO,
+    # no de inferencia. N2 predice para cualquier atleta con age + sex.
     n2_zones_map: dict = {}
     n2_active = False
-    n2_n_hr_runs = 0
     try:
         from src.ml.nivel2 import predict_n2_zones as _n2_zones
-        from datetime import datetime as _dt
-
-        if acts:
-            hr_acts = [
-                a for a in acts
-                if float(
-                    (a.get("average_heartrate") or (a.get("raw") or {}).get("average_heartrate") or 0)
-                ) > 0
-            ]
-            n2_n_hr_runs = len(hr_acts)
-            if n2_n_hr_runs >= 3:
-                dates = []
-                for a in hr_acts:
-                    d = a.get("activity_date") or a.get("start_date")
-                    if d:
-                        try:
-                            dates.append(_dt.fromisoformat(str(d)[:19]))
-                        except Exception:
-                            pass
-                if dates and (max(dates) - min(dates)).days / 7 >= 2:
-                    n2_preds = _n2_zones(
-                        age=float(age) if age else 35.0,
-                        sex_bin=gender_bin,
-                        fcmax_obs=fcmax_obs if fcmax_source == "strava" else None,
-                        vdot=None,
-                    )
-                    n2_zones_map = {p["zona"]: p for p in n2_preds}
-                    n2_active = True
+        if age:
+            n2_preds = _n2_zones(
+                age=float(age),
+                sex_bin=gender_bin,
+                fcmax_obs=fcmax_obs if fcmax_source == "strava" else None,
+                vdot=None,  # imputa mediana de cohorte si no hay PR
+            )
+            n2_zones_map = {p["zona"]: p for p in n2_preds}
+            n2_active = True
     except Exception as _n2_exc:
         print(f"[ml_hierarchy] N2 skipped for {cedula}: {_n2_exc}")
 
@@ -2183,9 +2165,9 @@ def get_ml_hierarchy(
             "name": "Cohorte RUNA",
             "status": "active" if n2_active else "pending",
             "description": (
-                f"Lasso LOAO-CV — 48 atletas, 10 049 sesiones RUNA (requirió {n2_n_hr_runs} runs con FC)"
+                "Lasso LOAO-CV — entrenado con 48 atletas y 10 049 sesiones de la cohorte RUNA"
                 if n2_active else
-                f"Requiere ≥3 runs con FC + ≥2 semanas de historial (tienes {n2_n_hr_runs} runs con FC)"
+                "Requiere edad declarada en el perfil"
             ),
             "icon": "users-three",
             "accuracy": "MAE = 47.6 seg/km (+23.7% sobre N1)" if n2_active else "Pendiente",
