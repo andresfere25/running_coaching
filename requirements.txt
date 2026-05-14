@@ -27,5 +27,8 @@ uvicorn[standard]>=0.29.0
 # ─── Storage externo (Fase A/B — dual write + fuente primaria) ───────────────
 supabase>=2.0.0
 
+# ─── ML (Nivel 2 — cohorte RUNA) ─────────────────────────────────────────────
+scikit-learn>=1.3.0
+
 # ─── Dependencias futuras (Fase B+) ──────────────────────────────────────────
 # anthropic>=0.40.0     # Claude API — para observaciones personalizadas
