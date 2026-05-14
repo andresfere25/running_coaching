@@ -1,0 +1,100 @@
+{
+  "nb": "NB13",
+  "title": "Nivel 2 — Prior de Cohorte RUNA (LOAO-CV)",
+  "date": "2026-05-13",
+  "cohorte": {
+    "n_athletes": 42,
+    "n_sessions": 9926
+  },
+  "eligibility": {
+    "min_hr_runs": 5,
+    "min_weeks": 4
+  },
+  "n1_baseline_mae_sec_km": 945.28,
+  "ridge_n2_mae_sec_km": 38.11,
+  "models": {
+    "Ridge": {
+      "mae_global": 38.11,
+      "mae_std": 13.23,
+      "mae_min": 21.13,
+      "mae_max": 77.76,
+      "mae_median": 34.62,
+      "friedman_rank": 2.833
+    },
+    "Lasso": {
+      "mae_global": 33.85,
+      "mae_std": 12.49,
+      "mae_min": 14.37,
+      "mae_max": 71.41,
+      "mae_median": 32.74,
+      "friedman_rank": 1.786
+    },
+    "ElasticNet": {
+      "mae_global": 45.25,
+      "mae_std": 16.21,
+      "mae_min": 23.47,
+      "mae_max": 97.49,
+      "mae_median": 42.71,
+      "friedman_rank": 4.238
+    },
+    "GradBoost": {
+      "mae_global": 44.76,
+      "mae_std": 19.0,
+      "mae_min": 21.34,
+      "mae_max": 107.51,
+      "mae_median": 38.46,
+      "friedman_rank": 3.714
+    },
+    "RandomForest": {
+      "mae_global": 46.27,
+      "mae_std": 18.08,
+      "mae_min": 17.4,
+      "mae_max": 92.51,
+      "mae_median": 41.29,
+      "friedman_rank": 4.262
+    },
+    "LinearSVR": {
+      "mae_global": 92.74,
+      "mae_std": 49.03,
+      "mae_min": 26.82,
+      "mae_max": 244.13,
+      "mae_median": 78.92,
+      "friedman_rank": 6.333
+    },
+    "KNeighbors": {
+      "mae_global": 50.25,
+      "mae_std": 21.97,
+      "mae_min": 24.91,
+      "mae_max": 116.95,
+      "mae_median": 43.17,
+      "friedman_rank": 4.833
+    }
+  },
+  "friedman": {
+    "chi2": 113.4898,
+    "p_value": 0.0
+  },
+  "winner": {
+    "model_name": "Lasso",
+    "mae_sec_km": 33.85,
+    "mae_std_sec_km": 12.49,
+    "mejora_vs_n1_pct": 96.42
+  },
+  "features": [
+    "pred_nivel1",
+    "age",
+    "sex_bin",
+    "vdot",
+    "avg_hr",
+    "pct_hrmax",
+    "zona_hr",
+    "log_distance_km",
+    "elevation_m",
+    "has_elevation",
+    "cadence_filled",
+    "dow_sin",
+    "dow_cos",
+    "month_sin",
+    "month_cos"
+  ]
+}
