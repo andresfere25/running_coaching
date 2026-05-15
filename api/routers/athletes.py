@@ -1952,10 +1952,9 @@ def get_ml_hierarchy(
     Retorna la predicción del modelo jerárquico ML para este atleta.
 
     Nivel 1 (Prior poblacional): Ridge sobre FitRec/Endomondo (20 710 sesiones).
-    Predice pace_min_km para cada zona de FC (Z1–Z5) usando FCmax observada.
-
-    Nivel 2 (Cohorte RUNA): pendiente — retorna placeholder.
-    Nivel 3 (Bayesiano individual): pendiente — retorna placeholder.
+    Nivel 2 (Cohorte RUNA): Lasso LOAO-CV, 48 atletas, MAE 47.6 sec/km.
+    Nivel 3 (Longitudinal): Lasso LOAO-CV + CTL/ATL/TSB, 49 atletas, MAE 41.9 sec/km.
+      Activo si atleta tiene ≥8 semanas de historial en weekly_features.
 
     Campos clave:
     - fcmax: FCmax observada (de Strava) o estimada (220−edad)
@@ -2049,6 +2048,40 @@ def get_ml_hierarchy(
     except Exception as _n2_exc:
         print(f"[ml_hierarchy] N2 skipped for {cedula}: {_n2_exc}")
 
+    # ── 2c. N3 — Personalización longitudinal ────────────────────────────────
+    # Requiere ≥8 semanas de historial. Lee CTL/ATL/TSB/ACWR del snapshot.
+    n3_zones_map: dict = {}
+    n3_active = False
+    n3_weeks = 0
+    try:
+        from src.ml.nivel3 import predict_n3_zones as _n3_zones
+        if age and n2_active:
+            snap = read_snapshot(cedula, athlete_dir if athlete_dir.exists() else None)
+            if snap:
+                n3_weeks = int(snap.get("data_weeks_available", 0))
+                if n3_weeks >= 8:
+                    lw = snap.get("latest_week") or {}
+                    def _sf(v, default=0.0):
+                        try: return float(v) if v is not None and v == v else default
+                        except: return default
+                    n3_preds = _n3_zones(
+                        age=float(age),
+                        sex_bin=gender_bin,
+                        fcmax_obs=fcmax_obs if fcmax_source == "strava" else None,
+                        vdot=None,
+                        ctl=_sf(lw.get("ctl"), 40.0),
+                        atl=_sf(lw.get("atl"), 41.0),
+                        tsb=_sf(lw.get("tsb"), -1.0),
+                        acwr=_sf(lw.get("acwr"), 1.02),
+                        long_run_km=_sf(lw.get("long_run_km"), 20.0),
+                        pace_delta_4s_sec=_sf(lw.get("pace_delta_4s_sec"), 0.0),
+                        weeks_with_data=float(n3_weeks),
+                    )
+                    n3_zones_map = {p["zona"]: p for p in n3_preds}
+                    n3_active = True
+    except Exception as _n3_exc:
+        print(f"[ml_hierarchy] N3 skipped for {cedula}: {_n3_exc}")
+
     # ── 3. Definir zonas y predecir ritmo por zona ───────────────────────────
     zone_defs = [
         {"zone": 1, "name": "Z1 · Recuperación",   "pct_min": 0.00, "pct_max": 0.60, "color": "#3B82F6"},
@@ -2107,7 +2140,14 @@ def get_ml_hierarchy(
                 "vdot_used":    _nz["vdot_used"],
                 "vdot_source":  _nz["vdot_source"],
             } if (_nz := n2_zones_map.get(z)) else None),
-            "nivel3": None,
+            "nivel3": ({
+                "pace_sec_km":  round(_n3z["pace_sec_km"], 1),
+                "pace_min_km":  round(_n3z["pace_sec_km"] / 60, 2),
+                "pace_fmt":     f"{int(_n3z['pace_sec_km']//60)}:{int(_n3z['pace_sec_km']%60):02d} /km",
+                "ci_lo_fmt":    f"{int(_n3z['ci_lo_sec_km']//60)}:{int(_n3z['ci_lo_sec_km']%60):02d}",
+                "ci_hi_fmt":    f"{int(_n3z['ci_hi_sec_km']//60)}:{int(_n3z['ci_hi_sec_km']%60):02d}",
+                "mae_sec_km":   41.9,
+            } if (_n3z := n3_zones_map.get(z)) else None),
         })
 
     # ── 4. Estimación de tiempos por distancia (Riegel desde zona 3) ─────────
@@ -2174,11 +2214,15 @@ def get_ml_hierarchy(
         },
         {
             "level": 3,
-            "name": "Personalización individual",
-            "status": "future",
-            "description": "Actualización bayesiana con las carreras y entrenamientos del atleta",
+            "name": "Personalización longitudinal",
+            "status": "active" if n3_active else ("needs_data" if n2_active else "pending"),
+            "description": (
+                f"Lasso LOAO-CV — incluye CTL/ATL/TSB/ACWR del atleta ({n3_weeks} semanas de historial)"
+                if n3_active else
+                f"Requiere ≥8 semanas de historial ({n3_weeks}/8)"
+            ),
             "icon": "user-focus",
-            "accuracy": "Futuro — mejora progresiva con cada actividad registrada",
+            "accuracy": "MAE = 41.9 seg/km (+32.9% sobre N1)" if n3_active else "Pendiente",
         },
     ]
 
