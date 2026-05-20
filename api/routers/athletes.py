@@ -2111,13 +2111,23 @@ def get_ml_hierarchy(
                 print(f"[ml_hierarchy] N4 query failed for {cedula}: {_q_exc}")
 
             # Construir lista de sesiones (cronológica ASC para `predict_n4_zones`)
+            # NOTA: supabase-py puede devolver JSONB como dict O como string según
+            # versión/PostgREST; manejamos ambos para robustez.
             _sessions: list[dict] = []
+            _skipped_no_hr = 0
             for _r in reversed(_rows):
-                _raw    = _r.get("raw") if isinstance(_r.get("raw"), dict) else {}
+                _raw_field = _r.get("raw")
+                if isinstance(_raw_field, str):
+                    try:
+                        _raw_field = json.loads(_raw_field)
+                    except Exception:
+                        _raw_field = None
+                _raw    = _raw_field if isinstance(_raw_field, dict) else {}
                 _avg_hr = _raw.get("average_heartrate")
                 _pace   = _r.get("pace_sec_per_km")
                 _dist_m = _r.get("distance_m")
                 if not (_avg_hr and _pace and _dist_m and _dist_m > 500):
+                    _skipped_no_hr += 1
                     continue
                 _sessions.append({
                     "avg_hr":          float(_avg_hr),
@@ -2127,6 +2137,7 @@ def get_ml_hierarchy(
                     "cadence":         float(_raw.get("average_cadence") or 82.0),
                     "pace_sec_per_km": float(_pace),
                 })
+            print(f"[ml_hierarchy] N4 {cedula}: rows={len(_rows)} valid_sessions={len(_sessions)} skipped={_skipped_no_hr}")
 
             if len(_sessions) >= _N4_MIN:
                 _snap_n4 = read_snapshot(cedula, athlete_dir if athlete_dir.exists() else None) or {}
