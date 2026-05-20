@@ -27,8 +27,12 @@ uvicorn[standard]>=0.29.0
 # ─── Storage externo (Fase A/B — dual write + fuente primaria) ───────────────
 supabase>=2.0.0
 
-# ─── ML (Nivel 2 — cohorte RUNA) ─────────────────────────────────────────────
-scikit-learn>=1.3.0
+# ─── ML (Nivel 2/3/4 — cohorte RUNA) ─────────────────────────────────────────
+# Pin exacto: los pkl de N2 (nivel2_v1.pkl) y N3 (nivel3_v1.pkl) se serializaron
+# con sklearn 1.5.2. Con otra versión sklearn imprime InconsistentVersionWarning
+# y puede dar predicciones sutilmente distintas. Para reproducibilidad estricta
+# el contenedor Railway debe usar la misma versión que el entrenamiento.
+scikit-learn==1.5.2
 
 # ─── Dependencias futuras (Fase B+) ──────────────────────────────────────────
 # anthropic>=0.40.0     # Claude API — para observaciones personalizadas

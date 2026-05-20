@@ -7,13 +7,16 @@ Corre con:
 Desde la raíz del proyecto (donde está run_pipeline.py).
 """
 
+import asyncio
 import logging
 import os
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 logger = logging.getLogger("api.startup")
+_req_logger = logging.getLogger("api.requests")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = PROJECT_ROOT / ".env"
@@ -29,6 +32,7 @@ logger.info("STRAVA_CLIENT_ID loaded=%s", bool(os.getenv("STRAVA_CLIENT_ID", "")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from api.routers import athletes, health, pipeline, coach, sync, webhooks
@@ -61,6 +65,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ─── Middleware: timeout por request + log de slow requests ──────────────────
+# Con 1 worker uvicorn, un endpoint que se cuelga (ej. query Supabase lenta o
+# subprocess pendiente) bloquea TODOS los demás endpoints — el coach panel
+# entero deja de responder. Este middleware mata cualquier request que pase
+# de REQUEST_TIMEOUT_SEC, devuelve 504, y libera el worker.
+# Además: cualquier request que tarde más de SLOW_REQUEST_SEC se loggea con
+# método/ruta/duración para identificar al culpable en logs de Railway.
+
+REQUEST_TIMEOUT_SEC = float(os.getenv("REQUEST_TIMEOUT_SEC", "20"))
+SLOW_REQUEST_SEC    = float(os.getenv("SLOW_REQUEST_SEC", "5"))
+
+
+@app.middleware("http")
+async def request_timeout_and_slow_log(request, call_next):
+    start = time.monotonic()
+    try:
+        response = await asyncio.wait_for(call_next(request), timeout=REQUEST_TIMEOUT_SEC)
+    except asyncio.TimeoutError:
+        elapsed = time.monotonic() - start
+        _req_logger.warning(
+            "[slow-req] TIMEOUT %s %s after %.1fs (limit=%.0fs)",
+            request.method, request.url.path, elapsed, REQUEST_TIMEOUT_SEC,
+        )
+        return JSONResponse(
+            {"detail": f"Request timed out after {REQUEST_TIMEOUT_SEC:.0f}s"},
+            status_code=504,
+        )
+    elapsed = time.monotonic() - start
+    if elapsed >= SLOW_REQUEST_SEC:
+        _req_logger.warning(
+            "[slow-req] %s %s took %.2fs (status=%d)",
+            request.method, request.url.path, elapsed, response.status_code,
+        )
+    return response
+
+
 # ─── Routers ─────────────────────────────────────────────────────────────────
 
 app.include_router(health.router)
@@ -81,8 +121,24 @@ async def _startup_rehydrate():
     de cada atleta directamente desde la tabla activities de Supabase
     (sin llamar a Strava — ahorra rate limit) y luego corremos features+plan
     para regenerar weekly_features y el snapshot.
+
+    Leader-election con file-lock: con --workers 2, esta función corre en CADA
+    worker. Solo el primero que crea el archivo /tmp/runa_bootstrap.lock se
+    encarga; el segundo lo detecta y omite el bootstrap. Evita dos workers
+    escribiendo el mismo parquet (potencial corrupción) y duplicar la carga
+    sobre Supabase.
     """
     import threading
+
+    LOCK_PATH = "/tmp/runa_bootstrap.lock"
+    try:
+        _fd = os.open(LOCK_PATH, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        os.write(_fd, f"pid={os.getpid()}\n".encode())
+        os.close(_fd)
+        logger.info("[startup] worker pid=%s adquirió lock — corriendo bootstrap", os.getpid())
+    except FileExistsError:
+        logger.info("[startup] worker pid=%s — otro worker ya corre bootstrap, omitiendo", os.getpid())
+        return
 
     def _run_all_pipelines():
         import time
@@ -120,6 +176,13 @@ async def _startup_rehydrate():
             logger.info("[startup] Bootstrap complete: %d OK / %d errores", ok, err)
         except Exception as exc:
             logger.error("[startup] Rehydration error: %s", exc)
+        finally:
+            # Liberar el lock al terminar (best-effort) — defensa por si Railway
+            # preserva /tmp entre restarts (lo cual no es lo usual).
+            try:
+                os.remove(LOCK_PATH)
+            except Exception:
+                pass
 
     # Correr en thread separado para no bloquear el servidor
     threading.Thread(target=_run_all_pipelines, daemon=True).start()

@@ -41,10 +41,19 @@ EXPOSE 8000
 
 # Shell form para expandir $PORT en runtime.
 # GOOGLE_SA_JSON_B64: si está presente, se decodifica y escribe a disco antes de arrancar.
+#
+# uvicorn flags:
+#   --workers 2            → 2 procesos worker; si uno se cuelga el otro responde.
+#                            Cada worker carga su copia de los modelos ML (~10 MB),
+#                            despreciable con Pro plan.
+#   --timeout-keep-alive   → cierra conexiones HTTP keep-alive ociosas a los 30s,
+#                            evita acumular sockets fantasma del Cloudflare Worker.
 CMD sh -c '\
   if [ -n "$GOOGLE_SA_JSON_B64" ]; then \
     printf "%s" "$GOOGLE_SA_JSON_B64" | tr -d "\r\n " | base64 -d > secrets/google_service_account.json && \
     echo "[startup] Google SA JSON escrito desde GOOGLE_SA_JSON_B64 ($(wc -c < secrets/google_service_account.json) bytes)"; \
   fi && \
   exec python -m uvicorn api.main:app --host 0.0.0.0 --port "${PORT:-8000}" \
+       --workers 2 \
+       --timeout-keep-alive 30 \
 '
