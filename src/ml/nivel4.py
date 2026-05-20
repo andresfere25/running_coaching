@@ -89,6 +89,7 @@ def compute_personal_bias(
 
     recent = sessions[-K:]
     residuals: list[float] = []
+    _err_sample: Optional[str] = None  # primer error para diagnóstico
 
     for s in recent:
         try:
@@ -121,10 +122,13 @@ def compute_personal_bias(
             residuals.append(pace_actual - pred["pace_sec_km"])
 
         except Exception as exc:
-            log.debug(f"N4 bias: sesion omitida — {type(exc).__name__}: {exc}")
+            if _err_sample is None:
+                _err_sample = f"{type(exc).__name__}: {str(exc)[:160]}"
             continue
 
     if len(residuals) < N_MIN:
+        print(f"[N4 bias] FALLO residuals={len(residuals)}/{len(recent)} "
+              f"K={K} first_err={_err_sample}")
         return None
 
     arr = np.array(residuals, dtype=float)
