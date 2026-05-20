@@ -2095,9 +2095,11 @@ def get_ml_hierarchy(
             _rows = []
             try:
                 _sb_n4 = _gc_n4()
+                # NOTA: la columna física es `avg_pace_sec_km` (reader.py la renombra
+                # a pace_sec_per_km al exponerla, pero el SELECT necesita el nombre real).
                 _resp = (
                     _sb_n4.table("activities")
-                    .select("activity_date,distance_m,duration_sec,pace_sec_per_km,"
+                    .select("activity_date,distance_m,duration_sec,avg_pace_sec_km,"
                             "elevation_m,raw")
                     .eq("cedula", cedula)
                     .in_("sport_type", ["Run", "TrailRun"])
@@ -2124,7 +2126,7 @@ def get_ml_hierarchy(
                         _raw_field = None
                 _raw    = _raw_field if isinstance(_raw_field, dict) else {}
                 _avg_hr = _raw.get("average_heartrate")
-                _pace   = _r.get("pace_sec_per_km")
+                _pace   = _r.get("avg_pace_sec_km")
                 _dist_m = _r.get("distance_m")
                 if not (_avg_hr and _pace and _dist_m and _dist_m > 500):
                     _skipped_no_hr += 1
