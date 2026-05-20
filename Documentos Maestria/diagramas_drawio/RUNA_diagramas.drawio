@@ -1,230 +1,481 @@
-<mxfile host="app.diagrams.net" modified="2026-04-26T12:00:00.000Z" agent="RUNA-thesis" version="22.0.0">
-  <diagram name="01_Flujo_Modelo_ML" id="diag_modelo">
-    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+<mxfile host="app.diagrams.net" agent="RUNA-thesis-v5" pages="7">
+  <diagram name="01_General_Resumen" id="diag_gr">
+    <mxGraphModel dx="1488" dy="818" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1200" pageHeight="700" background="none" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-
-        <!-- TÍTULO -->
-        <mxCell id="title" value="Flujo del modelo jerárquico — RUNA" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#0C0E12;" vertex="1" parent="1">
-          <mxGeometry x="280" y="20" width="540" height="30" as="geometry" />
+        <mxCell id="gr_title" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=24;fontStyle=1;fontColor=#C41E3A;" value="RUNA — Vista panorámica del proyecto" vertex="1">
+          <mxGeometry height="40" width="1120" x="40" y="30" as="geometry" />
         </mxCell>
-
-        <!-- ============ COLUMNA IZQUIERDA: FUENTES DE DATOS ============ -->
-        <mxCell id="lbl_datos" value="FUENTES DE DATOS" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1;fontColor=#5C636E;" vertex="1" parent="1">
-          <mxGeometry x="40" y="70" width="220" height="30" as="geometry" />
+        <mxCell id="gr_sub" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=13;fontStyle=2;fontColor=#5C636E;" value="Sistema jerárquico de 4 niveles · 92 atletas · MAE 31.84 sec/km (N4) · -49% acumulado vs N1 OOD" vertex="1">
+          <mxGeometry height="22" width="1120" x="40" y="75" as="geometry" />
         </mxCell>
-
-        <mxCell id="data_fitrec" value="&lt;b&gt;FitRec / Endomondo&lt;/b&gt;&lt;br&gt;Dataset público&lt;br&gt;20.710 sesiones · 356 usuarios&lt;br&gt;&lt;i&gt;Cold-start poblacional&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=center;" vertex="1" parent="1">
-          <mxGeometry x="40" y="120" width="220" height="80" as="geometry" />
+        <mxCell id="gr_datos" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;DATOS&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;span style=&quot;font-size:14px&quot;&gt;Atletas RUNA&lt;br&gt;Strava&lt;br&gt;Check-ins&lt;br&gt;FitRec (público)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="280" width="280" x="80" y="180" as="geometry" />
         </mxCell>
-
-        <mxCell id="data_runa" value="&lt;b&gt;Cohorte RUNA + Strava&lt;/b&gt;&lt;br&gt;Atletas reclutados&lt;br&gt;Features semanales (CTL/ATL)&lt;br&gt;&lt;i&gt;Generalización por segmento&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;align=center;" vertex="1" parent="1">
-          <mxGeometry x="40" y="240" width="220" height="80" as="geometry" />
+        <mxCell id="gr_proc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8E1;strokeColor=#F9A825;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;PROCESAMIENTO&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;span style=&quot;font-size:14px&quot;&gt;Pipeline ML&lt;br&gt;(componente académico)&lt;br&gt;&lt;br&gt;Plataforma RUNA&lt;br&gt;(componente producto)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="280" width="280" x="460" y="180" as="geometry" />
         </mxCell>
-
-        <mxCell id="data_checkins" value="&lt;b&gt;Check-ins + PRs + Carreras&lt;/b&gt;&lt;br&gt;Datos individuales del atleta&lt;br&gt;Sueño · energía · dolor&lt;br&gt;&lt;i&gt;Personalización bayesiana&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;align=center;" vertex="1" parent="1">
-          <mxGeometry x="40" y="360" width="220" height="80" as="geometry" />
+        <mxCell id="gr_sal" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;SALIDAS&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;span style=&quot;font-size:14px&quot;&gt;🎯 Ritmo Z1–Z5&lt;br&gt;⏱ Tiempos 5K-42K&lt;br&gt;📊 Intervalo conformal&lt;br&gt;📄 Tesis MAA&lt;/span&gt;" vertex="1">
+          <mxGeometry height="280" width="280" x="840" y="180" as="geometry" />
         </mxCell>
-
-        <!-- ============ COLUMNA CENTRAL: NIVELES DEL MODELO ============ -->
-        <mxCell id="lbl_modelo" value="NIVELES DEL MODELO" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1;fontColor=#5C636E;" vertex="1" parent="1">
-          <mxGeometry x="340" y="70" width="320" height="30" as="geometry" />
-        </mxCell>
-
-        <mxCell id="nivel1" value="&lt;b&gt;NIVEL 1 — Prior poblacional&lt;/b&gt; ✅&lt;br&gt;&lt;br&gt;&lt;b&gt;Features (8):&lt;/b&gt; gender, fcmax_obs, hr_mean,&lt;br&gt;pct_fcmax, zona, hr_max_rel, log_duration, dens_hr&lt;br&gt;&lt;b&gt;Modelo:&lt;/b&gt; Ridge α=1.0&lt;br&gt;&lt;b&gt;Validación:&lt;/b&gt; GroupKFold K=10 (por userId)&lt;br&gt;&lt;b&gt;MAE:&lt;/b&gt; 40.16 sec/km · &lt;b&gt;R²:&lt;/b&gt; +0.188" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=left;verticalAlign=top;" vertex="1" parent="1">
-          <mxGeometry x="340" y="110" width="320" height="120" as="geometry" />
-        </mxCell>
-
-        <mxCell id="nivel2" value="&lt;b&gt;NIVEL 2 — Núcleo generalizable&lt;/b&gt; ⏳&lt;br&gt;&lt;br&gt;&lt;b&gt;Features añadidos:&lt;/b&gt; CTL, ATL, ACWR, km/sem,&lt;br&gt;ritmo_4sem, cadencia, desnivel, edad, PRs&lt;br&gt;&lt;b&gt;Modelo:&lt;/b&gt; AutoML (naiveautoml)&lt;br&gt;&lt;b&gt;Validación:&lt;/b&gt; LOAO-CV (por atleta)&lt;br&gt;&lt;b&gt;MAE esperado:&lt;/b&gt; ~25 sec/km" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fad7ac;strokeColor=#b46504;fontSize=11;align=left;verticalAlign=top;" vertex="1" parent="1">
-          <mxGeometry x="340" y="240" width="320" height="120" as="geometry" />
-        </mxCell>
-
-        <mxCell id="nivel3" value="&lt;b&gt;NIVEL 3 — Personalización bayesiana&lt;/b&gt; ⏳&lt;br&gt;&lt;br&gt;&lt;b&gt;Features añadidos:&lt;/b&gt; carreras propias del atleta,&lt;br&gt;check-ins (sueño/energía/dolor), race simulations&lt;br&gt;&lt;b&gt;Modelo:&lt;/b&gt; refinamiento bayesiano&lt;br&gt;&lt;b&gt;Activación:&lt;/b&gt; ≥3 carreras + 8 sem check-ins&lt;br&gt;&lt;b&gt;MAE esperado:&lt;/b&gt; ~15 sec/km" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=left;verticalAlign=top;" vertex="1" parent="1">
-          <mxGeometry x="340" y="370" width="320" height="120" as="geometry" />
-        </mxCell>
-
-        <!-- Flechas verticales entre niveles (herencia) -->
-        <mxCell id="arr_n1_n2" value="hereda predicción + agrega features" style="endArrow=classic;html=1;rounded=0;fontSize=9;fontStyle=2;strokeColor=#5C636E;" edge="1" parent="1" source="nivel1" target="nivel2">
+        <mxCell id="gr_a1" edge="1" parent="1" source="gr_datos" style="endArrow=classic;html=1;strokeWidth=4;strokeColor=#C41E3A;edgeStyle=orthogonalEdgeStyle;" target="gr_proc">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-
-        <mxCell id="arr_n2_n3" value="hereda predicción + agrega features" style="endArrow=classic;html=1;rounded=0;fontSize=9;fontStyle=2;strokeColor=#5C636E;" edge="1" parent="1" source="nivel2" target="nivel3">
+        <mxCell id="gr_a2" edge="1" parent="1" source="gr_proc" style="endArrow=classic;html=1;strokeWidth=4;strokeColor=#C41E3A;edgeStyle=orthogonalEdgeStyle;" target="gr_sal">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-
-        <!-- ============ COLUMNA DERECHA: SALIDA ============ -->
-        <mxCell id="lbl_salida" value="SALIDA" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1;fontColor=#5C636E;" vertex="1" parent="1">
-          <mxGeometry x="740" y="70" width="220" height="30" as="geometry" />
+        <mxCell id="gr_pie" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=13;fontStyle=2;fontColor=#5C636E;" value="🟡 Componente académico ↔ 🟢 Componente producto · ambos comparten el motor de ritmos por zona de FC" vertex="1">
+          <mxGeometry height="22" width="1120" x="40" y="540" as="geometry" />
         </mxCell>
-
-        <mxCell id="out_ritmo" value="&lt;b&gt;Ritmo sostenible&lt;/b&gt;&lt;br&gt;por zona Z1–Z5 (min/km)&lt;br&gt;&lt;i&gt;Ej: Z3 = 5:33 min/km&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;align=center;" vertex="1" parent="1">
-          <mxGeometry x="740" y="120" width="220" height="80" as="geometry" />
+        <mxCell id="gr_navhint" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=11;fontStyle=2;fontColor=#9CA3AF;" value="↳ Detalle granular en pestañas: 02_General_Detalle · 04_ML_Detalle · 06_App_Detalle" vertex="1">
+          <mxGeometry height="20" width="1120" x="40" y="590" as="geometry" />
         </mxCell>
-
-        <mxCell id="out_tiempos" value="&lt;b&gt;Tiempos por distancia&lt;/b&gt;&lt;br&gt;5K · 10K · 21K · 42K&lt;br&gt;&lt;i&gt;Ej: 10K en Z3 = 55:30&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;align=center;" vertex="1" parent="1">
-          <mxGeometry x="740" y="240" width="220" height="80" as="geometry" />
-        </mxCell>
-
-        <mxCell id="out_conformal" value="&lt;b&gt;Intervalo conformal&lt;/b&gt;&lt;br&gt;cobertura 80%&lt;br&gt;&lt;i&gt;Ej: ±64 sec/km&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;align=center;" vertex="1" parent="1">
-          <mxGeometry x="740" y="360" width="220" height="80" as="geometry" />
-        </mxCell>
-
-        <!-- Flechas datos→niveles -->
-        <mxCell id="arr_d1_n1" style="endArrow=classic;html=1;rounded=0;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="data_fitrec" target="nivel1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <mxCell id="arr_d2_n2" style="endArrow=classic;html=1;rounded=0;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" parent="1" source="data_runa" target="nivel2">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <mxCell id="arr_d3_n3" style="endArrow=classic;html=1;rounded=0;strokeColor=#d79b00;strokeWidth=2;" edge="1" parent="1" source="data_checkins" target="nivel3">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- Flechas niveles→salida (cualquier nivel produce las 3 salidas) -->
-        <mxCell id="arr_n3_o1" style="endArrow=classic;html=1;rounded=0;strokeColor=#9673a6;strokeWidth=2;exitX=1;exitY=0.2;exitDx=0;exitDy=0;" edge="1" parent="1" source="nivel3" target="out_ritmo">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <mxCell id="arr_n3_o2" style="endArrow=classic;html=1;rounded=0;strokeColor=#9673a6;strokeWidth=2;" edge="1" parent="1" source="nivel3" target="out_tiempos">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <mxCell id="arr_n3_o3" style="endArrow=classic;html=1;rounded=0;strokeColor=#9673a6;strokeWidth=2;exitX=1;exitY=0.8;exitDx=0;exitDy=0;" edge="1" parent="1" source="nivel3" target="out_conformal">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- LEYENDA / NOTAS -->
-        <mxCell id="legend" value="&lt;b&gt;LEYENDA&lt;/b&gt;&lt;br&gt;✅ Cerrado · ⏳ Pendiente&lt;br&gt;Cada nivel hereda la predicción del anterior y la refina con más información del atleta.&lt;br&gt;El MAE disminuye al pasar de Nivel 1 → 2 → 3.&lt;br&gt;El intervalo conformal se vuelve más estrecho con cada nivel." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;align=left;verticalAlign=top;dashed=1;" vertex="1" parent="1">
-          <mxGeometry x="40" y="510" width="920" height="80" as="geometry" />
-        </mxCell>
-
-        <!-- Notebooks de referencia -->
-        <mxCell id="nb_ref" value="&lt;b&gt;Notebooks de referencia:&lt;/b&gt;&lt;br&gt;Nivel 1 — NB11 (EDA Endomondo) · NB12 (entrenamiento + Friedman-Nemenyi + conformal)&lt;br&gt;Nivel 2 — NB13 (pendiente, ~mayo 2026) · Nivel 3 — pospuesto" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontStyle=2;fontColor=#5C636E;" vertex="1" parent="1">
-          <mxGeometry x="40" y="610" width="920" height="60" as="geometry" />
-        </mxCell>
-
       </root>
     </mxGraphModel>
   </diagram>
-
-  <diagram name="02_Arquitectura_Proyecto" id="diag_proyecto">
-    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+  <diagram name="02_General_Detalle" id="diag_gd">
+    <mxGraphModel dx="1548" dy="994" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1500" pageHeight="980" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-
-        <!-- TÍTULO -->
-        <mxCell id="title2" value="Arquitectura general — Proyecto RUNA" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#0C0E12;" vertex="1" parent="1">
-          <mxGeometry x="280" y="20" width="540" height="30" as="geometry" />
+        <mxCell id="gd_title" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=22;fontStyle=1;fontColor=#C41E3A;" value="RUNA — Mapa general del proyecto (detalle)" vertex="1">
+          <mxGeometry height="34" width="1420" x="40" y="20" as="geometry" />
         </mxCell>
-
-        <!-- ============ LANE ACADÉMICO ============ -->
-        <mxCell id="lane_acad" value="COMPONENTE ACADÉMICO — Sistema jerárquico de ML" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;fontStyle=1;align=left;verticalAlign=top;dashed=1;" vertex="1" parent="1">
-          <mxGeometry x="40" y="80" width="1020" height="240" as="geometry" />
+        <mxCell id="gd_sub" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=2;fontColor=#5C636E;" value="Sistema jerárquico de 4 niveles · 92 atletas registrados · 80 con Strava · 76 sincronizados · 48-49-51 elegibles N2-N3-N4 · v5 (mayo 2026)" vertex="1">
+          <mxGeometry height="20" width="1420" x="40" y="56" as="geometry" />
         </mxCell>
-
-        <mxCell id="acad_fitrec" value="&lt;b&gt;FitRec&lt;/b&gt;&lt;br&gt;Endomondo público&lt;br&gt;253K registros" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="80" y="140" width="140" height="60" as="geometry" />
+        <mxCell id="gd_lane1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#BDBDBD;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=6;fontColor=#424242;" value="1.  FUENTES DE DATOS ACTIVAS" vertex="1">
+          <mxGeometry height="170" width="1420" x="40" y="100" as="geometry" />
         </mxCell>
-
-        <mxCell id="acad_n1" value="&lt;b&gt;Nivel 1&lt;/b&gt;&lt;br&gt;Prior poblacional&lt;br&gt;Ridge · MAE 40 s/km" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="280" y="140" width="140" height="60" as="geometry" />
+        <mxCell id="gd_subml_lbl" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontStyle=2;fontColor=#B46504;" value="alimenta el Pipeline ML" vertex="1">
+          <mxGeometry height="16" width="280" x="80" y="130" as="geometry" />
         </mxCell>
-
-        <mxCell id="acad_n2" value="&lt;b&gt;Nivel 2&lt;/b&gt;&lt;br&gt;Núcleo generalizable&lt;br&gt;AutoML + LOAO-CV" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fad7ac;strokeColor=#b46504;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="480" y="140" width="140" height="60" as="geometry" />
+        <mxCell id="gd_d_fitrec" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;fontSize=11;align=center;verticalAlign=middle;" value="&lt;b&gt;FitRec / Endomondo&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Dataset público · 253 K registros&lt;br&gt;→ 20 710 sesiones · 356 usuarios&lt;br&gt;&lt;b&gt;Único dataset poblacional activo&lt;/b&gt;&lt;br&gt;Para entrenar Nivel 1 (HR → ritmo)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="280" x="80" y="155" as="geometry" />
         </mxCell>
-
-        <mxCell id="acad_n3" value="&lt;b&gt;Nivel 3&lt;/b&gt;&lt;br&gt;Personalización&lt;br&gt;bayesiana" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="680" y="140" width="140" height="60" as="geometry" />
+        <mxCell id="gd_subapp_lbl" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontStyle=2;fontColor=#1565C0;" value="alimentan la Plataforma RUNA (datos individuales)" vertex="1">
+          <mxGeometry height="16" width="1000" x="440" y="130" as="geometry" />
         </mxCell>
-
-        <mxCell id="acad_motor" value="&lt;b&gt;Motor de ritmos&lt;/b&gt;&lt;br&gt;Ritmo Z1–Z5&lt;br&gt;+ intervalos conformales" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="880" y="140" width="140" height="60" as="geometry" />
+        <mxCell id="gd_d_form" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=11;align=center;verticalAlign=middle;" value="&lt;b&gt;Formulario portal RUNA&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Onboarding web propio&lt;br&gt;Edad · género · peso · PRs&lt;br&gt;Disponibilidad · consentimiento&lt;br&gt;&lt;b&gt;92 perfiles registrados&lt;/b&gt;&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="240" x="440" y="155" as="geometry" />
         </mxCell>
-
-        <mxCell id="acad_valid" value="&lt;b&gt;Validación estadística:&lt;/b&gt; Friedman-Nemenyi (comparación modelos) · Split-conformal prediction (intervalos 80%) · Análisis de potencia Monte Carlo (tamaño de muestra)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontStyle=2;fontColor=#5C636E;" vertex="1" parent="1">
-          <mxGeometry x="60" y="240" width="980" height="40" as="geometry" />
+        <mxCell id="gd_d_strava" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;fontSize=11;align=center;verticalAlign=middle;" value="&lt;b&gt;Strava API v3&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;OAuth + webhooks&lt;br&gt;Actividades · HR · ritmo · km&lt;br&gt;Sync histórico 3 años + tiempo real&lt;br&gt;&lt;b&gt;80 atletas con Strava&lt;/b&gt;&lt;br&gt;76 con sync completo&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="240" x="700" y="155" as="geometry" />
         </mxCell>
-
-        <!-- Flechas dentro del lane académico -->
-        <mxCell id="arr_a1" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="acad_fitrec" target="acad_n1">
+        <mxCell id="gd_d_check" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#6A1B9A;fontSize=11;align=center;verticalAlign=middle;" value="&lt;b&gt;Check-in semanal&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;En el portal RUNA&lt;br&gt;Sueño · energía · dolor&lt;br&gt;Carreras + resultados reales&lt;br&gt;Frecuencia: 1×/semana&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="240" x="960" y="155" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_d_pr" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE7F6;strokeColor=#5E35B1;fontSize=11;align=center;verticalAlign=middle;" value="&lt;b&gt;Carreras del atleta&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Resultados reales reportados&lt;br&gt;5K · 10K · 21K · 42K&lt;br&gt;PR Auto-derivado (VDOT)&lt;br&gt;feature de N2&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="220" x="1220" y="155" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_lane2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#BDBDBD;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=6;fontColor=#424242;" value="2.  PROCESAMIENTO Y MODELADO" vertex="1">
+          <mxGeometry height="290" width="1420" x="40" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_pml" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8E1;strokeColor=#F9A825;fontSize=12;fontStyle=1;align=center;verticalAlign=top;spacingTop=8;" value="&lt;b&gt;PIPELINE ML&lt;/b&gt; (componente académico)" vertex="1">
+          <mxGeometry height="230" width="640" x="80" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_n1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;align=center;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;Nivel 1&lt;/b&gt; ✅ &lt;span style=&quot;font-size:9px&quot;&gt;(CORE)&lt;/span&gt;&lt;br&gt;&lt;span style=&quot;font-size:9px&quot;&gt;Prior poblacional&lt;br&gt;HR + features → ritmo Z1-Z5&lt;br&gt;ARDRegression (AutoML)&lt;br&gt;MAE 39.76 s/km&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="160" x="100" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_n2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAD7AC;strokeColor=#B46504;fontSize=10;align=center;verticalAlign=middle;" value="&lt;b&gt;Nivel 2&lt;/b&gt; ✅&lt;br&gt;&lt;span style=&quot;font-size:9px&quot;&gt;Núcleo de cohorte RUNA&lt;br&gt;Lasso α=0.5 · LOAO-CV&lt;br&gt;48 atletas · 10 049 sesiones&lt;br&gt;&lt;b&gt;MAE 47.59 sec/km&lt;/b&gt;&lt;br&gt;-23.7% vs N1 OOD&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="160" x="280" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_n3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;fontSize=10;align=center;verticalAlign=middle;" value="&lt;b&gt;Nivel 3&lt;/b&gt; ✅&lt;br&gt;&lt;span style=&quot;font-size:9px&quot;&gt;Lasso α=0.5 · LOAO-CV 49 folds&lt;br&gt;49 atletas · 8 267 sesiones&lt;br&gt;&lt;b&gt;MAE 41.87 sec/km&lt;/b&gt;&lt;br&gt;-32.9% vs N1 OOD&lt;br&gt;49 atletas · 8 267 sesiones&lt;br&gt;&lt;b&gt;MAE 41.87 sec/km&lt;/b&gt;&lt;br&gt;-32.9% vs N1 OOD&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="160" x="460" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_riegel" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9CA3AF;fontSize=9;align=center;verticalAlign=middle;dashed=1;" value="&lt;b&gt;Riegel calibrado&lt;/b&gt; ✅&lt;br&gt;&lt;span style=&quot;font-size:8px&quot;&gt;solo para extrapolar&lt;br&gt;tiempo entre distancias&lt;br&gt;(módulo auxiliar)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="70" width="80" x="640" y="395" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_arr_n1n2" edge="1" parent="1" source="gd_n1" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;edgeStyle=orthogonalEdgeStyle;" target="gd_n2">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="arr_a2" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="acad_n1" target="acad_n2">
+        <mxCell id="gd_arr_n2n3" edge="1" parent="1" source="gd_n2" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;edgeStyle=orthogonalEdgeStyle;" target="gd_n3">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="arr_a3" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="acad_n2" target="acad_n3">
+        <mxCell id="gd_validaciones" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#F9A825;fontSize=10;fontStyle=2;align=center;verticalAlign=middle;dashed=1;" value="&lt;b&gt;Validaciones:&lt;/b&gt;  GroupKFold K=10  ·  Friedman-Nemenyi (p=0.0062)  ·  Split-conformal (cobertura 0.784)  ·  Análisis de potencia Monte Carlo" vertex="1">
+          <mxGeometry height="50" width="600" x="100" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_papp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;fontSize=12;fontStyle=1;align=center;verticalAlign=top;spacingTop=8;" value="&lt;b&gt;PLATAFORMA RUNA&lt;/b&gt; (componente producto)" vertex="1">
+          <mxGeometry height="230" width="640" x="800" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_back" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=10;align=center;verticalAlign=middle;" value="&lt;b&gt;Backend FastAPI&lt;/b&gt; ✅&lt;br&gt;&lt;span style=&quot;font-size:9px&quot;&gt;~12 endpoints REST&lt;br&gt;Pipeline build_features&lt;br&gt;CTL · ATL · ACWR · Readiness&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="190" x="820" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_front" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#F57C00;fontSize=10;align=center;verticalAlign=middle;" value="&lt;b&gt;Dashboard atleta&lt;/b&gt; ✅&lt;br&gt;&lt;span style=&quot;font-size:9px&quot;&gt;Alpine.js + Tailwind&lt;br&gt;5 tabs (Hoy/Plan/Rendim./...)&lt;br&gt;KPIs · Charts · Predicciones&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="190" x="1030" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_coach" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=10;align=center;verticalAlign=middle;" value="&lt;b&gt;Panel coach&lt;/b&gt; ✅&lt;br&gt;&lt;span style=&quot;font-size:9px&quot;&gt;ar-athletes-portal (React)&lt;br&gt;Cloudflare Pages + Worker&lt;br&gt;KPIs · bulk-resync · panel admin&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="180" x="1240" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_arr_bf" edge="1" parent="1" source="gd_back" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#2E7D32;edgeStyle=orthogonalEdgeStyle;" target="gd_front">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="arr_a4" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="acad_n3" target="acad_motor">
+        <mxCell id="gd_arr_bc" edge="1" parent="1" source="gd_back" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#2E7D32;edgeStyle=orthogonalEdgeStyle;" target="gd_coach">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-
-        <!-- ============ LANE PRODUCTO ============ -->
-        <mxCell id="lane_prod" value="COMPONENTE PRODUCTO — Plataforma RUNA" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d32;fontSize=12;fontStyle=1;align=left;verticalAlign=top;dashed=1;" vertex="1" parent="1">
-          <mxGeometry x="40" y="380" width="1020" height="280" as="geometry" />
+        <mxCell id="gd_stack" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E7D32;fontSize=10;fontStyle=2;align=center;verticalAlign=middle;dashed=1;" value="&lt;b&gt;Stack:&lt;/b&gt; FastAPI 2 workers · Supabase · Alpine.js · Chart.js · Strava OAuth · Cloudflare Workers · Railway Pro" vertex="1">
+          <mxGeometry height="50" width="600" x="820" y="500" as="geometry" />
         </mxCell>
-
-        <!-- Capa de ingesta -->
-        <mxCell id="prod_form" value="&lt;b&gt;Formulario&lt;/b&gt;&lt;br&gt;Edad · Género&lt;br&gt;Peso · PRs&lt;br&gt;Consentimiento" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="80" y="430" width="140" height="80" as="geometry" />
-        </mxCell>
-
-        <mxCell id="prod_strava" value="&lt;b&gt;Strava OAuth&lt;/b&gt;&lt;br&gt;Actividades sync&lt;br&gt;HR · ritmo · km&lt;br&gt;Cadencia · desnivel" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="280" y="430" width="140" height="80" as="geometry" />
-        </mxCell>
-
-        <mxCell id="prod_checkin" value="&lt;b&gt;Check-in semanal&lt;/b&gt;&lt;br&gt;Sueño · energía&lt;br&gt;Dolor · carreras&lt;br&gt;Resultados reales" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="480" y="430" width="140" height="80" as="geometry" />
-        </mxCell>
-
-        <!-- Pipeline -->
-        <mxCell id="prod_pipeline" value="&lt;b&gt;Pipeline analítico&lt;/b&gt;&lt;br&gt;Limpieza + features&lt;br&gt;CTL/ATL/ACWR&lt;br&gt;Llamada al motor de ritmos" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bbdefb;strokeColor=#1976d2;fontSize=10;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="680" y="430" width="160" height="80" as="geometry" />
-        </mxCell>
-
-        <!-- Output al atleta -->
-        <mxCell id="prod_dashboard" value="&lt;b&gt;Dashboard atleta&lt;/b&gt;&lt;br&gt;Ritmos por zona&lt;br&gt;Predicción 5K-42K&lt;br&gt;Estado de carga&lt;br&gt;Plan semanal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#f57c00;fontSize=10;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="880" y="430" width="140" height="80" as="geometry" />
-        </mxCell>
-
-        <!-- Coach panel debajo -->
-        <mxCell id="prod_coach" value="&lt;b&gt;Panel coach&lt;/b&gt; — vista agregada de todos los atletas (FastAPI + Alpine.js, deploy en Railway)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f9a825;fontSize=10;align=center;" vertex="1" parent="1">
-          <mxGeometry x="80" y="550" width="940" height="40" as="geometry" />
-        </mxCell>
-
-        <!-- Stack tecnológico -->
-        <mxCell id="prod_stack" value="&lt;b&gt;Stack:&lt;/b&gt; FastAPI · Supabase (PostgreSQL) · Alpine.js + Tailwind · Chart.js · Strava API v3 · Google Forms" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontStyle=2;fontColor=#2e7d32;" vertex="1" parent="1">
-          <mxGeometry x="60" y="610" width="980" height="30" as="geometry" />
-        </mxCell>
-
-        <!-- Flechas dentro del lane producto -->
-        <mxCell id="arr_p1" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="prod_form" target="prod_pipeline">
+        <mxCell id="gd_motor_link" edge="1" parent="1" source="gd_pml" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#C41E3A;fontSize=11;fontStyle=1;fontColor=#C41E3A;edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;labelBackgroundColor=#FFFFFF;" target="gd_papp" value="motor de ritmos vía API">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="arr_p2" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="prod_strava" target="prod_pipeline">
+        <mxCell id="gd_data_link" edge="1" parent="1" source="gd_papp" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#1565C0;fontSize=11;fontStyle=1;fontColor=#1565C0;edgeStyle=orthogonalEdgeStyle;exitX=0;exitY=0.75;exitDx=0;exitDy=0;entryX=1;entryY=0.75;entryDx=0;entryDy=0;dashed=1;labelBackgroundColor=#FFFFFF;" target="gd_pml" value="datos individuales (Niveles 2-3)">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="arr_p3" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="prod_checkin" target="prod_pipeline">
+        <mxCell id="gd_lane3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#BDBDBD;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=6;fontColor=#424242;" value="3.  SALIDAS Y ENTREGABLES" vertex="1">
+          <mxGeometry height="180" width="1420" x="40" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_o_pred" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=11;align=center;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;Predicciones por atleta&lt;/b&gt; 🎯&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;&lt;b&gt;Ritmo sostenible Z1-Z5 (min/km)&lt;/b&gt;&lt;br&gt;Tiempos 5K · 10K · 21K · 42K&lt;br&gt;Intervalo conformal ±62 s/km&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="280" x="80" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_o_tesis" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#C41E3A;fontSize=11;align=center;verticalAlign=middle;" value="&lt;b&gt;Tesis MAA&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Documento v5 (mayo 2026)&lt;br&gt;11 capítulos + Apéndice A&lt;br&gt;§8.10-8.14 con 4 niveles&lt;br&gt;13 figuras canónicas&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="280" x="420" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_o_art" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2F1;strokeColor=#00695C;fontSize=11;align=center;verticalAlign=middle;" value="&lt;b&gt;Artefactos serializados&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;nivel1_ridge_v4.json&lt;br&gt;nivel2_v1.pkl &amp; nivel3_v1.pkl&lt;br&gt;src/ml/nivel4.py (bias-corr)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="280" x="760" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_o_dash" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#F57C00;fontSize=11;align=center;verticalAlign=middle;" value="&lt;b&gt;Dashboard productivo&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;App web servida por FastAPI&lt;br&gt;Auto-actualizada lunes 6 am&lt;br&gt;+ webhooks tiempo real&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="280" x="1100" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_leyenda" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontStyle=2;fontColor=#5C636E;" value="✅ Cerrado y desplegado en producción Railway · cadena completa N1→N4  ·  Riegel calibrado = módulo auxiliar para mostrar tiempos por distancia (no es la contribución central)" vertex="1">
+          <mxGeometry height="20" width="1420" x="40" y="830" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_arr_fitrec" edge="1" parent="1" source="gd_d_fitrec" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#2E7D32;edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.3;entryY=0;entryDx=0;entryDy=0;" target="gd_pml">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="arr_p4" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="prod_pipeline" target="prod_dashboard">
+        <mxCell id="gd_arr_form" edge="1" parent="1" source="gd_d_form" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#1565C0;edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.15;entryY=0;entryDx=0;entryDy=0;" target="gd_papp">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-
-        <!-- ============ FLECHA QUE CONECTA ACADÉMICO ↔ PRODUCTO ============ -->
-        <mxCell id="arr_motor_prod" value="motor de ritmos consumido vía API" style="endArrow=classic;html=1;rounded=0;strokeWidth=3;strokeColor=#C41E3A;fontSize=10;fontStyle=2;" edge="1" parent="1" source="acad_motor" target="prod_pipeline">
+        <mxCell id="gd_arr_strava" edge="1" parent="1" source="gd_d_strava" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#E65100;edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.4;entryY=0;entryDx=0;entryDy=0;" target="gd_papp">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-
-        <mxCell id="arr_runa_data" value="datos individuales alimentan Niveles 2–3" style="endArrow=classic;html=1;rounded=0;strokeWidth=3;strokeColor=#C41E3A;fontSize=10;fontStyle=2;dashed=1;" edge="1" parent="1" source="prod_pipeline" target="acad_n2">
+        <mxCell id="gd_arr_check" edge="1" parent="1" source="gd_d_check" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#6A1B9A;edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.65;entryY=0;entryDx=0;entryDy=0;" target="gd_papp">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-
+        <mxCell id="gd_arr_pr" edge="1" parent="1" source="gd_d_pr" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#5E35B1;edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.9;entryY=0;entryDx=0;entryDy=0;" target="gd_papp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_arr_o_pred" edge="1" parent="1" source="gd_pml" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#9673A6;edgeStyle=orthogonalEdgeStyle;exitX=0.15;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="gd_o_pred">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_arr_o_tesis" edge="1" parent="1" source="gd_pml" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#C41E3A;edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="gd_o_tesis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_arr_o_art" edge="1" parent="1" source="gd_pml" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#00695C;edgeStyle=orthogonalEdgeStyle;exitX=0.85;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="gd_o_art">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gd_arr_o_dash" edge="1" parent="1" source="gd_papp" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#F57C00;edgeStyle=orthogonalEdgeStyle;exitX=0.85;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="gd_o_dash">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="03_ML_Resumen" id="diag_mr">
+    <mxGraphModel dx="1407" dy="904" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1400" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="mr_title" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=24;fontStyle=1;fontColor=#C41E3A;" value="Sistema jerárquico de 4 niveles — ritmo sostenible por zona de FC" vertex="1">
+          <mxGeometry height="40" width="1320" x="40" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="mr_sub" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=13;fontStyle=2;fontColor=#5C636E;" value="Cada nivel hereda la predicción del anterior · cadena -49% acumulado vs N1 OOD" vertex="1">
+          <mxGeometry height="22" width="1320" x="40" y="75" as="geometry" />
+        </mxCell>
+        <mxCell id="mr_n1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;strokeWidth=3;" value="&lt;b&gt;NIVEL 1&lt;/b&gt; ✅&lt;br&gt;&lt;span style=&quot;font-size:11px&quot;&gt;CORE&lt;/span&gt;&lt;br&gt;&lt;br&gt;&lt;span style=&quot;font-size:14px&quot;&gt;Prior poblacional&lt;br&gt;HR + features → ritmo Z1-Z5&lt;br&gt;(AutoML)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="240" width="280" x="100" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="mr_n2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAD7AC;strokeColor=#B46504;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;NIVEL 2&lt;/b&gt; ✅&lt;br&gt;&lt;br&gt;&lt;span style=&quot;font-size:14px&quot;&gt;Núcleo&lt;br&gt;generalizable&lt;br&gt;cohorte RUNA&lt;/span&gt;" vertex="1">
+          <mxGeometry height="240" width="240" x="430" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="mr_n3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;NIVEL 3&lt;/b&gt; ✅&lt;br&gt;&lt;br&gt;&lt;span style=&quot;font-size:14px&quot;&gt;Personalización&lt;br&gt;bayesiana&lt;br&gt;datos del atleta&lt;/span&gt;" vertex="1">
+          <mxGeometry height="240" width="240" x="720" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="mr_out" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;SALIDA&lt;/b&gt; 🎯&lt;br&gt;&lt;br&gt;&lt;span style=&quot;font-size:13px&quot;&gt;&lt;b&gt;Ritmo sostenible Z1-Z5&lt;/b&gt;&lt;br&gt;&lt;br&gt;Tiempos 5K-42K (vía Riegel)&lt;br&gt;&lt;br&gt;Intervalo conformal&lt;/span&gt;" vertex="1">
+          <mxGeometry height="240" width="290" x="1010" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="mr_a12" edge="1" parent="1" source="mr_n1" style="endArrow=classic;html=1;strokeWidth=4;strokeColor=#C41E3A;edgeStyle=orthogonalEdgeStyle;" target="mr_n2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="mr_a23" edge="1" parent="1" source="mr_n2" style="endArrow=classic;html=1;strokeWidth=4;strokeColor=#C41E3A;edgeStyle=orthogonalEdgeStyle;" target="mr_n3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="mr_a3o" edge="1" parent="1" source="mr_n3" style="endArrow=classic;html=1;strokeWidth=4;strokeColor=#9673A6;edgeStyle=orthogonalEdgeStyle;" target="mr_out">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="mr_mae" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=14;fontStyle=2;fontColor=#5C636E;" value="&lt;b&gt;Cadena de MAE en RUNA:  N1 OOD 62.4 → N2 47.59 → N3 41.87 → N4 31.84 sec/km  (-49% acumulado vs N1 OOD)" vertex="1">
+          <mxGeometry height="22" width="1320" x="40" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="mr_data" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=2;fontColor=#5C636E;" value="&lt;b&gt;Fuente principal:&lt;/b&gt;  FitRec / Endomondo (356 usuarios, 20 710 sesiones — Nivel 1)  ·  Cohorte RUNA (Niveles 2-3)" vertex="1">
+          <mxGeometry height="22" width="1320" x="40" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="mr_aux" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=11;fontStyle=2;fontColor=#9CA3AF;" value="&lt;b&gt;Módulo auxiliar:&lt;/b&gt;  Riegel calibrado para extrapolar tiempos entre distancias (no es parte del modelo jerárquico)" vertex="1">
+          <mxGeometry height="22" width="1320" x="40" y="540" as="geometry" />
+        </mxCell>
+        <mxCell id="mr_legend" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=11;fontStyle=2;fontColor=#9CA3AF;" value="✅ Cerrado y desplegado en producción Railway · cadena completa N1→N4" vertex="1">
+          <mxGeometry height="20" width="1320" x="40" y="580" as="geometry" />
+        </mxCell>
+        <mxCell id="mr_hint" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=11;fontStyle=2;fontColor=#9CA3AF;" value="↳ Detalle (datasets · notebooks · validaciones · ranking) en pestaña 04_ML_Detalle" vertex="1">
+          <mxGeometry height="20" width="1320" x="40" y="620" as="geometry" />
+        </mxCell>
+              <mxCell id="ml_n4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D1FAE5;strokeColor=#059669;fontSize=14;fontStyle=1;align=center;verticalAlign=middle;strokeWidth=3;" value="&lt;b&gt;NIVEL 4 ✅&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;span style=&quot;font-size:14px&quot;&gt;Corrección personal&lt;br&gt;Bias walk-forward K=15&lt;br&gt;51 atletas&lt;br&gt;&lt;b&gt;31.84 sec/km&lt;/b&gt;&lt;br&gt;Wilcoxon p&lt;0.001&lt;/span&gt;" vertex="1">
+          <mxGeometry height="220" width="200" x="780" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="ml_a3_4" edge="1" parent="1" source="ml_n3" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#059669;edgeStyle=orthogonalEdgeStyle;" target="ml_n4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+</root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="04_ML_Detalle" id="diag_md">
+    <mxGraphModel dx="1548" dy="994" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1500" pageHeight="980" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="md_title" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=22;fontStyle=1;fontColor=#C41E3A;" value="RUNA — Componente ML (detalle)" vertex="1">
+          <mxGeometry height="34" width="1420" x="40" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="md_sub" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=2;fontColor=#5C636E;" value="Sistema jerárquico de 4 niveles · 92 atletas · MAE 31.84 sec/km (N4) · -49% acumulado vs N1 OOD validación con GroupKFold + conformal prediction" vertex="1">
+          <mxGeometry height="20" width="1420" x="40" y="56" as="geometry" />
+        </mxCell>
+        <mxCell id="md_lane_data" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#BDBDBD;fontSize=11;fontStyle=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=6;fontColor=#424242;" value="DATOS Y NOTEBOOKS" vertex="1">
+          <mxGeometry height="180" width="1420" x="40" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="md_data_fitrec" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=11;align=center;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;FitRec / Endomondo&lt;/b&gt; 🟢 PRINCIPAL&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Dataset público (Ni et al. 2019)&lt;br&gt;253 020 sesiones brutas&lt;br&gt;Filtros coherencia →&lt;br&gt;&lt;b&gt;20 710 sesiones · 356 usuarios&lt;/b&gt;&lt;br&gt;&lt;b&gt;→ Nivel 1 (HR → ritmo Z1-Z5)&lt;/b&gt;&lt;/span&gt;" vertex="1">
+          <mxGeometry height="120" width="240" x="80" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="md_data_runa" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=11;align=center;verticalAlign=middle;" value="&lt;b&gt;Cohorte RUNA + Strava&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;&lt;b&gt;92 atletas / 80 Strava / 76 sync&lt;/b&gt;&lt;br&gt;48 elegibles N2 · 49 N3 · 51 N4&lt;br&gt;Features sem.: CTL/ATL/TSB/ACWR&lt;br&gt;&lt;b&gt;→ Niveles 2 y 3&lt;/b&gt;&lt;br&gt;umbral N≥40 alcanzado ✅&lt;/span&gt;" vertex="1">
+          <mxGeometry height="120" width="240" x="340" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="md_data_boston" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9CA3AF;fontSize=10;align=center;verticalAlign=middle;dashed=1;" value="&lt;b&gt;Boston Marathon&lt;/b&gt; (auxiliar)&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Solo NB03 — ya cerrado&lt;br&gt;Calibró exponentes Riegel para&lt;br&gt;extrapolar tiempos por distancia&lt;br&gt;(no afecta el modelo jerárquico)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="120" width="240" x="600" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="md_nb" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=10;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;dashed=1;" value="&lt;b&gt;Notebooks canónicos&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;N1_eda_endomondo ✅&lt;br&gt;N1_modelo_prior_poblacional ✅&lt;br&gt;N2_modelo_cohorte_runa ✅&lt;br&gt;N3_modelo_longitudinal ✅&lt;br&gt;N4_modelo_correccion_personal ✅&lt;br&gt;N5_validacion_consolidada ✅&lt;br&gt;aux_riegel_calibracion ✅&lt;br&gt;NB09 — Análisis de potencia ✅&lt;br&gt;NB11 — EDA Endomondo ✅&lt;br&gt;N1_modelo_prior_poblacional ✅&lt;br&gt;N2_modelo_cohorte_runa ✅&lt;/span&gt;" vertex="1">
+          <mxGeometry height="120" width="280" x="860" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="md_features" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=10;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;dashed=1;" value="&lt;b&gt;Features Nivel 1 (8)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;gender_bin · fcmax_obs · hr_mean&lt;br&gt;pct_fcmax · zona · hr_max_rel&lt;br&gt;log_duration · dens_hr&lt;br&gt;&lt;br&gt;&lt;b&gt;Target:&lt;/b&gt; pace_min_km&lt;/span&gt;" vertex="1">
+          <mxGeometry height="120" width="280" x="1160" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="md_lane_levels" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF8E1;strokeColor=#F9A825;fontSize=11;fontStyle=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=6;fontColor=#424242;" value="MODELO JERÁRQUICO  ·  Nivel 1 = núcleo de la contribución" vertex="1">
+          <mxGeometry height="280" width="1420" x="40" y="310" as="geometry" />
+        </mxCell>
+        <mxCell id="md_n1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;align=center;verticalAlign=top;spacingTop=10;strokeWidth=3;" value="&lt;b&gt;Nivel 1 ✅&lt;/b&gt; &lt;span style=&quot;font-size:11px;color:#C41E3A&quot;&gt;CORE&lt;/span&gt;&lt;br&gt;&lt;b&gt;Prior poblacional&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px&quot;&gt;HR + 8 features → ritmo Z1-Z5&lt;/span&gt;&lt;br&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Pipeline AutoML:&lt;br&gt;QuantileTransformer + PCA&lt;br&gt;+ ARDRegression&lt;br&gt;&lt;br&gt;&lt;b&gt;Validación:&lt;/b&gt; GroupKFold K=10&lt;br&gt;&lt;b&gt;MAE:&lt;/b&gt; 39.76 sec/km&lt;br&gt;&lt;b&gt;R²:&lt;/b&gt; +0.199&lt;br&gt;&lt;br&gt;&lt;b&gt;NB11 + NB12&lt;/b&gt;&lt;/span&gt;" vertex="1">
+          <mxGeometry height="220" width="280" x="80" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="md_n2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAD7AC;strokeColor=#B46504;fontSize=11;align=center;verticalAlign=top;spacingTop=8;" value="&lt;b&gt;Nivel 2 ✅&lt;/b&gt;&lt;br&gt;&lt;b&gt;Núcleo generalizable&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Refina Nivel 1 con cohorte RUNA&lt;br&gt;&lt;br&gt;Features añadidos:&lt;br&gt;CTL · ATL · ACWR · km/sem&lt;br&gt;ritmo_4sem · cadencia&lt;br&gt;desnivel · edad · PRs&lt;br&gt;&lt;br&gt;&lt;b&gt;Validación:&lt;/b&gt; LOAO-CV&lt;br&gt;&lt;b&gt;MAE LOAO-CV:&lt;/b&gt; 47.59 sec/km&lt;br&gt;&lt;br&gt;&lt;b&gt;N2 desplegado ✅&lt;/b&gt;&lt;/span&gt;" vertex="1">
+          <mxGeometry height="220" width="240" x="400" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="md_n3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;fontSize=11;align=center;verticalAlign=top;spacingTop=8;" value="&lt;b&gt;Nivel 3 ✅&lt;/b&gt;&lt;br&gt;&lt;b&gt;Personalización bayesiana&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Datos del atleta:&lt;br&gt;carreras propias + check-ins&lt;br&gt;sueño · energía · dolor&lt;br&gt;&lt;br&gt;&lt;b&gt;Activación:&lt;/b&gt; ≥ 8 semanas de historial&lt;br&gt;&lt;br&gt;&lt;b&gt;MAE 41.87 sec/km · LOAO-CV ✅&lt;/b&gt;&lt;/span&gt;" vertex="1">
+          <mxGeometry height="220" width="240" x="680" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="md_outs" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=11;align=center;verticalAlign=top;spacingTop=8;fontStyle=0;strokeWidth=2;" value="&lt;b&gt;SALIDAS DEL MOTOR&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;span style=&quot;font-size:13px&quot;&gt;🎯  &lt;b&gt;Ritmo Z1–Z5 (min/km)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:9px&quot;&gt;[salida principal del modelo ML]&lt;/span&gt;&lt;/span&gt;&lt;br&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px&quot;&gt;⏱  Tiempos 5K · 10K · 21K · 42K&lt;br&gt;&lt;span style=&quot;font-size:9px&quot;&gt;[derivado por Riegel]&lt;/span&gt;&lt;/span&gt;&lt;br&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px&quot;&gt;📊  Intervalo conformal&lt;br&gt;cobertura 80% (±62.3 s/km)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="220" width="280" x="960" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="md_riegel" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9CA3AF;fontSize=10;align=center;verticalAlign=top;spacingTop=8;dashed=1;" value="&lt;b&gt;Riegel calibrado&lt;/b&gt; ✅&lt;br&gt;&lt;span style=&quot;font-size:9px&quot;&gt;Módulo auxiliar&lt;br&gt;Solo extrapola tiempos&lt;br&gt;entre distancias&lt;br&gt;&lt;br&gt;Calibrado en NB03&lt;br&gt;(constantes en código)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="220" width="160" x="1280" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="md_arr_fitrec_n1" edge="1" parent="1" source="md_data_fitrec" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#82B366;edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="md_n1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="md_arr_runa_n2" edge="1" parent="1" source="md_data_runa" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#6C8EBF;edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.3;entryY=0;entryDx=0;entryDy=0;" target="md_n2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="md_arr_runa_n3" edge="1" parent="1" source="md_data_runa" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#6C8EBF;edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.2;entryY=0;entryDx=0;entryDy=0;dashed=1;" target="md_n3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="md_arr_boston_riegel" edge="1" parent="1" source="md_data_boston" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#9CA3AF;edgeStyle=orthogonalEdgeStyle;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=9;fontStyle=2;labelBackgroundColor=#FFFFFF;" target="md_riegel" value="exponentes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="md_arr12" edge="1" parent="1" source="md_n1" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;edgeStyle=orthogonalEdgeStyle;fontSize=9;fontStyle=2;labelBackgroundColor=#FFF8E1;" target="md_n2" value="hereda + agrega">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="md_arr23" edge="1" parent="1" source="md_n2" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#666666;edgeStyle=orthogonalEdgeStyle;fontSize=9;fontStyle=2;labelBackgroundColor=#FFF8E1;" target="md_n3" value="hereda + agrega">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="md_arr3o" edge="1" parent="1" source="md_n3" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#9673A6;edgeStyle=orthogonalEdgeStyle;" target="md_outs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="md_arr_riegel_outs" edge="1" parent="1" source="md_riegel" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#9CA3AF;edgeStyle=orthogonalEdgeStyle;dashed=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;fontSize=9;fontStyle=2;labelBackgroundColor=#FFFFFF;" target="md_outs" value="solo tiempos">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="md_lane_valid" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#BDBDBD;fontSize=11;fontStyle=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=6;fontColor=#424242;" value="VALIDACIÓN ESTADÍSTICA Y BENCHMARKS (aplicados al Nivel 1, plan idéntico para 2-3)" vertex="1">
+          <mxGeometry height="280" width="1420" x="40" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="md_v1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1976D2;fontSize=11;align=center;verticalAlign=middle;" value="&lt;b&gt;GroupKFold K=10&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Anti-leakage: cada usuario&lt;br&gt;solo en train O test&lt;br&gt;Inyectado a naïveautoml&lt;br&gt;vía PregenSplitter&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="220" x="80" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="md_v2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1976D2;fontSize=11;align=center;verticalAlign=middle;" value="&lt;b&gt;Friedman + Nemenyi&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Top-5 modelos (N=356)&lt;br&gt;χ² = 14.36 · p = 0.0062&lt;br&gt;naïveAutoML &gt; MLP (p=0.009)&lt;br&gt;naïveAutoML ≈ Ridge (p=0.66)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="240" x="320" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="md_v3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1976D2;fontSize=11;align=center;verticalAlign=middle;" value="&lt;b&gt;Split-conformal&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;60/20/20 por usuario&lt;br&gt;n_cal = 5 007 sesiones&lt;br&gt;q = ±62.3 sec/km&lt;br&gt;Cobertura empírica = 0.784&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="220" x="580" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="md_v4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1976D2;fontSize=11;align=center;verticalAlign=middle;" value="&lt;b&gt;Análisis de potencia&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Monte Carlo (01_analisis_potencia)&lt;br&gt;Umbral mínimo: N ≥ 40 atletas&lt;br&gt;Cohorte efectiva: 48-49-51&lt;br&gt;&lt;b&gt;Umbral superado ✅&lt;/b&gt;&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="220" x="820" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="md_v5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#C41E3A;fontSize=10;align=left;verticalAlign=top;spacingLeft=10;spacingTop=6;" value="&lt;b&gt;Ranking final (NB12 v5)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;naïveAutoML  39.76 ✅&lt;br&gt;Ridge        40.16&lt;br&gt;ElasticNet   40.65&lt;br&gt;GradBoost    40.78&lt;br&gt;MLP          40.90&lt;br&gt;Karvonen     43.91 (baseline)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="160" width="240" x="1080" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="md_artefacts" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2F1;strokeColor=#00695C;fontSize=10;align=center;verticalAlign=top;spacingLeft=10;spacingTop=6;" value="&lt;b&gt;Artefactos&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:9px&quot;&gt;nivel1_prior_FULL_v5.pkl&lt;br&gt;nivel1_naiveautoml_v5.json&lt;br&gt;(api/models/)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="160" width="100" x="1340" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="md_baseline_note" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontStyle=2;fontColor=#5C636E;" value="&lt;b&gt;Mejora vs. Karvonen baseline:&lt;/b&gt; −4.15 sec/km (−9.4%)  ·  &lt;b&gt;Mejora vs. naïve baseline:&lt;/b&gt; −4.27 sec/km (−9.7%)" vertex="1">
+          <mxGeometry height="20" width="1000" x="80" y="830" as="geometry" />
+        </mxCell>
+        <mxCell id="md_leyenda" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontStyle=2;fontColor=#5C636E;" value="✅ Los 4 niveles desplegados en producción Railway · Riegel calibrado = módulo auxiliar para tiempos por distancia" vertex="1">
+          <mxGeometry height="20" width="1420" x="40" y="930" as="geometry" />
+        </mxCell>
+              <mxCell id="md_n4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D1FAE5;strokeColor=#059669;fontSize=11;align=center;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;Nivel 4 ✅&lt;/b&gt; · Corrección personal walk-forward&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;ŷ_N4(t) = ŷ_N3(t) + sesgo_K&lt;br&gt;K=15 sesiones (~4-5 sem)&lt;br&gt;51 atletas · 8 718 sesiones&lt;br&gt;&lt;br&gt;1 parámetro por atleta&lt;br&gt;Sin reentrenamiento&lt;br&gt;Wilcoxon signed-rank p&lt;0.001&lt;br&gt;&lt;br&gt;&lt;b&gt;MAE 31.84 sec/km&lt;/b&gt;&lt;br&gt;-18.3% vs N3 · -49.0% acumulado&lt;br&gt;&lt;br&gt;Activación: ≥5 sesiones HR&lt;/span&gt;" vertex="1">
+          <mxGeometry height="240" width="280" x="1180" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="md_a34" edge="1" parent="1" source="md_n3" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#059669;edgeStyle=orthogonalEdgeStyle;" target="md_n4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+</root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="05_App_Resumen" id="diag_ar">
+    <mxGraphModel dx="1407" dy="904" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1400" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="ar_title" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=24;fontStyle=1;fontColor=#C41E3A;" value="Plataforma RUNA — vista panorámica" vertex="1">
+          <mxGeometry height="40" width="1320" x="40" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="ar_sub" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=13;fontStyle=2;fontColor=#5C636E;" value="Ingesta web propia → Backend FastAPI → Frontend Alpine.js · Deploy en Railway" vertex="1">
+          <mxGeometry height="22" width="1320" x="40" y="75" as="geometry" />
+        </mxCell>
+        <mxCell id="ar_ing" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;INGESTA&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;span style=&quot;font-size:14px&quot;&gt;Formulario portal&lt;br&gt;Strava OAuth + webhooks&lt;br&gt;Check-ins en portal&lt;/span&gt;" vertex="1">
+          <mxGeometry height="280" width="320" x="80" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="ar_back" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;BACKEND&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;span style=&quot;font-size:14px&quot;&gt;FastAPI 2 workers · Railway Pro&lt;br&gt;Endpoint /ml-hierarchy&lt;br&gt;Cadena N1→N4 en cascada&lt;br&gt;Supabase + Cloudflare Worker&lt;/span&gt;" vertex="1">
+          <mxGeometry height="280" width="320" x="500" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="ar_front" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;fontSize=18;fontStyle=1;align=center;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;FRONTEND&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;span style=&quot;font-size:14px&quot;&gt;Dashboard atleta (5 tabs)&lt;br&gt;Panel coach&lt;br&gt;Alpine.js + Tailwind&lt;/span&gt;" vertex="1">
+          <mxGeometry height="280" width="320" x="920" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="ar_a1" edge="1" parent="1" source="ar_ing" style="endArrow=classic;html=1;strokeWidth=4;strokeColor=#C41E3A;edgeStyle=orthogonalEdgeStyle;" target="ar_back">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ar_a2" edge="1" parent="1" source="ar_back" style="endArrow=classic;html=1;strokeWidth=4;strokeColor=#C41E3A;edgeStyle=orthogonalEdgeStyle;" target="ar_front">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ar_pie" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=2;fontColor=#5C636E;" value="&lt;b&gt;Stack:&lt;/b&gt; FastAPI · Alpine.js · Tailwind · Chart.js · Strava API · Railway   &lt;b&gt;·&lt;/b&gt;   Sin Node.js · sin build · sin Google Forms" vertex="1">
+          <mxGeometry height="22" width="1320" x="40" y="540" as="geometry" />
+        </mxCell>
+        <mxCell id="ar_hint" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=11;fontStyle=2;fontColor=#9CA3AF;" value="↳ Detalle (endpoints · tabs · CI/CD · deploy) en pestaña 06_App_Detalle" vertex="1">
+          <mxGeometry height="20" width="1320" x="40" y="610" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="06_App_Detalle" id="diag_ad">
+    <mxGraphModel dx="1548" dy="994" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1500" pageHeight="980" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="ad_title" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=22;fontStyle=1;fontColor=#C41E3A;" value="Plataforma RUNA — Componente producto (detalle)" vertex="1">
+          <mxGeometry height="34" width="1420" x="40" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_sub" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=2;fontColor=#5C636E;" value="Ingesta web propia · Backend FastAPI 2 workers · Cadena N1-N4 en /ml-hierarchy · Supabase · Cloudflare Worker · Deploy Railway Pro" vertex="1">
+          <mxGeometry height="20" width="1420" x="40" y="56" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_lane_ing" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=6;fontColor=#1B5E20;" value="1.  INGESTA (todo en el portal — sin Google Forms)" vertex="1">
+          <mxGeometry height="780" width="320" x="40" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_form" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=11;align=center;verticalAlign=top;spacingTop=8;" value="&lt;b&gt;Formulario de onboarding&lt;/b&gt; ✅&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Web del portal RUNA&lt;br&gt;POST /athletes/{id}/profile/onboarding&lt;br&gt;• Edad · género · peso&lt;br&gt;• PRs (5K/10K/21K/42K)&lt;br&gt;• Consentimiento + disponibilidad&lt;/span&gt;" vertex="1">
+          <mxGeometry height="150" width="240" x="80" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_strava" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=11;align=center;verticalAlign=top;spacingTop=8;" value="&lt;b&gt;Strava OAuth + Webhooks&lt;/b&gt; ✅&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;• OAuth: vincula la cuenta&lt;br&gt;• Webhooks: tiempo real&lt;br&gt;• Sync semanal (lunes 6am)&lt;br&gt;• Actividades · HR · ritmo · km&lt;br&gt;• Cadencia · desnivel · duración&lt;/span&gt;" vertex="1">
+          <mxGeometry height="150" width="240" x="80" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_checkin" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=11;align=center;verticalAlign=top;spacingTop=8;" value="&lt;b&gt;Check-in semanal&lt;/b&gt; ✅&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Web del portal RUNA&lt;br&gt;1×/semana · ~2 minutos&lt;br&gt;• Sueño (1-5)&lt;br&gt;• Energía (1-5)&lt;br&gt;• Dolor (sí/no + zona)&lt;br&gt;• Carreras + resultados&lt;/span&gt;" vertex="1">
+          <mxGeometry height="160" width="240" x="80" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_pr" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=11;align=center;verticalAlign=top;spacingTop=8;" value="&lt;b&gt;Reporte de carreras&lt;/b&gt; ✅&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Web del portal RUNA&lt;br&gt;Resultados reales 5K/10K/21K/42K&lt;br&gt;Para activar Nivel 3&lt;/span&gt;" vertex="1">
+          <mxGeometry height="120" width="240" x="80" y="700" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_lane_back" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=6;fontColor=#0D47A1;" value="2.  BACKEND" vertex="1">
+          <mxGeometry height="780" width="540" x="380" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_pipeline" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=11;align=center;verticalAlign=top;spacingTop=8;" value="&lt;b&gt;Pipeline analítico&lt;/b&gt; ✅&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;src/features/build_features.py&lt;br&gt;• Limpieza + normalización&lt;br&gt;• EWMA: CTL (28d) / ATL (7d) / TSB&lt;br&gt;• ACWR · racha_semanas · km_trend&lt;br&gt;• readiness_score · acwr_zone&lt;br&gt;• Salida: weekly_features.parquet&lt;/span&gt;" vertex="1">
+          <mxGeometry height="140" width="460" x="420" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_api" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#90CAF9;strokeColor=#0D47A1;fontSize=12;fontStyle=1;align=center;verticalAlign=top;spacingTop=6;" value="&lt;b&gt;FastAPI&lt;/b&gt; ✅ — routers REST" vertex="1">
+          <mxGeometry height="170" width="460" x="420" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_ep1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0D47A1;fontSize=9;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;" value="&lt;span style=&quot;font-size:9px;font-family:monospace&quot;&gt;&lt;b&gt;athletes.py&lt;/b&gt;&lt;br&gt;GET  /athletes&lt;br&gt;GET  /athletes/{id}/profile&lt;br&gt;POST /athletes/{id}/profile/onboarding&lt;br&gt;GET  /athletes/{id}/snapshot&lt;br&gt;GET  /athletes/{id}/plan&lt;br&gt;GET  /athletes/{id}/prediction&lt;/span&gt;" vertex="1">
+          <mxGeometry height="120" width="220" x="440" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_ep2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0D47A1;fontSize=9;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;" value="&lt;span style=&quot;font-size:9px;font-family:monospace&quot;&gt;&lt;b&gt;sync.py&lt;/b&gt; · &lt;b&gt;webhooks.py&lt;/b&gt; · &lt;b&gt;coach.py&lt;/b&gt;&lt;br&gt;POST /sync/strava/{id}&lt;br&gt;POST /webhooks/strava&lt;br&gt;GET  /coach/athletes&lt;br&gt;GET  /coach/alerts&lt;br&gt;POST /pipeline/run/{id}&lt;br&gt;GET  /health&lt;/span&gt;" vertex="1">
+          <mxGeometry height="120" width="220" x="660" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_motor" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#C41E3A;fontSize=10;align=center;verticalAlign=top;spacingTop=6;" value="&lt;b&gt;Motor de ritmos&lt;/b&gt; (cadena N1→N4 vía /ml-hierarchy)&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Cadena N1→N4 vía /ml-hierarchy&lt;br&gt;N1 ridge_v4.json · N2/N3 pkl · N4 bias-corr&lt;br&gt;Activación por nivel según datos disponibles del atleta&lt;br&gt;Predice &lt;b&gt;ritmo Z1-Z5&lt;/b&gt; + intervalo conformal&lt;br&gt;Riegel auxiliar para tiempos por distancia&lt;/span&gt;" vertex="1">
+          <mxGeometry height="100" width="460" x="420" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_storage" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0D47A1;fontSize=10;align=center;verticalAlign=top;spacingTop=6;dashed=1;" value="&lt;b&gt;Storage&lt;/b&gt; ✅&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Supabase PostgreSQL prod&lt;br&gt;athletes · activities · weekly_features&lt;br&gt;athlete_snapshots · weekly_plans&lt;br&gt;Bootstrap parquet on restart&lt;/span&gt;" vertex="1">
+          <mxGeometry height="130" width="220" x="420" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_ci" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0D47A1;fontSize=10;align=center;verticalAlign=top;spacingTop=6;" value="&lt;b&gt;CI/CD&lt;/b&gt; ✅&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;GitHub Actions&lt;br&gt;Lunes 11 UTC / 6am Bogotá&lt;br&gt;Sync Strava + pipeline + commit&lt;br&gt;Deploy Railway al merge&lt;/span&gt;" vertex="1">
+          <mxGeometry height="130" width="220" x="660" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_stack_back" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1565C0;fontSize=10;fontStyle=2;align=center;verticalAlign=middle;dashed=1;" value="&lt;b&gt;Stack:&lt;/b&gt; FastAPI · Pydantic · pandas · scikit-learn · python-docx" vertex="1">
+          <mxGeometry height="40" width="460" x="420" y="810" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_lane_front" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;fontSize=12;fontStyle=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=6;fontColor=#BF360C;" value="3.  FRONTEND" vertex="1">
+          <mxGeometry height="780" width="520" x="940" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_dash" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;fontSize=12;fontStyle=1;align=center;verticalAlign=top;spacingTop=6;" value="&lt;b&gt;Dashboard atleta&lt;/b&gt; ✅" vertex="1">
+          <mxGeometry height="380" width="440" x="980" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_tab1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E65100;fontSize=10;align=center;verticalAlign=middle;" value="&lt;b&gt;Tab Hoy&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Semáforo · check-in&lt;br&gt;Readiness score&lt;br&gt;CTL/ATL/TSB&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="200" x="1000" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_tab2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E65100;fontSize=10;align=center;verticalAlign=middle;" value="&lt;b&gt;Tab Plan&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Plan semanal 7 días&lt;br&gt;Distancia · ritmo · zona&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="200" x="1210" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_tab3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E65100;fontSize=10;align=center;verticalAlign=middle;" value="&lt;b&gt;Tab Rendimiento&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Predicciones 5K-42K&lt;br&gt;Rango ritmo · confianza&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="200" x="1000" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_tab4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E65100;fontSize=10;align=center;verticalAlign=middle;" value="&lt;b&gt;Tab Analítica&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Charts km · ACWR&lt;br&gt;Tabla histórica 9 col&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="200" x="1210" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_tab5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E65100;fontSize=10;align=center;verticalAlign=middle;" value="&lt;b&gt;Tab Glosario&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Definiciones operacionales&lt;br&gt;CTL · ATL · ACWR · zonas FC&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="220" x="1100" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_stack_front" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E65100;fontSize=11;align=center;verticalAlign=middle;dashed=1;" value="&lt;b&gt;Stack:&lt;/b&gt; Alpine.js 3 · Tailwind CSS · Chart.js 4&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Servido como static por FastAPI · sin build · sin Node.js&lt;/span&gt;" vertex="1">
+          <mxGeometry height="40" width="410" x="1000" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_coach" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=12;fontStyle=1;align=center;verticalAlign=top;spacingTop=6;" value="&lt;b&gt;Panel coach&lt;/b&gt; ✅ — vista agregada (coach.html)" vertex="1">
+          <mxGeometry height="200" width="440" x="980" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_coach_features" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#F9A825;fontSize=10;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;" value="&lt;span style=&quot;font-size:11px&quot;&gt;• Lista de atletas con semáforo&lt;br&gt;• Alertas de carga (ACWR &gt; 1.5 / racha &gt; 4 sem)&lt;br&gt;• Comparación cohorte vs. individuo&lt;br&gt;• Edición de plan semanal por atleta&lt;br&gt;• Vista de check-ins agregados&lt;/span&gt;" vertex="1">
+          <mxGeometry height="140" width="400" x="1000" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_deploy" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E65100;fontSize=11;align=center;verticalAlign=middle;dashed=1;" value="&lt;b&gt;Deploy:&lt;/b&gt; Railway Pro (2 workers · timeout 20s) + Cloudflare Pages (portal React) · Supabase en producción" vertex="1">
+          <mxGeometry height="50" width="440" x="980" y="800" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_arr1" edge="1" parent="1" source="ad_form" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#2E7D32;edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" target="ad_pipeline">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_arr2" edge="1" parent="1" source="ad_strava" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#2E7D32;edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ad_pipeline">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_arr3" edge="1" parent="1" source="ad_checkin" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#2E7D32;edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" target="ad_pipeline">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_arr4" edge="1" parent="1" source="ad_pipeline" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#1565C0;edgeStyle=orthogonalEdgeStyle;" target="ad_api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_arr5" edge="1" parent="1" source="ad_api" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#1565C0;edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" target="ad_dash">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_arr6" edge="1" parent="1" source="ad_api" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#1565C0;edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ad_coach">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ad_leyenda" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontStyle=2;fontColor=#5C636E;" value="✅ Producto en producción Railway Pro · 4 niveles ML activos · Toda la ingesta pasa por el portal RUNA — ya no se usa Google Forms ni Google Sheets" vertex="1">
+          <mxGeometry height="20" width="1420" x="40" y="900" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
