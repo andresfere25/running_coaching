@@ -91,18 +91,38 @@ def compute_personal_bias(
     residuals: list[float] = []
     _err_sample: Optional[str] = None  # primer error para diagnóstico
 
+    # Parser defensivo: maneja None/NaN/string vacío (mismo patrón que N3 en athletes.py)
+    def _sf(v, default: float) -> float:
+        try:
+            if v is None: return default
+            f = float(v)
+            return f if f == f else default  # NaN check
+        except (TypeError, ValueError):
+            return default
+
+    # Pre-parsear snapshot UNA vez (mismas features para todas las sesiones)
+    ctl_v               = _sf(snapshot.get("ctl"),               40.0)
+    atl_v               = _sf(snapshot.get("atl"),               41.0)
+    tsb_v               = _sf(snapshot.get("tsb"),               -1.0)
+    acwr_v              = _sf(snapshot.get("acwr"),              1.02)
+    long_run_v          = _sf(snapshot.get("long_run_km"),       20.0)
+    pace_delta_v        = _sf(snapshot.get("pace_delta_4s_sec"), 0.0)
+    weeks_with_data_v   = _sf(snapshot.get("weeks_with_data"),   10.0)
+
     for s in recent:
         try:
-            avg_hr      = float(s["avg_hr"])
-            pace_actual = float(s["pace_sec_per_km"])
-            dist_km     = max(float(s.get("distance_km") or 10.0), 0.1)
-            dur_sec     = float(s.get("duration_sec") or 1800.0)
-            elev_m      = float(s.get("elevation_m") or 0.0)
-            cad         = float(s.get("cadence") or 82.0)
+            avg_hr      = _sf(s.get("avg_hr"),          0.0)
+            pace_actual = _sf(s.get("pace_sec_per_km"), 0.0)
+            dist_km     = max(_sf(s.get("distance_km"), 10.0),   0.1)
+            dur_sec     = _sf(s.get("duration_sec"),    1800.0)
+            elev_m      = _sf(s.get("elevation_m"),     0.0)
+            cad         = _sf(s.get("cadence"),         82.0)
+            if avg_hr <= 0 or pace_actual <= 0:
+                continue
 
             pred = predict_n3_session(
-                age               = float(age),
-                sex_bin           = int(sex_bin),
+                age               = _sf(age,     30.0),
+                sex_bin           = int(sex_bin) if sex_bin is not None else 0,
                 fcmax_obs         = fcmax_obs,
                 vdot              = vdot,
                 avg_hr            = avg_hr,
@@ -111,13 +131,13 @@ def compute_personal_bias(
                 elevation_m       = elev_m,
                 has_elevation     = int(elev_m > 5),
                 cadence_filled    = cad,
-                ctl               = float(snapshot.get("ctl", 40.0)),
-                atl               = float(snapshot.get("atl", 41.0)),
-                tsb               = float(snapshot.get("tsb", -1.0)),
-                acwr              = float(snapshot.get("acwr", 1.02)),
-                long_run_km       = float(snapshot.get("long_run_km", 20.0)),
-                pace_delta_4s_sec = float(snapshot.get("pace_delta_4s_sec", 0.0)),
-                weeks_with_data   = float(snapshot.get("weeks_with_data", 10.0)),
+                ctl               = ctl_v,
+                atl               = atl_v,
+                tsb               = tsb_v,
+                acwr              = acwr_v,
+                long_run_km       = long_run_v,
+                pace_delta_4s_sec = pace_delta_v,
+                weeks_with_data   = weeks_with_data_v,
             )
             residuals.append(pace_actual - pred["pace_sec_km"])
 
