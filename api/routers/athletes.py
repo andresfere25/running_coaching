@@ -2082,6 +2082,72 @@ def get_ml_hierarchy(
     except Exception as _n3_exc:
         print(f"[ml_hierarchy] N3 skipped for {cedula}: {_n3_exc}")
 
+    # ── 2d. N4 — Corrección de sesgo personal (walk-forward) ─────────────────
+    # Requiere N3 activo + ≥5 sesiones con FC. Aplica corrección sobre N3
+    # con sesgo medio de las últimas K=15 sesiones (NB15 Parte D, p<0.001).
+    n4_zones_map: dict = {}
+    n4_active = False
+    n4_bias_info = None
+    try:
+        from src.ml.nivel4 import predict_n4_zones as _n4_zones, N_MIN as _N4_MIN
+        if n3_active and age and n3_zones_map:
+            from src.storage.supabase_client import get_client as _gc_n4
+            _rows = []
+            try:
+                _sb_n4 = _gc_n4()
+                _resp = (
+                    _sb_n4.table("activities")
+                    .select("activity_date,distance_m,duration_sec,pace_sec_per_km,"
+                            "elevation_m,raw")
+                    .eq("cedula", cedula)
+                    .in_("sport_type", ["Run", "TrailRun"])
+                    .not_.is_("raw->>average_heartrate", "null")
+                    .order("activity_date", desc=True)
+                    .limit(40)
+                    .execute()
+                )
+                _rows = _resp.data or []
+            except Exception as _q_exc:
+                print(f"[ml_hierarchy] N4 query failed for {cedula}: {_q_exc}")
+
+            # Construir lista de sesiones (cronológica ASC para `predict_n4_zones`)
+            _sessions: list[dict] = []
+            for _r in reversed(_rows):
+                _raw    = _r.get("raw") if isinstance(_r.get("raw"), dict) else {}
+                _avg_hr = _raw.get("average_heartrate")
+                _pace   = _r.get("pace_sec_per_km")
+                _dist_m = _r.get("distance_m")
+                if not (_avg_hr and _pace and _dist_m and _dist_m > 500):
+                    continue
+                _sessions.append({
+                    "avg_hr":          float(_avg_hr),
+                    "duration_sec":    float(_r.get("duration_sec") or 1800),
+                    "distance_km":     float(_dist_m) / 1000.0,
+                    "elevation_m":     float(_r.get("elevation_m") or 0),
+                    "cadence":         float(_raw.get("average_cadence") or 82.0),
+                    "pace_sec_per_km": float(_pace),
+                })
+
+            if len(_sessions) >= _N4_MIN:
+                _snap_n4 = read_snapshot(cedula, athlete_dir if athlete_dir.exists() else None) or {}
+                _snapshot_long = dict(_snap_n4.get("latest_week") or {})
+                _snapshot_long["weeks_with_data"] = float(n3_weeks)
+                _n4_res = _n4_zones(
+                    age       = float(age),
+                    sex_bin   = gender_bin,
+                    fcmax_obs = fcmax_obs if fcmax_source == "strava" else None,
+                    vdot      = None,
+                    snapshot  = _snapshot_long,
+                    sessions  = _sessions,
+                    n3_zones  = list(n3_zones_map.values()),
+                )
+                if _n4_res.get("active"):
+                    n4_zones_map = {p["zona"]: p for p in _n4_res["zones"]}
+                    n4_active = True
+                    n4_bias_info = _n4_res.get("bias_info")
+    except Exception as _n4_exc:
+        print(f"[ml_hierarchy] N4 skipped for {cedula}: {_n4_exc}")
+
     # ── 3. Definir zonas y predecir ritmo por zona ───────────────────────────
     zone_defs = [
         {"zone": 1, "name": "Z1 · Recuperación",   "pct_min": 0.00, "pct_max": 0.60, "color": "#3B82F6"},
@@ -2148,6 +2214,15 @@ def get_ml_hierarchy(
                 "ci_hi_fmt":    f"{int(_n3z['ci_hi_sec_km']//60)}:{int(_n3z['ci_hi_sec_km']%60):02d}",
                 "mae_sec_km":   41.9,
             } if (_n3z := n3_zones_map.get(z)) else None),
+            "nivel4": ({
+                "pace_sec_km":  round(_n4z["pace_sec_km"], 1),
+                "pace_min_km":  round(_n4z["pace_sec_km"] / 60, 2),
+                "pace_fmt":     f"{int(_n4z['pace_sec_km']//60)}:{int(_n4z['pace_sec_km']%60):02d} /km",
+                "ci_lo_fmt":    f"{int(_n4z['ci_lo_sec_km']//60)}:{int(_n4z['ci_lo_sec_km']%60):02d}",
+                "ci_hi_fmt":    f"{int(_n4z['ci_hi_sec_km']//60)}:{int(_n4z['ci_hi_sec_km']%60):02d}",
+                "mae_sec_km":   31.8,
+                "bias_applied": _n4z.get("bias_applied", 0.0),
+            } if (_n4z := n4_zones_map.get(z)) else None),
         })
 
     # ── 4. Estimación de tiempos por distancia (Riegel desde zona 3) ─────────
@@ -2223,6 +2298,20 @@ def get_ml_hierarchy(
             ),
             "icon": "user-focus",
             "accuracy": "MAE = 41.9 seg/km (+32.9% sobre N1)" if n3_active else "Pendiente",
+        },
+        {
+            "level": 4,
+            "name": "Corrección personal (walk-forward)",
+            "status": "active" if n4_active else ("needs_data" if n3_active else "pending"),
+            "description": (
+                f"Sesgo personal {n4_bias_info['bias_sec_km']:+.1f} sec/km "
+                f"(K={n4_bias_info['K']} sesiones, σ={n4_bias_info['std_sec_km']:.1f}) "
+                f"aplicado sobre N3"
+                if n4_active and n4_bias_info else
+                "Requiere ≥5 sesiones con FC para calcular sesgo personal"
+            ),
+            "icon": "user-circle",
+            "accuracy": "MAE = 31.8 seg/km (+49% acum. sobre N1)" if n4_active else "Pendiente",
         },
     ]
 

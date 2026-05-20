@@ -2093,6 +2093,17 @@
                       <span class="absolute left-2 top-1 text-[8px] font-semibold" style="color:#0891b2;">N3</span>
                     </div>
                   </template>
+                  <!-- N4 bar (solo si disponible — corrección personal walk-forward) -->
+                  <template x-if="z.nivel4">
+                    <div class="relative h-8 rounded-lg overflow-hidden" style="background:var(--ink-100);">
+                      <div class="absolute inset-y-0 left-0 rounded-lg transition-all duration-500 flex items-center justify-end pr-3"
+                           :style="'background:#05966920; border-left:3px solid #059669; width:' + Math.max(20, Math.min(95, (12 - z.nivel4.pace_min_km) / 10 * 100)) + '%;'">
+                        <span class="font-mono text-xs font-bold" style="color:#059669"
+                              x-text="z.nivel4.pace_fmt"></span>
+                      </div>
+                      <span class="absolute left-2 top-1 text-[8px] font-semibold" style="color:#059669;">N4</span>
+                    </div>
+                  </template>
                 </div>
 
                 <!-- Interval -->
@@ -2114,6 +2125,13 @@
                       <div class="text-[9px]" style="color:#0891b2;">N3 ±MAE</div>
                     </div>
                   </template>
+                  <template x-if="z.nivel4">
+                    <div>
+                      <span class="text-[10px] font-mono" style="color:#059669;"
+                            x-text="z.nivel4.ci_lo_fmt + ' – ' + z.nivel4.ci_hi_fmt"></span>
+                      <div class="text-[9px]" style="color:#059669;">N4 ±MAE</div>
+                    </div>
+                  </template>
                 </div>
               </div>
             </template>
@@ -2125,6 +2143,7 @@
             <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:var(--carmine-600);"></span> N1 — Prior poblacional (Endomondo, 356 usuarios)</span>
             <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:#7c3aed;"></span> N2 — Cohorte RUNA (48 atletas, MAE 47.6 s/km)</span>
             <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:#0891b2;"></span> N3 — Longitudinal (CTL/ATL/TSB, ≥8 sem., MAE 41.9 s/km)</span>
+            <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:#059669;"></span> N4 — Corrección personal (sesgo K=15 walk-forward, MAE 31.8 s/km)</span>
           </div>
         </div>
 
@@ -2148,6 +2167,9 @@
                   </th>
                   <th class="text-center px-3 py-2.5 font-semibold" style="color:var(--ink-500);">
                     <i class="ph ph-user-focus mr-0.5"></i> Nivel 3
+                  </th>
+                  <th class="text-center px-3 py-2.5 font-semibold" style="color:#059669;">
+                    <i class="ph ph-user-circle mr-0.5"></i> Nivel 4
                   </th>
                 </tr>
               </thead>
@@ -2195,6 +2217,24 @@
                       <template x-if="!z.nivel3">
                         <span class="chip chip-neutral text-[10px]">
                           <i class="ph ph-hourglass"></i> &lt;8 sem.
+                        </span>
+                      </template>
+                    </td>
+                    <td class="text-center px-3 py-3">
+                      <template x-if="z.nivel4">
+                        <div>
+                          <span class="font-mono font-bold" style="color:#059669;"
+                                x-text="z.nivel4.pace_fmt"></span>
+                          <div class="text-[9px]" style="color:#059669;">
+                            <span x-text="z.nivel4.ci_lo_fmt + ' – ' + z.nivel4.ci_hi_fmt"></span>
+                          </div>
+                          <div class="text-[9px]" style="color:#059669;opacity:0.7;"
+                               x-text="'sesgo ' + (z.nivel4.bias_applied >= 0 ? '+' : '') + z.nivel4.bias_applied + ' s'"></div>
+                        </div>
+                      </template>
+                      <template x-if="!z.nivel4">
+                        <span class="chip chip-neutral text-[10px]">
+                          <i class="ph ph-hourglass"></i> &lt;5 ses.
                         </span>
                       </template>
                     </td>
