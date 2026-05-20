@@ -1310,15 +1310,33 @@ def delete_athlete_data(
 
 # ─── Stats bulk (panel del coach — carga toda la cohorte en ~8 queries) ────────
 
+# Cache TTL en memoria para /stats/bulk — el Coach Panel hace polling pero los
+# stats agregados no cambian segundo a segundo. Con TTL=60s, el 99% de los hits
+# se sirven en <1 ms. Cada worker uvicorn mantiene su propia copia (los 2 workers
+# se desincronizan máximo TTL/2 ≈ 30s, aceptable para un panel admin).
+import time as _time_bulk
+_BULK_STATS_CACHE: dict = {"data": None, "timestamp": 0.0}
+_BULK_STATS_TTL_SEC = 60.0
+
+
 @router.get("/stats/bulk")
 def bulk_stats(_: None = Depends(require_api_key)):
     """
-    Retorna estadísticas de participación para TODOS los atletas en ~8 queries de Supabase.
-    Reemplaza el patron anterior: 91 atletas × 10 queries/atleta = 910 queries → ~20s.
-    Con este endpoint: 8 queries de agregación en Python → ~2s.
+    Retorna estadísticas de participación para TODOS los atletas.
+    Diseño: cache TTL 60s + 7 queries Supabase con paginación + agregación en
+    Python. Detectado lento (18.5s) en logs 2026-05-20 con 3 paginaciones de
+    `activities` (~20K filas). Fix: cache TTL + fusión de queries redundantes
+    de activities (#2 y #3 escaneaban lo mismo con filtros distintos → ahora
+    1 sola paginación + filtrado en Python).
 
     Responde: dict keyed by cedula → mismo schema que /{cedula}/stats.
     """
+    # ── Cache hit ─────────────────────────────────────────────────────────────
+    _now_ts = _time_bulk.monotonic()
+    if (_BULK_STATS_CACHE["data"] is not None and
+            _now_ts - _BULK_STATS_CACHE["timestamp"] < _BULK_STATS_TTL_SEC):
+        return _BULK_STATS_CACHE["data"]
+
     from collections import defaultdict
     from datetime import date as _date, timedelta as _td
     from src.storage.supabase_client import get_client
@@ -1362,33 +1380,29 @@ def bulk_stats(_: None = Depends(require_api_key)):
             offset += _PAGE
         return rows
 
-    # 2. Runs desde PROJECT_START (para strava_runs + last_activity)
-    runs_res = _paginate_activities(
-        "cedula,activity_date",
-        lambda q: q.gte("activity_date", PROJECT_START),
-    )
-
-    runs_count: dict = defaultdict(int)
-    last_act: dict   = {}
-    for row in runs_res:
-        ced = row["cedula"]
-        runs_count[ced] += 1
-        d = row["activity_date"][:10]
-        if ced not in last_act or d > last_act[ced]:
-            last_act[ced] = d
-
-    # 3. TODAS las fechas de runs (para weeks_span — all-time, sin filtro PROJECT_START)
+    # 2+3. UNA sola paginación de TODOS los runs all-time, filtrado en Python.
+    # Antes: 2 paginaciones (since-PROJECT_START + all-time) escaneaban el mismo
+    # conjunto de filas (la segunda era superset de la primera) → ~6s desperdiciados
+    # en duplicar el barrido. Ahora 1 paginación + 1 if en Python → ~3s ahorrados.
     all_runs_dates = _paginate_activities("cedula,activity_date")
 
-    first_run: dict = {}
-    last_run_all: dict = {}
+    runs_count: dict   = defaultdict(int)   # runs desde PROJECT_START
+    last_act: dict     = {}                 # última run desde PROJECT_START
+    first_run: dict    = {}                 # primera run all-time (para weeks_span)
+    last_run_all: dict = {}                 # última run all-time (fallback last_activity)
     for row in all_runs_dates:
         ced = row["cedula"]
-        d = row["activity_date"][:10]
+        d   = row["activity_date"][:10]
+        # All-time
         if ced not in first_run or d < first_run[ced]:
             first_run[ced] = d
         if ced not in last_run_all or d > last_run_all[ced]:
             last_run_all[ced] = d
+        # Desde PROJECT_START (ventana rodante 90 días)
+        if d >= PROJECT_START:
+            runs_count[ced] += 1
+            if ced not in last_act or d > last_act[ced]:
+                last_act[ced] = d
 
     # 4. Runs con HR (solo cedula — filtro JSONB server-side)
     # PostgREST: raw->>average_heartrate filtra clave en el JSONB de Strava.
@@ -1495,6 +1509,9 @@ def bulk_stats(_: None = Depends(require_api_key)):
             "n_rows":        ml,
         }
 
+    # Guardar en cache TTL — próximas llamadas <1ms hasta que expire
+    _BULK_STATS_CACHE["data"] = result
+    _BULK_STATS_CACHE["timestamp"] = _now_ts
     return result
 
 
@@ -2700,8 +2717,10 @@ def get_strava_runs_without_checkin(
     if not sb:
         raise HTTPException(status_code=503, detail="Supabase no disponible")
 
-    # Cutoff: febrero 2026 (inicio del proyecto) — no importar datos antiguos
-    project_start = "2026-02-01"
+    # Cutoff: enero 2023 — la cohorte sincronizó historial Strava de 3 años atrás
+    # (ver bitácora 2026-05-13). El valor anterior "2026-02-01" era el inicio del
+    # producto pero ignoraba todo el historial previo que ya está en Supabase.
+    project_start = "2023-01-01"
     cutoff = max(
         project_start,
         (date.today() - __import__("datetime").timedelta(days=days)).isoformat(),
