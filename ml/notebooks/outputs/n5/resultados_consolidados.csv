@@ -1,0 +1,6 @@
+﻿Nivel,Dataset,Modelo,MAE (sec/km),R²,n_atletas,n_sesiones,Protocolo,Test,Mejora
+N1 (in-domain),Endomondo / FitRec,QT + PCA + ARDRegression,39.775979578993926,0.19857819712864588,356,20710,GroupKFold K=10,"Friedman χ²=14.36, p=0.006",— (baseline)
+N1 (OOD en RUNA),Cohorte RUNA,Ridge α=1.0 (producción),62.4,,48,10049,Aplicación fuera de distribución,— (referencia OOD),— (referencia)
+N2,Cohorte RUNA,Lasso α=0.5,47.59,,48,10049,LOAO-CV (48 folds),"Friedman χ²=65.96, p≈0",−23.7 % vs N1 OOD
+N3,Cohorte RUNA + longitudinal,Lasso α=0.5 + CTL/ATL/TSB/ACWR,41.87,,49,8267,"LOAO-CV (49 folds, ≥8 sem. historial)","Friedman χ²=25.76, p=0.0002",−12.0 % vs N2; −32.9 % vs N1 OOD
+N4,Cohorte RUNA + bias-correction K=15,N3 + sesgo personal walk-forward,31.84,,51,8718,Walk-forward causal (K=15 sesiones),Wilcoxon signed-rank p<0.001,−18.3 % vs N3; −49.0 % vs N1 OOD (acumulado)
