@@ -1479,7 +1479,7 @@ def bulk_stats(_: None = Depends(require_api_key)):
 
         # N2 eligibility: ≥5 runs con HR + ≥4 semanas de historial.
         # Criterio relajado (antes ≥10/≥8) para capturar toda la cohorte útil.
-        # Nota: la validación final del modelo usa LOAO-CV → el umbral aquí es
+        # Nota: la validación final del modelo usa LOSO-CV → el umbral aquí es
         # solo para decidir qué atletas entran al entrenamiento, no para garantizar
         # suficientes datos de entrenamiento (eso lo controla el propio fold de CV).
         features = {
@@ -1969,8 +1969,8 @@ def get_ml_hierarchy(
     Retorna la predicción del modelo jerárquico ML para este atleta.
 
     Nivel 1 (Prior poblacional): Ridge sobre FitRec/Endomondo (20 710 sesiones).
-    Nivel 2 (Cohorte RUNA): Lasso LOAO-CV, 48 atletas, MAE 47.6 sec/km.
-    Nivel 3 (Longitudinal): Lasso LOAO-CV + CTL/ATL/TSB, 49 atletas, MAE 41.9 sec/km.
+    Nivel 2 (Cohorte RUNY): Lasso LOSO-CV, 48 atletas, MAE 47.6 s/km.
+    Nivel 3 (Longitudinal): Lasso LOSO-CV + CTL/ATL/TSB, 49 atletas, MAE 41.9 s/km.
       Activo si atleta tiene ≥8 semanas de historial en weekly_features.
 
     Campos clave:
@@ -2046,7 +2046,7 @@ def get_ml_hierarchy(
         else:
             fcmax_obs = 190
 
-    # ── 2b. N2 — Cohorte RUNA: predicción para cualquier atleta con perfil ──
+    # ── 2b. N2 — Cohorte RUNY: predicción para cualquier atleta con perfil ──
     # Nota: los >=3 HR runs / >=2 semanas son criterios de ENTRENAMIENTO,
     # no de inferencia. N2 predice para cualquier atleta con age + sex.
     n2_zones_map: dict = {}
@@ -2303,45 +2303,45 @@ def get_ml_hierarchy(
             "status": "active",
             "description": "Modelo entrenado con 20 710 sesiones de 356 usuarios de Endomondo",
             "icon": "globe",
-            "accuracy": f"MAE = {round(MAE_SEC_KM, 1)} seg/km",
+            "accuracy": f"MAE = {round(MAE_SEC_KM, 1)} s/km",
         },
         {
             "level": 2,
-            "name": "Cohorte RUNA",
+            "name": "Cohorte RUNY",
             "status": "active" if n2_active else "pending",
             "description": (
-                "Lasso LOAO-CV — entrenado con 48 atletas y 10 049 sesiones de la cohorte RUNA"
+                "Lasso LOSO-CV — entrenado con 48 atletas y 10 049 sesiones de la cohorte RUNY"
                 if n2_active else
                 "Requiere edad declarada en el perfil"
             ),
             "icon": "users-three",
-            "accuracy": "MAE = 47.6 seg/km (+23.7% sobre N1)" if n2_active else "Pendiente",
+            "accuracy": "MAE = 47.6 s/km (+23.7% vs N1 OOD 62.4)" if n2_active else "Pendiente",
         },
         {
             "level": 3,
             "name": "Personalización longitudinal",
             "status": "active" if n3_active else ("needs_data" if n2_active else "pending"),
             "description": (
-                f"Lasso LOAO-CV — incluye CTL/ATL/TSB/ACWR del atleta ({n3_weeks} semanas de historial)"
+                f"Lasso LOSO-CV — incluye CTL/ATL/TSB/ACWR del atleta ({n3_weeks} semanas de historial)"
                 if n3_active else
                 f"Requiere ≥8 semanas de historial ({n3_weeks}/8)"
             ),
             "icon": "user-focus",
-            "accuracy": "MAE = 41.9 seg/km (+32.9% sobre N1)" if n3_active else "Pendiente",
+            "accuracy": "MAE = 41.9 s/km (+32.9% vs N1 OOD)" if n3_active else "Pendiente",
         },
         {
             "level": 4,
             "name": "Corrección personal (walk-forward)",
             "status": "active" if n4_active else ("needs_data" if n3_active else "pending"),
             "description": (
-                f"Sesgo personal {n4_bias_info['bias_sec_km']:+.1f} sec/km "
+                f"Sesgo personal {n4_bias_info['bias_sec_km']:+.1f} s/km "
                 f"(K={n4_bias_info['K']} sesiones, σ={n4_bias_info['std_sec_km']:.1f}) "
                 f"aplicado sobre N3"
                 if n4_active and n4_bias_info else
                 "Requiere ≥5 sesiones con FC para calcular sesgo personal"
             ),
             "icon": "user-circle",
-            "accuracy": "MAE = 31.8 seg/km (+49% acum. sobre N1)" if n4_active else "Pendiente",
+            "accuracy": "MAE = 31.8 s/km (+49% acum. vs N1 OOD)" if n4_active else "Pendiente",
         },
     ]
 

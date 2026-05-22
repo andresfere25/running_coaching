@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RUNA · Dashboard del atleta</title>
+  <title>RUNY · Dashboard del atleta</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -225,7 +225,7 @@
         <line x1="36" y1="38" x2="8" y2="92" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
         <line x1="36" y1="38" x2="62" y2="86" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
       </svg>
-      <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:20px;color:var(--ink-900);letter-spacing:-0.02em;line-height:1;">RUNA</span>
+      <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:20px;color:var(--ink-900);letter-spacing:-0.02em;line-height:1;">RUNY</span>
     </div>
     <!-- Nombre del atleta en el header cuando ya cargó -->
     <template x-if="snapshot && !loading">
@@ -1919,8 +1919,8 @@
         <div class="card card-accent card-texture p-6">
           <div class="section-dash mb-3"><h3>Jerarquía ML de Predicción</h3></div>
           <p class="text-sm" style="color:var(--ink-500);line-height:1.6;">
-            El sistema RUNA estima el ritmo sostenible por zona de frecuencia cardíaca
-            usando una jerarquía de tres niveles. Cada nivel refina la estimación
+            El sistema RUNY estima el ritmo sostenible por zona de frecuencia cardíaca
+            usando una jerarquía de cuatro niveles. Cada nivel refina la estimación
             del anterior con datos más específicos del atleta.
           </p>
         </div>
@@ -1999,7 +1999,7 @@
               </div>
               <div class="flex justify-between text-xs">
                 <span style="color:var(--ink-500);">MAE</span>
-                <span class="font-mono font-semibold" x-text="mlData.model_info.mae_sec_km + ' seg/km'"></span>
+                <span class="font-mono font-semibold" x-text="mlData.model_info.mae_sec_km + ' s/km'"></span>
               </div>
               <div class="flex justify-between text-xs">
                 <span style="color:var(--ink-500);">Intervalo conformal</span>
@@ -2141,7 +2141,7 @@
           <div class="px-5 py-3 flex items-center gap-4 text-[10px]"
                style="background:var(--bone-100);border-top:1px solid var(--ink-200);color:var(--ink-500);">
             <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:var(--carmine-600);"></span> N1 — Prior poblacional (Endomondo, 356 usuarios)</span>
-            <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:#7c3aed;"></span> N2 — Cohorte RUNA (48 atletas, MAE 47.6 s/km)</span>
+            <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:#7c3aed;"></span> N2 — Cohorte RUNY (48 atletas, MAE 47.6 s/km)</span>
             <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:#0891b2;"></span> N3 — Longitudinal (CTL/ATL/TSB, ≥8 sem., MAE 41.9 s/km)</span>
             <span><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:#059669;"></span> N4 — Corrección personal (sesgo K=15 walk-forward, MAE 31.8 s/km)</span>
           </div>
@@ -2292,50 +2292,56 @@
         <!-- ══ COMPARACIÓN VISUAL ENTRE NIVELES ═══════════════════════ -->
         <div class="card p-5">
           <div class="section-dash mb-3"><h3>Mejora progresiva por nivel</h3></div>
+          <p class="text-[11px] mb-3" style="color:var(--ink-500);">
+            Error (MAE) sobre la cohorte RUNY. El Nivel 1 aplicado a la cohorte real
+            (out-of-distribution) es la línea base; cada nivel reduce el error con datos
+            más específicos del atleta.
+          </p>
           <div class="space-y-4">
-            <!-- Level 1 bar -->
+            <!-- Nivel 1 OOD — línea base -->
             <div>
               <div class="flex items-center justify-between mb-1">
-                <span class="text-xs font-semibold" style="color:var(--carmine-600);">Nivel 1 — Prior poblacional</span>
-                <span class="text-xs font-mono" style="color:var(--ink-500);"
-                      x-text="'MAE: ' + mlData.model_info.mae_sec_km + ' seg/km'"></span>
+                <span class="text-xs font-semibold" style="color:var(--ink-500);">Nivel 1 — Prior poblacional (OOD)</span>
+                <span class="text-xs font-mono" style="color:var(--ink-500);">MAE: 62.4 s/km · base</span>
               </div>
               <div class="h-5 rounded-full overflow-hidden" style="background:var(--ink-100);">
-                <div class="h-full rounded-full transition-all duration-1000"
-                     style="background:linear-gradient(90deg, var(--carmine-600), var(--carmine-500)); width:60%;"></div>
-              </div>
-              <div class="text-[10px] mt-0.5" style="color:var(--ink-500);">
-                Precisión base · 20 710 sesiones · 356 usuarios
+                <div class="h-full rounded-full" style="background:var(--ink-300); width:100%;"></div>
               </div>
             </div>
 
-            <!-- Level 2 bar -->
+            <!-- Nivel 2 -->
             <div>
               <div class="flex items-center justify-between mb-1">
-                <span class="text-xs font-semibold" style="color:var(--warning-600);">Nivel 2 — Cohorte RUNA</span>
-                <span class="text-xs font-mono" style="color:var(--ink-300);">MAE: ~30–34 seg/km (estimado)</span>
+                <span class="text-xs font-semibold" style="color:#7c3aed;">Nivel 2 — Cohorte RUNY</span>
+                <span class="text-xs font-mono" style="color:var(--ink-500);">MAE: 47.6 s/km · +23.7%</span>
               </div>
               <div class="h-5 rounded-full overflow-hidden" style="background:var(--ink-100);">
-                <div class="h-full rounded-full"
-                     style="background:repeating-linear-gradient(45deg, var(--warning-600), var(--warning-600) 4px, var(--warning-50) 4px, var(--warning-50) 8px); width:75%; opacity:0.6;"></div>
-              </div>
-              <div class="text-[10px] mt-0.5" style="color:var(--ink-500);">
-                Esperado: mejora ~15–25% · Datos de atletas RUNA · En desarrollo
+                <div class="h-full rounded-full transition-all duration-1000" style="background:#7c3aed; width:76%;"></div>
               </div>
             </div>
 
-            <!-- Level 3 bar -->
+            <!-- Nivel 3 -->
             <div>
               <div class="flex items-center justify-between mb-1">
-                <span class="text-xs font-semibold" style="color:var(--ink-500);">Nivel 3 — Personalización individual</span>
-                <span class="text-xs font-mono" style="color:var(--ink-300);">MAE: ~20–25 seg/km (proyectado)</span>
+                <span class="text-xs font-semibold" style="color:#0891b2;">Nivel 3 — Personalización longitudinal</span>
+                <span class="text-xs font-mono" style="color:var(--ink-500);">MAE: 41.9 s/km · +32.9%</span>
               </div>
               <div class="h-5 rounded-full overflow-hidden" style="background:var(--ink-100);">
-                <div class="h-full rounded-full"
-                     style="background:repeating-linear-gradient(45deg, var(--ink-300), var(--ink-300) 4px, var(--ink-100) 4px, var(--ink-100) 8px); width:90%; opacity:0.4;"></div>
+                <div class="h-full rounded-full transition-all duration-1000" style="background:#0891b2; width:67%;"></div>
+              </div>
+            </div>
+
+            <!-- Nivel 4 -->
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-semibold" style="color:#059669;">Nivel 4 — Corrección personal (walk-forward)</span>
+                <span class="text-xs font-mono" style="color:var(--ink-500);">MAE: 31.8 s/km · +49% acum.</span>
+              </div>
+              <div class="h-5 rounded-full overflow-hidden" style="background:var(--ink-100);">
+                <div class="h-full rounded-full transition-all duration-1000" style="background:#059669; width:51%;"></div>
               </div>
               <div class="text-[10px] mt-0.5" style="color:var(--ink-500);">
-                Proyectado: mejora ~40–50% vs. Nivel 1 · Bayesiano con tus datos · Futuro
+                Validación: N2/N3 LOSO-CV · N4 walk-forward causal (K=15)
               </div>
             </div>
           </div>
@@ -2353,10 +2359,10 @@
         <div class="card p-4 flex items-start gap-3" style="background:var(--info-50);border:1px solid #c7d7e8;">
           <i class="ph ph-info text-lg shrink-0" style="color:var(--info-600);"></i>
           <div class="text-[11px] leading-relaxed" style="color:var(--info-700);">
-            <strong>Nota metodológica:</strong> Las estimaciones del Nivel 1 provienen de un modelo Ridge
-            entrenado con datos de Endomondo (Ni et al., 2019). La variable objetivo es <code>pace_min_km</code>.
-            El intervalo conformal tiene cobertura empírica del 80% (α=0.20).
-            Los Niveles 2 y 3 refinarán estas estimaciones con datos más cercanos al atleta.
+            <strong>Nota metodológica:</strong> El Nivel 1 es un modelo Ridge entrenado con datos de
+            Endomondo (Ni et al., 2019); su intervalo conformal tiene cobertura empírica del 80% (α=0.20).
+            Los Niveles 2 y 3 (validación LOSO-CV) y el Nivel 4 (corrección walk-forward causal) refinan la
+            estimación con datos progresivamente más cercanos al atleta. La variable objetivo es <code>pace_min_km</code>.
             <strong>Estos valores son orientativos, no prescripciones médicas.</strong>
           </div>
         </div>
@@ -2636,7 +2642,7 @@
             <line x1="36" y1="38" x2="8"  y2="92" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
             <line x1="36" y1="38" x2="62" y2="86" stroke="#C41E3A" stroke-width="11" stroke-linecap="round"/>
           </svg>
-          <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;color:var(--ink-700);letter-spacing:-0.01em;">RUNA</span>
+          <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;color:var(--ink-700);letter-spacing:-0.01em;">RUNY</span>
           <span style="color:var(--ink-200);">·</span>
           <span class="text-xs" style="color:var(--ink-400,#9CA3AF);">AR Athletes Lab · 2026</span>
         </div>
