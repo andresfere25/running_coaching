@@ -2022,29 +2022,42 @@ def get_ml_hierarchy(
     gender_bin = 1 if gender and gender.strip().upper() in ("M", "MALE", "MASCULINO", "HOMBRE") else 0
 
     # ── 2. Determinar FCmax ──────────────────────────────────────────────────
+    # Usamos el percentil 95 de max_heartrate (no el máximo absoluto) para
+    # filtrar spikes del sensor (Garmin/Polar frecuentemente registran picos
+    # espurios de 220+ bpm en arranque o por interferencia).  Si el p95 supera
+    # Tanaka + 15 bpm lo truncamos: ese margen cubre atletas jóvenes con FCmax
+    # genuinamente alta sin aceptar artefactos fisiológicamente imposibles.
+    # Fallback: Tanaka 2001 (208 − 0.7×edad), más preciso que la fórmula
+    # clásica 220 − edad para adultos entrenados.
     fcmax_obs = None
     fcmax_source = "formula"
 
     try:
         acts = read_activities(cedula, athlete_dir if athlete_dir.exists() else None, limit=200)
         if acts:
-            max_hrs = [
-                a.get("max_heartrate") or (a.get("raw") or {}).get("max_heartrate") or 0
-                for a in acts
-                if a.get("max_heartrate") or (a.get("raw") or {}).get("max_heartrate")
-            ]
+            max_hrs = sorted([
+                v for a in acts
+                for v in [a.get("max_heartrate") or (a.get("raw") or {}).get("max_heartrate")]
+                if v and v > 100
+            ])
             if max_hrs:
-                fcmax_obs = max(max_hrs)
+                # percentil 95 robusto a spikes (sin numpy: índice en lista ordenada)
+                p95_idx = max(0, int(len(max_hrs) * 0.95) - 1)
+                fcmax_candidate = float(max_hrs[p95_idx])
+                # cap: Tanaka + 15 bpm (margen fisiológico conservador)
+                fcmax_tanaka_est = (208.0 - 0.7 * age) if (age and age > 10) else 185.0
+                fcmax_obs = min(fcmax_candidate, fcmax_tanaka_est + 15.0)
                 if fcmax_obs > 100:
                     fcmax_source = "strava"
     except Exception:
         pass
 
     if not fcmax_obs or fcmax_obs <= 100:
+        # Tanaka 2001: más preciso que 220−edad para adultos entrenados
         if age and age > 10:
-            fcmax_obs = 220 - int(age)
+            fcmax_obs = 208.0 - 0.7 * age
         else:
-            fcmax_obs = 190
+            fcmax_obs = 185.0
 
     # ── 2b. N2 — Cohorte RUNY: predicción para cualquier atleta con perfil ──
     # Nota: los >=3 HR runs / >=2 semanas son criterios de ENTRENAMIENTO,
