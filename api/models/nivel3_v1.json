@@ -176,5 +176,8 @@
     12.39123397,
     368.07718487,
     52.95747446
-  ]
+  ],
+  "conformal_q80_sec_km": 67.5,
+  "conformal_coverage_holdout": 0.8,
+  "conformal_note": "Cuantil de error absoluto al 80pct sobre residuos fuera de muestra (LOSO-CV); cobertura holdout verificada (200 splits). Calibrado cohorte jun-2026."
 }

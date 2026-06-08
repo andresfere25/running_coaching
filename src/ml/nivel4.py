@@ -49,7 +49,8 @@ log = logging.getLogger(__name__)
 K_OPT          = 15      # ventana óptima — MAE 31.84 sec/km
 K_FALLBACK     = 10      # fallback intermedio
 N_MIN          = 5       # mínimo absoluto de sesiones
-MAE_N4_SEC_KM  = 31.84   # banda CI ±MAE (walk-forward Wilcoxon p<0.001)
+MAE_N4_SEC_KM  = 31.84   # MAE walk-forward (Wilcoxon p<0.001)
+CONFORMAL_Q80_SEC_KM = 46.9   # intervalo conformal 80% (cuantil residuos walk-forward; cobertura holdout 0.80)
 
 
 def compute_personal_bias(
@@ -172,8 +173,8 @@ def apply_bias_to_zones(n3_zones: list[dict], bias_sec_km: float) -> list[dict]:
             "hr_bpm":       z["hr_bpm"],
             "pace_sec_km":  round(n4_pace, 1),
             "pace_min_km":  round(n4_pace / 60, 3),
-            "ci_lo_sec_km": round(max(120.0, n4_pace - MAE_N4_SEC_KM), 1),
-            "ci_hi_sec_km": round(n4_pace + MAE_N4_SEC_KM, 1),
+            "ci_lo_sec_km": round(max(120.0, n4_pace - CONFORMAL_Q80_SEC_KM), 1),
+            "ci_hi_sec_km": round(n4_pace + CONFORMAL_Q80_SEC_KM, 1),
             "bias_applied": round(bias_sec_km, 1),
             "mae_sec_km":   MAE_N4_SEC_KM,
         })

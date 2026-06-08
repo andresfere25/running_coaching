@@ -209,12 +209,15 @@ def predict_n2_session(
     pace_pred = max(pace_pred, 120.0)   # floor fisico: 2:00 min/km
 
     mae_std = meta["mae_std_sec_km"]
+    # Intervalo conformal al 80 % (cuantil de error absoluto fuera de muestra, LOSO-CV).
+    # Fallback a mae_std si el artefacto no trae el cuantil conformal calibrado.
+    half = float(meta.get("conformal_q80_sec_km", mae_std))
 
     return {
         "pace_sec_km":    round(pace_pred, 1),
         "pace_min_km":    round(pace_pred / 60, 3),
-        "ci_lo_sec_km":   round(max(120.0, pace_pred - mae_std), 1),
-        "ci_hi_sec_km":   round(pace_pred + mae_std, 1),
+        "ci_lo_sec_km":   round(max(120.0, pace_pred - half), 1),
+        "ci_hi_sec_km":   round(pace_pred + half, 1),
         "n1_pred_sec_km": round(pred_n1, 1),
         "pct_hrmax":      round(pct, 3),
         "zona_hr":        zona,

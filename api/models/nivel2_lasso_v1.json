@@ -100,13 +100,44 @@
     "dens_hr_status": "CORREGIDO. dens_hr ahora: (avg_hr/fcmax)/log(dur_min) ~0.19. pred_nivel1 ahora ~280-350 sec/km (positivo, plausible). MAE real: 46.67 sec/km (el antiguo 33.85 era artefacto del dens_hr roto).",
     "scaler_note": "scaler_mean[0] (pred_nivel1) en este JSON es de la version anterior (buggy, -563). El pkl nivel2_v1.pkl contiene el scaler actualizado con pred_nivel1 en distribucion correcta.",
     "all_models_loao_cv": {
-      "Lasso":        {"mae": 46.67, "std": 15.74, "friedman_rank": 2.976},
-      "GradBoost":    {"mae": 46.83, "std": 17.43, "friedman_rank": 3.595},
-      "Ridge":        {"mae": 47.04, "std": 16.04, "friedman_rank": 3.381},
-      "ElasticNet":   {"mae": 47.23, "std": 16.87, "friedman_rank": 3.429},
-      "RandomForest": {"mae": 47.76, "std": 18.14, "friedman_rank": 3.905},
-      "KNeighbors":   {"mae": 51.58, "std": 22.84, "friedman_rank": 4.571},
-      "LinearSVR":    {"mae": 94.75, "std": 53.24, "friedman_rank": 6.143}
+      "Lasso": {
+        "mae": 46.67,
+        "std": 15.74,
+        "friedman_rank": 2.976
+      },
+      "GradBoost": {
+        "mae": 46.83,
+        "std": 17.43,
+        "friedman_rank": 3.595
+      },
+      "Ridge": {
+        "mae": 47.04,
+        "std": 16.04,
+        "friedman_rank": 3.381
+      },
+      "ElasticNet": {
+        "mae": 47.23,
+        "std": 16.87,
+        "friedman_rank": 3.429
+      },
+      "RandomForest": {
+        "mae": 47.76,
+        "std": 18.14,
+        "friedman_rank": 3.905
+      },
+      "KNeighbors": {
+        "mae": 51.58,
+        "std": 22.84,
+        "friedman_rank": 4.571
+      },
+      "LinearSVR": {
+        "mae": 94.75,
+        "std": 53.24,
+        "friedman_rank": 6.143
+      }
     }
-  }
+  },
+  "conformal_q80_sec_km": 64.4,
+  "conformal_coverage_holdout": 0.8,
+  "conformal_note": "Cuantil de error absoluto al 80pct sobre residuos fuera de muestra (LOSO-CV); cobertura holdout verificada (200 splits). Calibrado cohorte jun-2026."
 }
